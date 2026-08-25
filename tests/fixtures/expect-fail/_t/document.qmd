@@ -1,0 +1,9 @@
+---
+title: Expected failure
+format: html
+test:
+  formats: [html]
+  expect: fail
+---
+
+{{< boom >}}

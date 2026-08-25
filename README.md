@@ -1,47 +1,44 @@
-<!--
-AGENT GUIDELINES:
-This README is a landing page, not the documentation. The configuration
-reference, worked examples, and limitations belong on the website under docs/.
+# Extension Test Extension For Quarto
 
-Required updates:
-1. Replace %%placeholders%% with actual values.
-2. Write a description that says what the extension does, in one or two
-   sentences, starting from the reader's problem rather than the feature.
-3. Replace the usage snippet with the smallest configuration that does
-   something useful. Not every option; the reference page covers those.
-4. Say which output formats apply, and what happens in the others.
-5. Update or remove the Acknowledgements section.
+`extension-test` is an extension for Quarto that tests another Quarto extension against the Quarto CLI, in three layers: it checks the extension's schema, renders its test documents, and generates more documents from what that schema declares.
 
-Keep this file to roughly 40 lines. Anything longer belongs on the website.
-Do not link rendered example output: examples are rendered in CI as a check and
-are not deployed.
--->
-
-# Extension Test
-
-A Quarto extension.
-
-**[Documentation](https://m.canouil.dev/quarto-extension-test)** &middot; [Reference](https://m.canouil.dev/quarto-extension-test/reference.html) &middot; [Examples](https://m.canouil.dev/quarto-extension-test/examples.html) &middot; [Changelog](https://m.canouil.dev/quarto-extension-test/changelog.html)
+A render is not a test. An extension that fails to load writes a warning and still exits 0, so a check that reads the exit code alone reports success.
 
 ## Installation
 
+Install it inside a `tests` directory, so it never mixes with the extension under test:
+
 ```bash
-quarto add mcanouil/quarto-extension-test
+mkdir -p tests
+cd tests && quarto add mcanouil/quarto-extension-test
 ```
 
-This will install the extension under the `_extensions` subdirectory.
-If you are using version control, you will want to check in this directory.
+Make `tests` a Quarto project, which is what lets a render resolve the extension under test:
+
+```yaml
+# tests/_quarto.yml
+project:
+  type: extension-test
+```
+
+Add `tests` to `.quartoignore`, so `quarto use template` never copies it into a reader's project.
+
+If you are using version control, you will want to check in the `tests` directory.
 
 ## Usage
 
-Add the metadata extension to your project's `_quarto.yml`:
-
-```yaml
-metadata-files:
-  - _extensions/mcanouil/extension-test/_extension.yml
+```bash
+quarto pandoc lua tests/_extensions/*/extension-test/run.lua
 ```
 
-AGENT GUIDELINES: replace this with however the extension is actually consumed, and list the keys it provides.
+It exits non-zero when a case fails, writes TAP to standard output, and writes JSON to `tests/_results/results.json`. Pass `--layer` to run one layer, and `--severity lenient` to report a finding rather than fail on it.
 
-See the [reference](https://m.canouil.dev/quarto-extension-test/reference.html) for every option.
+Write your own cases as `tests/*.qmd`, each with a `test:` block in its front matter. A repository with none still gets the other two layers.
 
+## Documentation
+
+The full documentation lives at <https://m.canouil.dev/quarto-extension-test/>: the `test:` front matter, what each layer checks, and the result format.
+
+## Licence
+
+[MIT](https://github.com/mcanouil/quarto-extension-test?tab=MIT-1-ov-file#readme).

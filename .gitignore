@@ -7,3 +7,11 @@ _site/
 .DS_Store
 
 # The documentation website keeps its own .gitignore for the files it generates.
+
+# Scratch space the fixture runs write into.
+/tests/fixtures/*/_t/_extensions/
+/tests/fixtures/*/_t/_results/
+/tests/fixtures/*/_t/_output/
+/tests/fixtures/*/_t/generated/
+/tests/fixtures/*/_t/.quarto/
+/tests/fixtures/*/_t/results.json

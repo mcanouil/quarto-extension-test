@@ -1,0 +1,11 @@
+---
+title: Unresolved
+format: html
+test:
+  formats: [html]
+---
+
+This names a shortcode no extension provides, which Quarto reports as a
+warning while still exiting 0.
+
+{{< absent-shortcode >}}

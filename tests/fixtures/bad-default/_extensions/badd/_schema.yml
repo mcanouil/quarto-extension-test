@@ -1,0 +1,6 @@
+$schema: https://m.canouil.dev/quarto-wizard/assets/schema/v2/extension-schema.json
+
+options:
+  count:
+    type: integer
+    default: "not-a-number"
