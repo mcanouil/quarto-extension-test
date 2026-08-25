@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        description: "Version"
+        default: "minor"
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+      quarto:
+        type: choice
+        description: "Quarto version"
+        default: "release"
+        options:
+          - "release"
+          - "pre-release"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    uses: mcanouil/quarto-workflows/.github/workflows/release.yml@v2
+    permissions:
+      contents: write
+      pull-requests: write
+      pages: write
+      id-token: write
+    secrets: inherit
+    with:
+      gh-app-id: ${{ vars.APP_ID }}
+      version: ${{ inputs.version }}
+      quarto: ${{ inputs.quarto }}

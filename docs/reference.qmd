@@ -1,0 +1,60 @@
+---
+title: "Reference"
+subtitle: "Every option the extension-test extension accepts."
+description: "AGENT GUIDELINES: one sentence naming what this page covers, distinct from the other pages."
+---
+
+<!--
+AGENT GUIDELINES
+
+This page is the complete option list, and `_extensions/extension-test/_schema.yml`
+is its source: every option, type, default, and description is already there,
+and the two must not disagree. Work through the schema key by key.
+
+Structure, keeping only the sections that apply to this extension type:
+
+- Shortcode: the syntax, then a table of arguments and attributes.
+- Filter: the YAML that enables it, the timing (pre-quarto, post-quarto), and
+  the div or span syntax it acts on.
+- Format: the format name, the front matter keys, one table per top-level key.
+- RevealJS plugin: how it is added to revealjs-plugins, and its options.
+
+Then, where they apply:
+
+- Validation: what is rejected, what is dropped, and what is warned about.
+- Limitations: output formats it does not apply to, and known issues.
+
+Every table gets a caption and `{.striped .hover}`.
+Use Quarto callout divs for warnings and cautions, not bare bold text and not
+GitHub's `> [!WARNING]` syntax, which Quarto renders as a plain blockquote:
+
+::: {.callout-caution}
+The caution text.
+:::
+-->
+
+## Configuration
+
+AGENT GUIDELINES: the YAML that configures the extension, with a realistic example rather than `option1: value1`.
+
+```yaml
+extensions:
+  extension-test:
+    option: value
+```
+
+### Options
+
+| Option | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `option` | string | No | | AGENT GUIDELINES: taken from `_schema.yml`. |
+
+: Extension Test options. {.striped .hover tbl-colwidths="[15,13,10,10,52]"}
+
+## Validation
+
+AGENT GUIDELINES: what the extension rejects or drops, and how it reports it. Remove this section if it validates nothing.
+
+## Limitations
+
+AGENT GUIDELINES: the output formats it does not apply to, and any known issue. Remove this section if there are none.

@@ -1,0 +1,39 @@
+---
+title: "Examples"
+subtitle: "Every option, rendered."
+description: "AGENT GUIDELINES: one sentence naming what this page shows, distinct from the other pages."
+---
+
+<!--
+AGENT GUIDELINES
+
+Show the extension working, rather than describing it again. The extension is
+available to this site, so anything it can render should be rendered here rather
+than pasted as expected output.
+
+One section per feature, each with the source alongside its result. A two-column
+table of shortcode and rendered output works well for inline output; a fenced
+block followed by the result works better for block output.
+
+A format extension cannot be demonstrated inline. Add a `preview.qmd` whose
+front matter selects the format, and link its output from here: Quarto renders
+it as part of the website, so `preview.pdf` lands in `_site` alongside the
+pages.
+
+Finish with a link to the repository's example.qmd or template.qmd, which stays
+short on purpose.
+-->
+
+AGENT GUIDELINES: say where the configuration on this page comes from, so a reader can reproduce it.
+
+## AGENT GUIDELINES: one section per feature
+
+| Source | Renders as |
+| --- | --- |
+| `{{{< extension-test argument >}}}` | AGENT GUIDELINES: the live shortcode. |
+
+: AGENT GUIDELINES: caption. {.striped .hover tbl-colwidths="[60,40]"}
+
+## Source
+
+The repository ships a short, standalone starting point you can copy: [`example.qmd`](https://github.com/mcanouil/quarto-extension-test/blob/main/example.qmd).

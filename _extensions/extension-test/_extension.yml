@@ -1,0 +1,8 @@
+title: Extension Test
+author: Mickaël Canouil
+version: 0.0.0
+quarto-required: ">=1.6"
+contributes:
+  metadata:
+    project:
+      # Add your per-project metadata here
