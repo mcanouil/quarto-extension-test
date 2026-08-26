@@ -150,6 +150,10 @@ end
 --- tests directory is three levels up and the repository root is its parent.
 --- Both are overridable, because the listing runs its own pinned copy against
 --- a repository it did not install into.
+---
+--- Both are made absolute. The render layer inspects a document from inside
+--- the tests directory, so a path relative to the caller's working directory
+--- would name a file that is not there.
 --- @param options table
 local function resolve_paths(options)
   if not options.tests then
@@ -157,11 +161,11 @@ local function resolve_paths(options)
     local extensions_dir = pandoc.path.directory(owner_dir)
     options.tests = pandoc.path.directory(extensions_dir)
   end
-  options.tests = pandoc.path.normalize(options.tests)
+  options.tests = util.absolute(options.tests)
   if not options.root then
     options.root = pandoc.path.directory(options.tests)
   end
-  options.root = pandoc.path.normalize(options.root)
+  options.root = util.absolute(options.root)
   options.extension_dir = script_dir
 end
 

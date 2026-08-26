@@ -33,6 +33,20 @@ function M.script_dir()
   return pandoc.path.normalize(M.join(pandoc.system.get_working_directory(), dir))
 end
 
+--- Resolve a path against the working directory.
+---
+--- A relative path is only valid from the directory it was given in, and the
+--- render layer inspects a document from inside the tests directory, so a
+--- relative path there names a file that is not present.
+--- @param path string
+--- @return string
+function M.absolute(path)
+  if pandoc.path.is_absolute(path) then
+    return pandoc.path.normalize(path)
+  end
+  return pandoc.path.normalize(M.join(pandoc.system.get_working_directory(), path))
+end
+
 --- Whether a path exists and is readable.
 --- @param path string
 --- @return boolean
