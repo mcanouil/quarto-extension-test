@@ -23,6 +23,30 @@ local M = {}
 --- owner, and it says on the face of the path that the copy is generated.
 M.STAGE_OWNER = 'local'
 
+--- The project file names Quarto accepts for a directory.
+M.PROJECT_FILES = { '_quarto.yml', '_quarto.yaml' }
+
+--- Why staging cannot be resolved, when the tests directory is not a project.
+---
+--- Quarto resolves an extension from the project the document belongs to.
+--- Without a project file the tests directory is not one, the staged copy is
+--- never read, and every generated document reports a shortcode that is not
+--- found. That reads as a broken extension when the harness is simply not set
+--- up, so it is reported for what it is.
+--- @param tests string tests directory
+--- @return string|nil message
+function M.missing_project(tests)
+  for _, name in ipairs(M.PROJECT_FILES) do
+    if util.exists(util.join(tests, name)) then
+      return nil
+    end
+  end
+  return string.format(
+    'the tests directory has no `%s`, so the staged extension is not resolved; '
+    .. 'add one that declares `project:` with `type: extension-test`',
+    M.PROJECT_FILES[1])
+end
+
 --- Stage every extension a repository ships into the tests project.
 ---
 --- The staging directory is removed first. Copying onto an existing directory

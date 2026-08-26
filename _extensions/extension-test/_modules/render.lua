@@ -484,6 +484,18 @@ function M.run(options, descriptors, emit)
     return
   end
 
+  local missing = stage.missing_project(options.tests)
+  if missing then
+    stage.unstage(options.tests)
+    emit({
+      id = 'render/stage',
+      layer = 'render',
+      status = 'fail',
+      failure = { stage = 'stage', reason = 'no-project-file', message = missing },
+    })
+    return
+  end
+
   local ok, err = pcall(M.execute, options, documents, descriptors, 'render', emit)
 
   stage.unstage(options.tests)

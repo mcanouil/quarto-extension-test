@@ -246,6 +246,18 @@ local function run_smoke(options, extensions, descriptors, emit)
     return
   end
 
+  local missing = stage.missing_project(options.tests)
+  if missing then
+    stage.unstage(options.tests)
+    emit({
+      id = 'smoke/stage',
+      layer = 'smoke',
+      status = 'fail',
+      failure = { stage = 'stage', reason = 'no-project-file', message = missing },
+    })
+    return
+  end
+
   local ok, err = pcall(function()
     local planned, skips = {}, {}
     for _, ext in ipairs(usable) do

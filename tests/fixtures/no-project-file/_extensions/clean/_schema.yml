@@ -1,0 +1,15 @@
+$schema: https://m.canouil.dev/quarto-wizard/assets/schema/v2/extension-schema.json
+
+options:
+  greeting:
+    type: string
+    default: "hello"
+
+shortcodes:
+  clean:
+    description: "Emits a fixed string."
+    arguments:
+      - name: subject
+        type: string
+        required: true
+        examples: ["world"]

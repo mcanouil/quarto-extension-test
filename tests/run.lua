@@ -228,6 +228,34 @@ do
 end
 
 do
+  -- Without a project file the staged extension is not resolved, and every
+  -- document then reports a shortcode that is not found. The harness knows it
+  -- staged the extension itself, so it says what is missing instead.
+  local results = run_fixture('no-project-file')
+  local render_case = results and find_case(results, 'render/stage')
+  check(render_case ~= nil and render_case.status == 'fail',
+    'a tests directory with no project file fails the render layer')
+  check(render_case ~= nil and render_case.failure.reason == 'no-project-file',
+    'the failure names the missing project file',
+    render_case and render_case.failure.reason)
+
+  local smoke_case = results and find_case(results, 'smoke/stage')
+  check(smoke_case ~= nil and smoke_case.failure
+    and smoke_case.failure.reason == 'no-project-file',
+    'the smoke layer reports the same missing project file',
+    smoke_case and smoke_case.failure and smoke_case.failure.reason)
+
+  local blamed = false
+  for _, case in ipairs((results or {}).cases or {}) do
+    if case.failure and case.failure.reason == 'shortcode-not-found' then
+      blamed = true
+    end
+  end
+  check(not blamed,
+    'no case blames the extension for a shortcode the harness never resolved')
+end
+
+do
   local results = run_fixture('expect-fail')
   local case = results and find_case(results, 'render/document/')
   check(case ~= nil and case.status == 'pass',

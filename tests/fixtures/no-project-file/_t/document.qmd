@@ -1,0 +1,6 @@
+---
+title: No project file
+format: html
+---
+
+{{< clean world >}}
