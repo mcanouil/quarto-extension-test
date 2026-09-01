@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # The fixture tests drive the Quarto CLI, and the unit tests call
       # `pandoc.*`, so both need Quarto rather than a standalone interpreter.
