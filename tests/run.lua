@@ -217,6 +217,19 @@ do
 end
 
 do
+  -- Pins the vendored validator to the published one. An escape with no Lua
+  -- equivalent used to compile to the bare letter, so `\b` matched the letter
+  -- `b` and the pattern silently tested the wrong values. A copy taken before
+  -- that correction passes every other check in this suite.
+  local results = run_fixture('unsupported-escape')
+  local case = results and find_case(results, 'conformance/pattern/')
+  check(case ~= nil and case.status == 'fail',
+    'an escape the compiler cannot express fails rather than matching the bare letter')
+  check(case ~= nil and case.failure.message:find('unsupported escape', 1, true) ~= nil,
+    'the failure names the escape', case and case.failure.message)
+end
+
+do
   -- The reason the render layer exists: Quarto reports an unresolved
   -- shortcode as a warning and still exits 0.
   local results = run_fixture('unresolved-shortcode')
