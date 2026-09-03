@@ -228,12 +228,20 @@ do
   check(escape_case ~= nil and escape_case.status == 'fail',
     'an escape the compiler cannot express fails rather than matching the bare letter')
   check(escape_case ~= nil and escape_case.failure.reason == 'pattern-uncompilable',
-    'the escape failure names the pattern', escape_case and escape_case.failure.reason)
+    'the escape failure reports an uncompilable pattern', escape_case and escape_case.failure.reason)
+  -- The escape itself, not the wording around it. The reason is shared with
+  -- every other pattern that does not compile, and the prose belongs to the
+  -- vendored validator, which is free to reword it.
+  check(escape_case ~= nil and escape_case.failure.message:find('\\b', 1, true) ~= nil,
+    'the escape failure names the escape', escape_case and escape_case.failure.message)
 
   local alternation = run_fixture('anchored-alternation', '--layer conformance')
   local alternation_case = alternation and find_case(alternation, 'conformance/pattern/')
   check(alternation_case ~= nil and alternation_case.status == 'fail',
     'an anchor across a top-level alternation fails rather than anchoring every branch')
+  check(alternation_case ~= nil and alternation_case.failure.reason == 'pattern-uncompilable',
+    'the alternation failure reports an uncompilable pattern',
+    alternation_case and alternation_case.failure.reason)
 
   local empty = run_fixture('empty-default', '--layer conformance')
   local empty_case = empty and find_case(empty, 'conformance/defaults/')
