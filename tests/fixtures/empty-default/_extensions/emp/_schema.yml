@@ -1,0 +1,7 @@
+$schema: https://m.canouil.dev/quarto-wizard/assets/schema/v2/extension-schema.json
+
+options:
+  label:
+    type: string
+    minLength: 1
+    default: ''

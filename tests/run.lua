@@ -217,16 +217,30 @@ do
 end
 
 do
-  -- Pins the vendored validator to the published one. An escape with no Lua
-  -- equivalent used to compile to the bare letter, so `\b` matched the letter
-  -- `b` and the pattern silently tested the wrong values. A copy taken before
-  -- that correction passes every other check in this suite.
-  local results = run_fixture('unsupported-escape')
-  local case = results and find_case(results, 'conformance/pattern/')
-  check(case ~= nil and case.status == 'fail',
+  -- Pins the vendored validator to the published one. Each of these three
+  -- passes against the copy this repository carried before, which accepted an
+  -- escape with no Lua equivalent as the bare letter, anchored every branch of
+  -- a top-level alternation, and read an empty string as no value at all. A
+  -- stale copy passes every other check in this suite, so without these the
+  -- vendored file could go backwards unnoticed.
+  local escape = run_fixture('unsupported-escape', '--layer conformance')
+  local escape_case = escape and find_case(escape, 'conformance/pattern/')
+  check(escape_case ~= nil and escape_case.status == 'fail',
     'an escape the compiler cannot express fails rather than matching the bare letter')
-  check(case ~= nil and case.failure.message:find('unsupported escape', 1, true) ~= nil,
-    'the failure names the escape', case and case.failure.message)
+  check(escape_case ~= nil and escape_case.failure.reason == 'pattern-uncompilable',
+    'the escape failure names the pattern', escape_case and escape_case.failure.reason)
+
+  local alternation = run_fixture('anchored-alternation', '--layer conformance')
+  local alternation_case = alternation and find_case(alternation, 'conformance/pattern/')
+  check(alternation_case ~= nil and alternation_case.status == 'fail',
+    'an anchor across a top-level alternation fails rather than anchoring every branch')
+
+  local empty = run_fixture('empty-default', '--layer conformance')
+  local empty_case = empty and find_case(empty, 'conformance/defaults/')
+  check(empty_case ~= nil and empty_case.status == 'fail',
+    'an empty string is a value, so a default of it is tested against `minLength`')
+  check(empty_case ~= nil and empty_case.failure.reason == 'defaults-invalid',
+    'the empty default failure names the defaults', empty_case and empty_case.failure.reason)
 end
 
 do

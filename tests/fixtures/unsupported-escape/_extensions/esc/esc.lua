@@ -1,1 +1,1 @@
-return { patt = function() return pandoc.Str("x") end }
+return { esc = function() return pandoc.Str('x') end }

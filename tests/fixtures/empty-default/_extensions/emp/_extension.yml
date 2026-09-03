@@ -1,0 +1,6 @@
+title: Empty Default
+author: Test
+version: 1.0.0
+contributes:
+  shortcodes:
+    - emp.lua

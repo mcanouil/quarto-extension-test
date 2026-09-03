@@ -1,0 +1,6 @@
+$schema: https://m.canouil.dev/quarto-wizard/assets/schema/v2/extension-schema.json
+
+options:
+  code:
+    type: string
+    pattern: '^ab|cd$'
