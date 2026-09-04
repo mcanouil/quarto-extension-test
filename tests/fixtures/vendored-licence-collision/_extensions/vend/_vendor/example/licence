@@ -1,0 +1,2 @@
+-- a vendored file whose name is the word licence
+return {}

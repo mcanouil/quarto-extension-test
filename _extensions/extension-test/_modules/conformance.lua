@@ -534,7 +534,7 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
     end
 
     -- Third-party source shipped inside an extension carries its licence.
-    local licence_id = string.format('%s/%s/licence', id, source_name)
+    local licence_id = string.format('%s/%s/source-licence', id, source_name)
     local licence_present = false
     for _, name in ipairs(LICENCE_FILES) do
       if util.exists(util.join(dir, name)) then

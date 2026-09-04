@@ -1,0 +1,6 @@
+title: Vendored Licence Collision
+author: Test
+version: 1.0.0
+contributes:
+  shortcodes:
+    - vend.lua

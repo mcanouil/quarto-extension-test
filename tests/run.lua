@@ -350,7 +350,7 @@ end
 
 do
   local results = run_fixture('vendored-no-licence', '--layer conformance')
-  local case = results and find_case(results, 'conformance/vendored/vend/example/licence')
+  local case = results and find_case(results, 'conformance/vendored/vend/example/source-licence')
   check(case ~= nil and case.status == 'fail',
     'a source whose licence is not shipped beside its files fails')
   check(case ~= nil and case.failure.reason == 'vendored-licence-missing',
@@ -360,7 +360,7 @@ do
   -- which. Every spelling used to cost two failures: the licence check and the
   -- orphan check.
   local spelling = run_fixture('vendored-licence-spelling', '--layer conformance')
-  local spelling_case = spelling and find_case(spelling, 'conformance/vendored/vend/example/licence')
+  local spelling_case = spelling and find_case(spelling, 'conformance/vendored/vend/example/source-licence')
   check(spelling_case ~= nil and spelling_case.status == 'pass',
     'a licence shipped as `LICENSE.md` satisfies the licence check',
     spelling_case and spelling_case.status)
@@ -374,6 +374,26 @@ do
     'a runtime the vocabulary allows is an advisory rather than a failure')
   check(runtime_case ~= nil and #(runtime_case.diagnostics.warnings or {}) > 0,
     'the advisory carries the warning rather than losing it')
+end
+
+do
+  -- The result JSON is the contract the catalogue reads, and two cases sharing
+  -- one id in it is a defect. A source's own licence case and a declared file
+  -- named `licence` used to write the same id.
+  local results = run_fixture('vendored-licence-collision', '--layer conformance')
+  local seen, duplicate = {}, nil
+  for _, entry in ipairs((results or {}).cases or {}) do
+    if seen[entry.id] then
+      duplicate = entry.id
+    end
+    seen[entry.id] = true
+  end
+  check(results ~= nil and duplicate == nil,
+    'no two cases share one id when a declared file is named `licence`', duplicate)
+
+  local licence_case = results and find_case(results, 'conformance/vendored/vend/example/source-licence')
+  check(licence_case ~= nil and licence_case.status == 'pass',
+    'the source licence keeps its own case id', licence_case and licence_case.status)
 end
 
 do
