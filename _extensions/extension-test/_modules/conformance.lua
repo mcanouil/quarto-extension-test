@@ -477,6 +477,37 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
     emit(advisory(string.format('%s/warning/%d', id, index), warning))
   end
 
+  for _, source_name in ipairs(util.sorted_keys(parsed.sources)) do
+    local source = parsed.sources[source_name]
+    local dir = util.join(ext.dir, VENDOR_DIR, source_name)
+    for _, file_name in ipairs(util.sorted_keys(source.files)) do
+      local entry = source.files[file_name]
+      local file_id = string.format('%s/%s/%s', id, source_name, file_name)
+      local file_path = util.join(dir, file_name)
+
+      if not util.exists(file_path) then
+        emit(case(file_id, 'fail', string.format(
+          'the manifest declares `%s`, which `%s/%s/` does not hold',
+          file_name, VENDOR_DIR, source_name), 'conformance', 'vendored-file-missing'))
+      else
+        local digest, digest_err = util.sha256(file_path)
+        if not digest then
+          -- Neither hashing tool is available. A checksum that cannot be
+          -- computed is not a checksum that does not match.
+          emit(advisory(file_id, string.format(
+            'cannot verify `%s`: no SHA-256 tool is available (%s)',
+            file_name, tostring(digest_err))))
+        elseif digest ~= entry.sha256 then
+          emit(case(file_id, 'fail', string.format(
+            '`%s` does not match the checksum the manifest records; it reads %s',
+            file_name, digest), 'conformance', 'vendored-checksum-mismatch'))
+        else
+          emit(case(file_id, 'pass'))
+        end
+      end
+    end
+  end
+
   return parsed
 end
 

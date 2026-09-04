@@ -214,6 +214,27 @@ do
 end
 
 do
+  local clean = run_fixture('vendored-clean', '--layer conformance')
+  local declared = clean and find_case(clean, 'conformance/vendored/vend/example/sample.lua')
+  check(declared ~= nil and declared.status == 'pass',
+    'a vendored file that is present and matches its checksum passes')
+
+  local missing = run_fixture('vendored-missing-file', '--layer conformance')
+  local missing_case = missing and find_case(missing, 'conformance/vendored/vend/example/sample.lua')
+  check(missing_case ~= nil and missing_case.status == 'fail',
+    'a declared file the vendor directory does not hold fails')
+  check(missing_case ~= nil and missing_case.failure.reason == 'vendored-file-missing',
+    'the failure names the missing file', missing_case and missing_case.failure.reason)
+
+  local edited = run_fixture('vendored-checksum', '--layer conformance')
+  local edited_case = edited and find_case(edited, 'conformance/vendored/vend/example/sample.lua')
+  check(edited_case ~= nil and edited_case.status == 'fail',
+    'a vendored file edited after it was written fails its checksum')
+  check(edited_case ~= nil and edited_case.failure.reason == 'vendored-checksum-mismatch',
+    'the failure names the checksum', edited_case and edited_case.failure.reason)
+end
+
+do
   local results = run_fixture('bad-pattern')
   local strict = results and find_case(results, 'conformance/pattern/')
   check(strict ~= nil and strict.status == 'fail',

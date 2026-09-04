@@ -47,6 +47,29 @@ function M.absolute(path)
   return pandoc.path.normalize(M.join(pandoc.system.get_working_directory(), path))
 end
 
+--- SHA-256 of a file, as lower-case hexadecimal.
+---
+--- The Pandoc that Quarto ships offers `sha1` and no SHA-256, so this shells
+--- out. `shasum` is present on macOS, `sha256sum` on most Linux images, and a
+--- caller must be able to tell "cannot compute" from "does not match", so an
+--- absent tool is reported rather than treated as a mismatch.
+--- @param path string
+--- @return string|nil digest
+--- @return string|nil reason `no-tool` or a message
+function M.sha256(path)
+  local quoted = M.shell_quote(path)
+  for _, command in ipairs({ 'shasum -a 256 ' .. quoted, 'sha256sum ' .. quoted }) do
+    local code, output = M.capture(command .. ' 2>/dev/null')
+    if code == 0 then
+      local digest = M.trim(output):match('^(%x+)')
+      if digest then
+        return digest:lower(), nil
+      end
+    end
+  end
+  return nil, 'no-tool'
+end
+
 --- Whether a path exists and is readable.
 --- @param path string
 --- @return boolean
