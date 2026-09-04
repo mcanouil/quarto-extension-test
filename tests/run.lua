@@ -377,6 +377,29 @@ do
 end
 
 do
+  -- The validator warns about an unknown key in the top-level map only. The
+  -- format is public and written by hand, so `runtimes:` for `runtime:` used
+  -- to disable the runtime tripwire and say nothing at all.
+  local results = run_fixture('vendored-unknown-key', '--layer conformance')
+  local source_key = results and find_case(results, 'conformance/vendored/vend/example/unknown-key/homepage')
+  check(source_key ~= nil and source_key.status == 'pass'
+    and #((source_key.diagnostics or {}).warnings or {}) > 0,
+    'an unrecognised key in a source is reported as an advisory',
+    source_key and source_key.status)
+
+  local file_key = results
+    and find_case(results, 'conformance/vendored/vend/example/sample.lua/unknown-key/runtimes')
+  check(file_key ~= nil and file_key.status == 'pass'
+    and #((file_key.diagnostics or {}).warnings or {}) > 0,
+    'an unrecognised key in a file entry is reported as an advisory',
+    file_key and file_key.status)
+
+  check(results ~= nil and (results.summary.fail or 0) == 0,
+    'an unrecognised key is an advisory rather than a failure',
+    results and results.summary and results.summary.fail)
+end
+
+do
   -- The runner keeps going when it cannot read its own descriptors, so the
   -- per-source loop is reached with nothing having validated the manifest. A
   -- Lua error there takes the JSON, the TAP and every other layer with it.

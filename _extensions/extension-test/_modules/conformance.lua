@@ -434,6 +434,19 @@ local DEPENDENCIES_FILE = '_dependencies.yml'
 --- The manifest format version this runner reads.
 local DEPENDENCIES_VERSION = 1
 
+--- The keys a source declaration may carry.
+---
+--- The validator reports an unknown key in the top-level map only, so a key
+--- inside a source or a file entry is accepted in silence. The format is
+--- public and written by hand, and `runtimes:` written for `runtime:` would
+--- otherwise disable the tripwire and say nothing. The report is an advisory,
+--- because a later version of the format may add a key this list has not
+--- heard of yet.
+local SOURCE_KEYS = { 'origin', 'fetch', 'version', 'licence', 'licence-url', 'files' }
+
+--- The keys a file entry may carry.
+local FILE_KEYS = { 'sha256', 'runtime' }
+
 --- The directory vendored files are written into, one subdirectory per source.
 local VENDOR_DIR = '_vendor'
 
@@ -513,6 +526,13 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
   local function check_source(source_name, source)
     local dir = util.join(ext.dir, VENDOR_DIR, source_name)
 
+    for _, key in ipairs(util.sorted_keys(source)) do
+      if not util.contains(SOURCE_KEYS, key) then
+        emit(advisory(string.format('%s/%s/unknown-key/%s', id, source_name, key),
+          string.format('`sources.%s` declares the unrecognised key `%s`', source_name, key)))
+      end
+    end
+
     -- Third-party source shipped inside an extension carries its licence.
     local licence_id = string.format('%s/%s/licence', id, source_name)
     local licence_present = false
@@ -534,6 +554,16 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
       local entry = source.files[file_name]
       local file_id = string.format('%s/%s/%s', id, source_name, file_name)
       local file_path = util.join(dir, file_name)
+
+      if type(entry) == 'table' then
+        for _, key in ipairs(util.sorted_keys(entry)) do
+          if not util.contains(FILE_KEYS, key) then
+            emit(advisory(string.format('%s/unknown-key/%s', file_id, key), string.format(
+              '`sources.%s.files.%s` declares the unrecognised key `%s`',
+              source_name, file_name, key)))
+          end
+        end
+      end
 
       if not util.exists(file_path) then
         emit(case(file_id, 'fail', string.format(
