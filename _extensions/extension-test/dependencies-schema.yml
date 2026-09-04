@@ -52,6 +52,11 @@ options:
         licence-url:
           type: string
           description: "URL template for the licence file. Defaults to {origin}/raw/{version}/LICENSE."
+        # The format declares a flat set of files: a key holds a file name and
+        # never a path, so it carries no `/`. Both current upstreams ship a
+        # flat file set, and the validator's pattern engine cannot express the
+        # test that rejects `..` inside a path safely. A key that must not
+        # travel is better than a key that travels unchecked.
         files:
           type: object
           required: true
