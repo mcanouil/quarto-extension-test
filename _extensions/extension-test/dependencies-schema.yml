@@ -62,7 +62,7 @@ options:
               sha256:
                 type: string
                 required: true
-                pattern: '^[0-9a-f]+$'
+                pattern: '^[0-9a-fA-F]+$'
                 minLength: 64
                 maxLength: 64
                 description: "The SHA-256 of the file as written."

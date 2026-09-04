@@ -377,6 +377,18 @@ do
 end
 
 do
+  -- A digest pasted in upper case used to make the whole manifest invalid,
+  -- which skips every per-file check for that extension.
+  local results = run_fixture('vendored-checksum-case', '--layer conformance')
+  local case = results and find_case(results, 'conformance/vendored/vend/example/sample.lua')
+  check(case ~= nil and case.status == 'pass',
+    'a checksum recorded in upper case matches the file', case and case.status)
+  check(results ~= nil and (results.summary.fail or 0) == 0,
+    'a checksum recorded in upper case leaves the manifest valid',
+    results and results.summary and results.summary.fail)
+end
+
+do
   -- The result JSON is the contract the catalogue reads, and two cases sharing
   -- one id in it is a defect. A source's own licence case and a declared file
   -- named `licence` used to write the same id.

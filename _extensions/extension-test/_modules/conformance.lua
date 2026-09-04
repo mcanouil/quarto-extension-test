@@ -582,7 +582,7 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
           emit(case(file_id, 'fail', string.format(
             'the manifest declares `%s`, which `%s/%s/` holds as something no SHA-256 tool can read',
             file_name, VENDOR_DIR, source_name), 'conformance', 'vendored-checksum-unreadable'))
-        elseif digest ~= entry.sha256 then
+        elseif digest ~= tostring(entry.sha256):lower() then
           emit(case(file_id, 'fail', string.format(
             '`%s` does not match the checksum the manifest records; it reads %s',
             file_name, digest), 'conformance', 'vendored-checksum-mismatch'))
