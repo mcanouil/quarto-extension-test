@@ -232,6 +232,13 @@ do
     'a vendored file edited after it was written fails its checksum')
   check(edited_case ~= nil and edited_case.failure.reason == 'vendored-checksum-mismatch',
     'the failure names the checksum', edited_case and edited_case.failure.reason)
+
+  local orphan = run_fixture('vendored-orphan', '--layer conformance')
+  local orphan_case = orphan and find_case(orphan, 'conformance/vendored/vend/example/extra.lua')
+  check(orphan_case ~= nil and orphan_case.status == 'fail',
+    'a file in the vendor directory that no entry declares fails')
+  check(orphan_case ~= nil and orphan_case.failure.reason == 'vendored-undeclared',
+    'the failure names the undeclared file', orphan_case and orphan_case.failure.reason)
 end
 
 do

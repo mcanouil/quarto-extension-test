@@ -506,6 +506,19 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
         end
       end
     end
+
+    -- The check aimed at the copying habit: a file that reached the vendor
+    -- directory without passing through the manifest.
+    if util.is_dir(dir) then
+      for _, present in ipairs(util.list_dir(dir)) do
+        if present ~= 'LICENSE' and source.files[present] == nil then
+          emit(case(string.format('%s/%s/%s', id, source_name, present), 'fail',
+            string.format('`%s/%s/%s` is not declared by the manifest',
+              VENDOR_DIR, source_name, present),
+            'conformance', 'vendored-undeclared'))
+        end
+      end
+    end
   end
 
   return parsed
