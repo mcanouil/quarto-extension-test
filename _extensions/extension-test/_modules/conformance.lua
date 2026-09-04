@@ -437,6 +437,18 @@ local DEPENDENCIES_VERSION = 1
 --- The directory vendored files are written into, one subdirectory per source.
 local VENDOR_DIR = '_vendor'
 
+--- The names a source's licence file may carry.
+---
+--- Both spellings are here. This project writes British English, and the
+--- upstreams it vendors from overwhelmingly ship the American one. A licence
+--- under any of these names satisfies the licence check and is not an
+--- undeclared file.
+local LICENCE_FILES = {
+  'LICENSE', 'LICENSE.md', 'LICENSE.txt',
+  'LICENCE', 'LICENCE.md', 'LICENCE.txt',
+  'COPYING',
+}
+
 --- Check one extension's `_dependencies.yml`.
 ---
 --- An extension with no manifest is skipped, not failed. The catalogued
@@ -499,11 +511,18 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
 
     -- Third-party source shipped inside an extension carries its licence.
     local licence_id = string.format('%s/%s/licence', id, source_name)
-    if util.exists(util.join(dir, 'LICENSE')) then
+    local licence_present = false
+    for _, name in ipairs(LICENCE_FILES) do
+      if util.exists(util.join(dir, name)) then
+        licence_present = true
+      end
+    end
+    if licence_present then
       emit(case(licence_id, 'pass'))
     else
       emit(case(licence_id, 'fail', string.format(
-        '`%s/%s/` ships no LICENSE for `%s`', VENDOR_DIR, source_name, source_name),
+        '`%s/%s/` ships no licence file for `%s`; name it one of %s',
+        VENDOR_DIR, source_name, source_name, table.concat(LICENCE_FILES, ', ')),
         'conformance', 'vendored-licence-missing'))
     end
 
@@ -551,7 +570,7 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
     -- directory without passing through the manifest.
     if util.is_dir(dir) then
       for _, present in ipairs(util.list_dir(dir)) do
-        if present ~= 'LICENSE' and source.files[present] == nil then
+        if not util.contains(LICENCE_FILES, present) and source.files[present] == nil then
           emit(case(string.format('%s/%s/%s', id, source_name, present), 'fail',
             string.format('`%s/%s/%s` is not declared by the manifest',
               VENDOR_DIR, source_name, present),

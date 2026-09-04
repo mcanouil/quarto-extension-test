@@ -317,6 +317,18 @@ do
   check(case ~= nil and case.failure.reason == 'vendored-licence-missing',
     'the failure names the licence', case and case.failure.reason)
 
+  -- Upstreams spell the file several ways and the format offers no way to say
+  -- which. Every spelling used to cost two failures: the licence check and the
+  -- orphan check.
+  local spelling = run_fixture('vendored-licence-spelling', '--layer conformance')
+  local spelling_case = spelling and find_case(spelling, 'conformance/vendored/vend/example/licence')
+  check(spelling_case ~= nil and spelling_case.status == 'pass',
+    'a licence shipped as `LICENSE.md` satisfies the licence check',
+    spelling_case and spelling_case.status)
+  check(spelling ~= nil and (spelling.summary.fail or 0) == 0,
+    'a licence shipped as `LICENSE.md` is not reported as an undeclared file',
+    spelling and spelling.summary and spelling.summary.fail)
+
   local runtime = run_fixture('vendored-pandoc-runtime', '--layer conformance')
   local runtime_case = runtime and find_case(runtime, '/runtime')
   check(runtime_case ~= nil and runtime_case.status == 'pass',

@@ -1,0 +1,6 @@
+title: Vendored Licence Spelling
+author: Test
+version: 1.0.0
+contributes:
+  shortcodes:
+    - vend.lua
