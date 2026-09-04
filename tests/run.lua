@@ -236,6 +236,12 @@ do
   local declared = clean and find_case(clean, 'conformance/vendored/vend/example/sample.lua')
   check(declared ~= nil and declared.status == 'pass',
     'a vendored file that is present and matches its checksum passes')
+  -- The whole result, not one case. A check that can never pass, or an
+  -- exclusion that goes missing, adds a failure that no single-case assertion
+  -- above would see.
+  check(clean ~= nil and (clean.summary.fail or 0) == 0,
+    'a conforming vendored extension reports no vendored failure',
+    clean and clean.summary and clean.summary.fail)
 
   local missing = run_fixture('vendored-missing-file', '--layer conformance')
   local missing_case = missing and find_case(missing, 'conformance/vendored/vend/example/sample.lua')
@@ -282,6 +288,9 @@ do
   local declared = results and find_case(results, 'conformance/vendored/extension-test/quarto-wizard/schema.lua')
   check(declared ~= nil and declared.status == 'pass',
     'the framework passes the dependency checks it ships')
+  check(results ~= nil and (results.summary.fail or 0) == 0,
+    'the framework itself reports no conformance failure',
+    results and results.summary and results.summary.fail)
 end
 
 do
