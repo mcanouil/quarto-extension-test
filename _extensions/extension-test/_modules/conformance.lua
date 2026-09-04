@@ -540,6 +540,23 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
     end
   end
 
+  -- The loop above only ever lists the directories the manifest names, so a
+  -- whole source copied in by hand is invisible to it. Listing the vendor
+  -- directory itself is what catches that, and a loose file at its root with
+  -- it: a source is a directory the manifest declares, and nothing else
+  -- belongs here.
+  local vendor_root = util.join(ext.dir, VENDOR_DIR)
+  if util.is_dir(vendor_root) then
+    for _, present in ipairs(util.list_dir(vendor_root)) do
+      local declared = parsed.sources[present] ~= nil and util.is_dir(util.join(vendor_root, present))
+      if not declared then
+        emit(case(string.format('%s/%s', id, present), 'fail',
+          string.format('`%s/%s` is not a source the manifest declares', VENDOR_DIR, present),
+          'conformance', 'vendored-undeclared'))
+      end
+    end
+  end
+
   return parsed
 end
 

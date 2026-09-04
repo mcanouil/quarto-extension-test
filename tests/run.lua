@@ -263,6 +263,22 @@ do
     'a file in the vendor directory that no entry declares fails')
   check(orphan_case ~= nil and orphan_case.failure.reason == 'vendored-undeclared',
     'the failure names the undeclared file', orphan_case and orphan_case.failure.reason)
+
+  -- The per-source loop only ever lists the directories the manifest names,
+  -- so a source copied in by hand is invisible to it. These two are the
+  -- commonest shape of the habit the check exists to catch.
+  local undeclared = run_fixture('vendored-undeclared-source', '--layer conformance')
+  local source_case = undeclared and find_case(undeclared, 'conformance/vendored/vend/other')
+  check(source_case ~= nil and source_case.status == 'fail',
+    'a source directory the manifest does not declare fails')
+  check(source_case ~= nil and source_case.failure.reason == 'vendored-undeclared',
+    'the failure names the undeclared source', source_case and source_case.failure.reason)
+
+  local loose_case = undeclared and find_case(undeclared, 'conformance/vendored/vend/stray.lua')
+  check(loose_case ~= nil and loose_case.status == 'fail',
+    'a loose file at the root of the vendor directory fails')
+  check(loose_case ~= nil and loose_case.failure.reason == 'vendored-undeclared',
+    'the failure names the loose file', loose_case and loose_case.failure.reason)
 end
 
 do
