@@ -468,10 +468,9 @@ local LICENCE_FILES = {
 --- extensions belong to other people, and declaring nothing is not a defect.
 --- @param ext table {name, dir}
 --- @param dependencies_schema table descriptors from dependencies-schema.yml
---- @param severity string strict or lenient
 --- @param emit function(case)
 --- @return table|nil parsed manifest
-local function check_dependencies(ext, dependencies_schema, severity, emit)
+local function check_dependencies(ext, dependencies_schema, emit)
   local path = util.join(ext.dir, DEPENDENCIES_FILE)
   local id = 'conformance/vendored/' .. ext.name
 
@@ -711,7 +710,7 @@ function M.run(options, emit)
   for _, ext in ipairs(extensions) do
     ext.manifest = check_manifest(ext, manifest_schema, emit)
     ext.schema = check_schema(ext, options.severity, emit)
-    ext.dependencies = check_dependencies(ext, dependencies_schema, options.severity, emit)
+    ext.dependencies = check_dependencies(ext, dependencies_schema, emit)
   end
 
   return extensions
