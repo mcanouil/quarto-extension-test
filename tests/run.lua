@@ -242,6 +242,22 @@ do
 end
 
 do
+  local results = run_fixture('vendored-no-licence', '--layer conformance')
+  local case = results and find_case(results, 'conformance/vendored/vend/example/licence')
+  check(case ~= nil and case.status == 'fail',
+    'a source whose licence is not shipped beside its files fails')
+  check(case ~= nil and case.failure.reason == 'vendored-licence-missing',
+    'the failure names the licence', case and case.failure.reason)
+
+  local runtime = run_fixture('vendored-pandoc-runtime', '--layer conformance')
+  local runtime_case = runtime and find_case(runtime, '/runtime')
+  check(runtime_case ~= nil and runtime_case.status == 'pass',
+    'a runtime the vocabulary allows is an advisory rather than a failure')
+  check(runtime_case ~= nil and #(runtime_case.diagnostics.warnings or {}) > 0,
+    'the advisory carries the warning rather than losing it')
+end
+
+do
   local results = run_fixture('bad-pattern')
   local strict = results and find_case(results, 'conformance/pattern/')
   check(strict ~= nil and strict.status == 'fail',

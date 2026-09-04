@@ -480,6 +480,17 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
   for _, source_name in ipairs(util.sorted_keys(parsed.sources)) do
     local source = parsed.sources[source_name]
     local dir = util.join(ext.dir, VENDOR_DIR, source_name)
+
+    -- Third-party source shipped inside an extension carries its licence.
+    local licence_id = string.format('%s/%s/licence', id, source_name)
+    if util.exists(util.join(dir, 'LICENSE')) then
+      emit(case(licence_id, 'pass'))
+    else
+      emit(case(licence_id, 'fail', string.format(
+        '`%s/%s/` ships no LICENSE for `%s`', VENDOR_DIR, source_name, source_name),
+        'conformance', 'vendored-licence-missing'))
+    end
+
     for _, file_name in ipairs(util.sorted_keys(source.files)) do
       local entry = source.files[file_name]
       local file_id = string.format('%s/%s/%s', id, source_name, file_name)
@@ -504,6 +515,14 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
         else
           emit(case(file_id, 'pass'))
         end
+      end
+
+      if entry.runtime == 'pandoc' then
+        -- A tripwire, not a check. q2 builds Lua for wasm, where the libraries
+        -- Pandoc provides are unavailable, and q2 has not shipped.
+        emit(advisory(file_id .. '/runtime', string.format(
+          '`%s` declares `runtime: pandoc`, so it cannot load where only a plain Lua is available',
+          file_name)))
       end
     end
 
