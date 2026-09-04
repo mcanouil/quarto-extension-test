@@ -505,8 +505,12 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
     emit(advisory(string.format('%s/warning/%d', id, index), warning))
   end
 
-  for _, source_name in ipairs(util.sorted_keys(parsed.sources)) do
-    local source = parsed.sources[source_name]
+  --- Check one source: its licence, the files it declares, and its orphans.
+  ---
+  --- The caller guards the shape this reads. `M.run` continues with empty
+  --- descriptors when it cannot read its own, and then nothing has validated
+  --- the manifest before it is walked.
+  local function check_source(source_name, source)
     local dir = util.join(ext.dir, VENDOR_DIR, source_name)
 
     -- Third-party source shipped inside an extension carries its licence.
@@ -577,6 +581,23 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
             'conformance', 'vendored-undeclared'))
         end
       end
+    end
+  end
+
+  if type(parsed.sources) ~= 'table' then
+    emit(case(id, 'fail', '`sources` is not a map of source declarations',
+      'conformance', 'dependencies-invalid'))
+    return nil
+  end
+
+  for _, source_name in ipairs(util.sorted_keys(parsed.sources)) do
+    local source = parsed.sources[source_name]
+    if type(source) ~= 'table' or type(source.files) ~= 'table' then
+      emit(case(string.format('%s/%s/declaration', id, source_name), 'fail',
+        string.format('`sources.%s` is not a source declaration carrying a `files` map', source_name),
+        'conformance', 'dependencies-invalid'))
+    else
+      check_source(source_name, source)
     end
   end
 

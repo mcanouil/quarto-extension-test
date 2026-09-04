@@ -94,6 +94,45 @@ local function run_fixture(name, extra)
   return parsed, output
 end
 
+--- Run a copy of the framework whose own descriptors are missing.
+---
+--- `M.run` continues with empty descriptors when it cannot read them, so this
+--- is the path where nothing validates a manifest before it is walked. It
+--- cannot be reached from a fixture, because the descriptors belong to the
+--- framework rather than to the repository under test.
+--- @param name string fixture directory name
+--- @param removed string descriptor file to remove from the copy
+--- @return table|nil results, string output
+local function run_without_descriptors(name, removed)
+  local copy = util.join(here .. 'tests/_results', 'degraded')
+  util.remove_tree(copy)
+  local ok, copy_err = util.copy_tree(here .. '_extensions/extension-test',
+    util.join(copy, 'extension-test'))
+  if not ok then
+    return nil, tostring(copy_err)
+  end
+  os.remove(util.join(copy, 'extension-test', removed))
+
+  local root = util.join(FIXTURES, name)
+  local json = util.join(copy, 'results.json')
+  local command = string.format(
+    'quarto pandoc lua %s --root %s --tests %s --json %s --tap /dev/null --quiet --layer conformance',
+    util.shell_quote(util.join(copy, 'extension-test', 'run.lua')),
+    util.shell_quote(root), util.shell_quote(util.join(root, '_t')),
+    util.shell_quote(json))
+  local _, output = util.capture(command)
+
+  local text = util.read_file(json)
+  if not text then
+    return nil, output
+  end
+  local decoded, parsed = pcall(pandoc.json.decode, text, false)
+  if not decoded then
+    return nil, output
+  end
+  return parsed, output
+end
+
 --- Find one case by the tail of its id.
 local function find_case(results, suffix)
   for _, case in ipairs((results or {}).cases or {}) do
@@ -335,6 +374,22 @@ do
     'a runtime the vocabulary allows is an advisory rather than a failure')
   check(runtime_case ~= nil and #(runtime_case.diagnostics.warnings or {}) > 0,
     'the advisory carries the warning rather than losing it')
+end
+
+do
+  -- The runner keeps going when it cannot read its own descriptors, so the
+  -- per-source loop is reached with nothing having validated the manifest. A
+  -- Lua error there takes the JSON, the TAP and every other layer with it.
+  local results, output = run_without_descriptors('vendored-invalid-source', 'dependencies-schema.yml')
+  check(results ~= nil,
+    'a manifest walked without descriptors still produces a result document', output)
+  local case = results and find_case(results, 'conformance/vendored/vend/example/declaration')
+  check(case ~= nil and case.status == 'fail',
+    'a source that is not a source declaration fails rather than crashing the run',
+    case and case.status)
+  check(case ~= nil and case.failure and case.failure.reason == 'dependencies-invalid',
+    'the failure names the source that is not a declaration',
+    case and case.failure and case.failure.reason)
 end
 
 do
