@@ -257,6 +257,19 @@ do
   check(edited_case ~= nil and edited_case.failure.reason == 'vendored-checksum-mismatch',
     'the failure names the checksum', edited_case and edited_case.failure.reason)
 
+  -- A declared entry that exists but cannot be hashed. "No tool is available"
+  -- is a statement about the machine, and saying it about a file the machine
+  -- can plainly see is both false and a pass where a failure belongs.
+  local unreadable = run_fixture('vendored-checksum-unreadable', '--layer conformance')
+  local unreadable_case = unreadable and find_case(unreadable, 'conformance/vendored/vend/example/sample.lua')
+  check(unreadable_case ~= nil and unreadable_case.status == 'fail',
+    'a declared entry that exists but cannot be hashed fails',
+    unreadable_case and unreadable_case.status)
+  check(unreadable_case ~= nil and unreadable_case.failure
+    and unreadable_case.failure.reason == 'vendored-checksum-unreadable',
+    'the failure names the unreadable entry rather than a missing tool',
+    unreadable_case and unreadable_case.failure and unreadable_case.failure.reason)
+
   local orphan = run_fixture('vendored-orphan', '--layer conformance')
   local orphan_case = orphan and find_case(orphan, 'conformance/vendored/vend/example/extra.lua')
   check(orphan_case ~= nil and orphan_case.status == 'fail',

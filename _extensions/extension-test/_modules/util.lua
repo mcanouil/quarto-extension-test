@@ -47,27 +47,49 @@ function M.absolute(path)
   return pandoc.path.normalize(M.join(pandoc.system.get_working_directory(), path))
 end
 
+--- The SHA-256 command available on this platform, if any.
+---
+--- `shasum` is present on macOS, `sha256sum` on most Linux images. The lookup
+--- runs once: it is the same answer for every file in a run.
+--- @return string|nil command prefix, ready for a quoted path
+local sha256_command_cache = false
+function M.sha256_command()
+  if sha256_command_cache ~= false then
+    return sha256_command_cache
+  end
+  for _, candidate in ipairs({ { 'shasum', 'shasum -a 256 ' }, { 'sha256sum', 'sha256sum ' } }) do
+    local code = M.capture('command -v ' .. candidate[1])
+    if code == 0 then
+      sha256_command_cache = candidate[2]
+      return candidate[2]
+    end
+  end
+  sha256_command_cache = nil
+  return nil
+end
+
 --- SHA-256 of a file, as lower-case hexadecimal.
 ---
 --- The Pandoc that Quarto ships offers `sha1` and no SHA-256, so this shells
---- out. `shasum` is present on macOS, `sha256sum` on most Linux images, and a
---- caller must be able to tell "cannot compute" from "does not match", so an
---- absent tool is reported rather than treated as a mismatch.
+--- out. A caller must be able to tell three outcomes apart: a digest, no tool
+--- to compute one with, and a path the tool cannot read. Reporting the last
+--- as the second says the machine is at fault when the file is.
 --- @param path string
 --- @return string|nil digest
---- @return string|nil reason `no-tool` or a message
+--- @return string|nil reason `no-tool` or `unreadable`
 function M.sha256(path)
-  local quoted = M.shell_quote(path)
-  for _, command in ipairs({ 'shasum -a 256 ' .. quoted, 'sha256sum ' .. quoted }) do
-    local code, output = M.capture(command .. ' 2>/dev/null')
-    if code == 0 then
-      local digest = M.trim(output):match('^(%x+)')
-      if digest then
-        return digest:lower(), nil
-      end
+  local command = M.sha256_command()
+  if not command then
+    return nil, 'no-tool'
+  end
+  local code, output = M.capture(command .. M.shell_quote(path))
+  if code == 0 then
+    local digest = M.trim(output):match('^(%x+)')
+    if digest then
+      return digest:lower(), nil
     end
   end
-  return nil, 'no-tool'
+  return nil, 'unreadable'
 end
 
 --- Whether a path exists and is readable.

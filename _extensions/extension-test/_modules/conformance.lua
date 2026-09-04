@@ -502,12 +502,17 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
           file_name, VENDOR_DIR, source_name), 'conformance', 'vendored-file-missing'))
       else
         local digest, digest_err = util.sha256(file_path)
-        if not digest then
+        if digest_err == 'no-tool' then
           -- Neither hashing tool is available. A checksum that cannot be
           -- computed is not a checksum that does not match.
           emit(advisory(file_id, string.format(
-            'cannot verify `%s`: no SHA-256 tool is available (%s)',
-            file_name, tostring(digest_err))))
+            'cannot verify `%s`: no SHA-256 tool is available', file_name)))
+        elseif not digest then
+          -- The machine has a tool and it produced nothing, so the entry
+          -- names something that is not a readable file.
+          emit(case(file_id, 'fail', string.format(
+            'the manifest declares `%s`, which `%s/%s/` holds as something no SHA-256 tool can read',
+            file_name, VENDOR_DIR, source_name), 'conformance', 'vendored-checksum-unreadable'))
         elseif digest ~= entry.sha256 then
           emit(case(file_id, 'fail', string.format(
             '`%s` does not match the checksum the manifest records; it reads %s',
