@@ -295,6 +295,21 @@ do
 end
 
 do
+  -- The sweep runs over other people's repositories. A manifest written to a
+  -- later version of the format is not their defect, and every copy of this
+  -- framework already released would call it one.
+  local results = run_fixture('vendored-future-version', '--layer conformance')
+  local case = results and find_case(results, 'conformance/vendored/vend')
+  check(case ~= nil and case.status == 'skip',
+    'a manifest declaring a later format version is skipped rather than failed',
+    case and case.status)
+  check(case ~= nil and case.failure
+    and case.failure.reason == 'dependency-schema-version-unknown',
+    'the skip names the unknown format version',
+    case and case.failure and case.failure.reason)
+end
+
+do
   local results = run_fixture('vendored-no-licence', '--layer conformance')
   local case = results and find_case(results, 'conformance/vendored/vend/example/licence')
   check(case ~= nil and case.status == 'fail',

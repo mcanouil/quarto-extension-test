@@ -431,6 +431,9 @@ end
 --- The manifest file name an extension declares its vendored files in.
 local DEPENDENCIES_FILE = '_dependencies.yml'
 
+--- The manifest format version this runner reads.
+local DEPENDENCIES_VERSION = 1
+
 --- The directory vendored files are written into, one subdirectory per source.
 local VENDOR_DIR = '_vendor'
 
@@ -463,6 +466,19 @@ local function check_dependencies(ext, dependencies_schema, severity, emit)
   if type(parsed) ~= 'table' then
     emit(case(id, 'fail', 'the manifest is not a YAML mapping',
       'conformance', 'dependencies-unparseable'))
+    return nil
+  end
+
+  -- Read the version before validating against descriptors that describe one
+  -- version of the format. A manifest written to a later version is skipped,
+  -- the way an unrecognised schema vocabulary is, because every copy of this
+  -- framework already released would otherwise report a future format as the
+  -- author's defect.
+  if parsed.schema ~= DEPENDENCIES_VERSION then
+    emit(case(id, 'skip', string.format(
+      'the manifest declares format version %s; this runner reads version %d',
+      tostring(parsed.schema), DEPENDENCIES_VERSION),
+      'conformance', 'dependency-schema-version-unknown'))
     return nil
   end
 

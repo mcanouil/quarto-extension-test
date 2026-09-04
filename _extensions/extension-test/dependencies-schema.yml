@@ -17,8 +17,8 @@ options:
   schema:
     type: integer
     required: true
-    enum: [1]
-    description: "The manifest format version."
+    minimum: 1
+    description: "The manifest format version. The runner reads version 1 and skips any other."
 
   sources:
     type: object
