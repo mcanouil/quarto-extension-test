@@ -11,8 +11,10 @@
 
 local here = (arg and arg[0] or 'tests/run.lua'):match('(.*)tests/run%.lua$') or './'
 local module_dir = here .. '_extensions/extension-test/_modules'
+local vendor_dir = here .. '_extensions/extension-test/_vendor/quarto-wizard'
 
-package.path = table.concat({ module_dir .. '/?.lua', package.path }, ';')
+package.path = table.concat({
+  module_dir .. '/?.lua', vendor_dir .. '/?.lua', package.path }, ';')
 
 local util = require('util')
 local schema = require('schema')
@@ -42,6 +44,22 @@ end
 local function equal(actual, expected, description)
   check(actual == expected, description,
     string.format('expected %s, got %s', tostring(expected), tostring(actual)))
+end
+
+--- Run the runner against this repository, which vendors one file itself.
+local function run_self()
+  local json = here .. 'tests/_results/self.json'
+  local command = string.format(
+    'quarto pandoc lua %s --root %s --tests %s --json %s --tap /dev/null --quiet --layer conformance',
+    util.shell_quote(RUNNER), util.shell_quote(here), util.shell_quote(here .. 'tests'),
+    util.shell_quote(json))
+  util.capture(command)
+  local text = util.read_file(json)
+  if not text then
+    return nil
+  end
+  local ok, parsed = pcall(pandoc.json.decode, text, false)
+  return ok and parsed or nil
 end
 
 --- Run the runner against a fixture and return the parsed result.
@@ -255,6 +273,15 @@ do
     'a runtime the vocabulary allows is an advisory rather than a failure')
   check(runtime_case ~= nil and #(runtime_case.diagnostics.warnings or {}) > 0,
     'the advisory carries the warning rather than losing it')
+end
+
+do
+  -- The framework is the format's first consumer. If its own manifest does not
+  -- pass its own checks, the format is not usable by anyone.
+  local results = run_self()
+  local declared = results and find_case(results, 'conformance/vendored/extension-test/quarto-wizard/schema.lua')
+  check(declared ~= nil and declared.status == 'pass',
+    'the framework passes the dependency checks it ships')
 end
 
 do

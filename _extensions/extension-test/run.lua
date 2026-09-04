@@ -25,6 +25,7 @@ end)()
 
 package.path = table.concat({
   pandoc.path.join({ script_dir, '_modules', '?.lua' }),
+  pandoc.path.join({ script_dir, '_vendor', 'quarto-wizard', '?.lua' }),
   package.path,
 }, ';')
 

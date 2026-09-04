@@ -15,3 +15,4 @@ _site/
 /tests/fixtures/*/_t/generated/
 /tests/fixtures/*/_t/.quarto/
 /tests/fixtures/*/_t/results.json
+/tests/_results/
