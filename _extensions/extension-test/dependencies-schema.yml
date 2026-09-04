@@ -1,0 +1,73 @@
+# Descriptors for an extension's `_dependencies.yml`.
+#
+# A vendored file carries no trace of where it came from. This format records
+# that trace: for each source, an origin, the version taken, and for each file
+# a checksum and the runtime it needs.
+#
+# `sources` and `files` are maps with author-chosen keys, so both are expressed
+# with `propertyNames` and an `additionalProperties` descriptor rather than a
+# fixed set of options.
+#
+# The format is public and the tooling that writes it is not, so nothing here
+# may assume a particular producer wrote the file.
+
+$schema: https://m.canouil.dev/quarto-wizard/assets/schema/v2/extension-schema.json
+
+options:
+  schema:
+    type: integer
+    required: true
+    enum: [1]
+    description: "The manifest format version."
+
+  sources:
+    type: object
+    required: true
+    propertyNames: '^[a-z][a-z0-9-]*$'
+    description: "Each upstream this extension vendors from, keyed by a short name."
+    additionalProperties:
+      type: object
+      properties:
+        origin:
+          type: string
+          required: true
+          minLength: 1
+          description: "The upstream's home, such as a repository URL."
+        fetch:
+          type: string
+          required: true
+          minLength: 1
+          description: "URL template for one file, with {origin}, {version} and {file}."
+        version:
+          type: string
+          required: true
+          minLength: 1
+          description: "The version every file below was taken at."
+        licence:
+          type: string
+          required: true
+          minLength: 1
+          description: "The licence the upstream ships under, such as MIT."
+        licence-url:
+          type: string
+          description: "URL template for the licence file. Defaults to {origin}/raw/{version}/LICENSE."
+        files:
+          type: object
+          required: true
+          propertyNames: '^[A-Za-z0-9._-]+$'
+          description: "Each file vendored from this source, keyed by its file name."
+          additionalProperties:
+            type: object
+            properties:
+              sha256:
+                type: string
+                required: true
+                pattern: '^[0-9a-f]+$'
+                minLength: 64
+                maxLength: 64
+                description: "The SHA-256 of the file as written."
+              runtime:
+                type: string
+                enum: [any, pandoc]
+                default: any
+                description: "`pandoc` when the file needs a library only Pandoc provides."

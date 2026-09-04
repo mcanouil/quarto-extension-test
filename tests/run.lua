@@ -203,6 +203,17 @@ do
 end
 
 do
+  -- Every catalogued extension belongs to somebody else, so a repository that
+  -- declares nothing is not a repository doing something wrong.
+  local results = run_fixture('clean', '--layer conformance')
+  local case = results and find_case(results, 'conformance/vendored/')
+  check(case ~= nil and case.status == 'skip',
+    'an extension with no dependency manifest is skipped rather than failed')
+  check(case ~= nil and case.failure.reason == 'no-dependency-manifest',
+    'the skip names the missing manifest', case and case.failure.reason)
+end
+
+do
   local results = run_fixture('bad-pattern')
   local strict = results and find_case(results, 'conformance/pattern/')
   check(strict ~= nil and strict.status == 'fail',

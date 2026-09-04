@@ -428,6 +428,58 @@ function M.check_descriptors(ext, loaded, severity, emit)
   end
 end
 
+--- The manifest file name an extension declares its vendored files in.
+local DEPENDENCIES_FILE = '_dependencies.yml'
+
+--- The directory vendored files are written into, one subdirectory per source.
+local VENDOR_DIR = '_vendor'
+
+--- Check one extension's `_dependencies.yml`.
+---
+--- An extension with no manifest is skipped, not failed. The catalogued
+--- extensions belong to other people, and declaring nothing is not a defect.
+--- @param ext table {name, dir}
+--- @param dependencies_schema table descriptors from dependencies-schema.yml
+--- @param severity string strict or lenient
+--- @param emit function(case)
+--- @return table|nil parsed manifest
+local function check_dependencies(ext, dependencies_schema, severity, emit)
+  local path = util.join(ext.dir, DEPENDENCIES_FILE)
+  local id = 'conformance/vendored/' .. ext.name
+
+  if not util.exists(path) then
+    emit(case(id, 'skip', 'the extension declares no vendored dependency',
+      'conformance', 'no-dependency-manifest'))
+    return nil
+  end
+
+  local text, read_err = util.read_file(path)
+  if not text then
+    emit(case(id, 'fail', read_err, 'conformance', 'dependencies-unreadable'))
+    return nil
+  end
+
+  local parsed = schema._parse_yaml_text(text)
+  if type(parsed) ~= 'table' then
+    emit(case(id, 'fail', 'the manifest is not a YAML mapping',
+      'conformance', 'dependencies-unparseable'))
+    return nil
+  end
+
+  local valid, errors, warnings = schema.validate(parsed, dependencies_schema, { unknown = 'warn' })
+  if not valid then
+    emit(case(id, 'fail', table.concat(util.sorted_messages(errors), '; '),
+      'conformance', 'dependencies-invalid'))
+    return nil
+  end
+  emit(case(id, 'pass'))
+  for index, warning in ipairs(util.sorted_messages(warnings)) do
+    emit(advisory(string.format('%s/warning/%d', id, index), warning))
+  end
+
+  return parsed
+end
+
 --- Load each extension's manifest and schema without reporting on them.
 ---
 --- The smoke layer needs both, and asking for it without the conformance
@@ -466,6 +518,17 @@ function M.run(options, emit)
       'discover', 'harness-error'))
   end
 
+  local dependencies_schema = {}
+  local loaded_dependencies, dependencies_err =
+    schema.load_schema(util.join(options.extension_dir, 'dependencies-schema.yml'))
+  if loaded_dependencies then
+    dependencies_schema = loaded_dependencies.options
+  else
+    emit(case('conformance/harness/dependencies-schema', 'fail',
+      'the framework cannot read its own dependency descriptors: ' .. tostring(dependencies_err),
+      'discover', 'harness-error'))
+  end
+
   local extensions = M.discover(options.root)
   if #extensions == 0 then
     emit(case('conformance/discover', 'skip',
@@ -477,6 +540,7 @@ function M.run(options, emit)
   for _, ext in ipairs(extensions) do
     ext.manifest = check_manifest(ext, manifest_schema, emit)
     ext.schema = check_schema(ext, options.severity, emit)
+    ext.dependencies = check_dependencies(ext, dependencies_schema, options.severity, emit)
   end
 
   return extensions
