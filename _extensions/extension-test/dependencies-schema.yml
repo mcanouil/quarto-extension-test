@@ -37,6 +37,7 @@ options:
           type: string
           required: true
           minLength: 1
+          pattern: '\{file\}'
           description: "URL template for one file, with {origin}, {version} and {file}."
         version:
           type: string

@@ -377,6 +377,17 @@ do
 end
 
 do
+  -- `fetch` is a template for one file. Without `{file}` in it every file of
+  -- the source resolves to the same URL, which is not a template at all.
+  local results = run_fixture('vendored-fetch-template', '--layer conformance')
+  local case = results and find_case(results, 'conformance/vendored/vend')
+  check(case ~= nil and case.status == 'fail',
+    'a fetch template that does not carry `{file}` is invalid', case and case.status)
+  check(case ~= nil and case.failure and case.failure.reason == 'dependencies-invalid',
+    'the failure names the manifest', case and case.failure and case.failure.reason)
+end
+
+do
   -- A digest pasted in upper case used to make the whole manifest invalid,
   -- which skips every per-file check for that extension.
   local results = run_fixture('vendored-checksum-case', '--layer conformance')
