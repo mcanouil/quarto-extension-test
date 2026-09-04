@@ -153,7 +153,7 @@ local function _lookup(map, key)
   if underscored ~= key and map[underscored] ~= nil then
     return map[underscored], underscored
   end
-  local hyphenated = (key:gsub('_', '%-'))
+  local hyphenated = (key:gsub('_', '-'))
   if hyphenated ~= key and map[hyphenated] ~= nil then
     return map[hyphenated], hyphenated
   end
@@ -1824,13 +1824,15 @@ local function _check_object(value, spec, path, context)
   -- Runs after the properties block, which writes the resolved members back
   -- into `value`. Before that, a dependent supplied under an alias is not yet
   -- there to be found. A `default` is an annotation and does not change the
-  -- instance, so a key that only holds one never triggers a requirement.
+  -- instance, so a key that only holds one neither triggers a requirement nor
+  -- satisfies it.
   if type(spec.dependentRequired) == 'table' then
     for key, dependents in pairs(spec.dependentRequired) do
       local trigger, trigger_key = _lookup(value, key)
       if trigger ~= nil and not defaulted[trigger_key] and type(dependents) == 'table' then
         for _, dependent in ipairs(dependents) do
-          if _lookup(value, dependent) == nil then
+          local supplied, dependent_key = _lookup(value, dependent)
+          if supplied == nil or defaulted[dependent_key] then
             _report(context, 'error', path, 'dependentRequired', string.format(
               'requires "%s" when "%s" is present.', dependent, key
             ))
@@ -1943,6 +1945,40 @@ local function _apply_deprecation(field, spec, value, merged)
   return message, cleared
 end
 
+--- Record that a descriptor accepts a spelling, and report a contested one.
+---
+--- Two descriptors can name the same spelling, when one declares as an alias
+--- what another declares as its own name, or when two of them declare the same
+--- alias. `pairs` yields descriptors in no particular order, so which field a
+--- contested spelling resolves to is not decidable from the schema. It is
+--- reported rather than resolved in silence, because the schema is what is
+--- wrong and only its author can settle it.
+---
+--- @param sources table Map of spelling to declared name
+--- @param spelling string The spelling being declared
+--- @param field string The declared name that accepts it
+--- @param base_path string|nil Path prefix for findings
+--- @param context table Validation context
+local function _declare_spelling(sources, spelling, field, base_path, context)
+  -- The owner is read through `_lookup`, like every other name comparison in
+  -- this module, so a contest between the hyphen and the underscore spelling
+  -- of one name is found as well. Those sit under different keys but reach the
+  -- same document key at merge time, so they contest just as directly.
+  local owner = _lookup(sources, spelling)
+  if owner ~= nil and owner ~= field then
+    _report(context, 'warning', base_path and (base_path .. '.' .. spelling) or spelling,
+      'aliases', string.format(
+        'is declared by both "%s" and "%s"; which one accepts it is not defined.',
+        owner, field))
+  end
+  -- Stored under the literal spelling either way. The map is also the set of
+  -- keys a descriptor claimed, and a contested spelling is still claimed: the
+  -- schema is ambiguous, which the warning says, and treating the key as
+  -- undeclared on top of that would report it as unknown as well.
+  sources[spelling] = sources[spelling] or field
+end
+
+
 --- Validate a map of values against a map of field descriptors.
 --- @param values table Values to validate
 --- @param descriptors table Field descriptor map
@@ -1951,6 +1987,12 @@ end
 --- @param options table|nil {unknown = 'warn'|'error'|'ignore', additional = descriptor}
 --- @return table merged Values with aliases, coercion and defaults applied
 --- @return table defaulted Set of field names whose value came from `default`
+--- @return table sources Map of every spelling the schema accepts to the
+---   declared name it resolves to. A reader that has to answer a question
+---   about a name the caller wrote asks this rather than walking the
+---   descriptors again, because the merge has already decided the answer.
+---   It doubles as the set of keys a descriptor claimed, which is what the
+---   unknown key pass below reads.
 _validate_map = function(values, descriptors, base_path, context, options)
   options = options or {}
   local unknown_policy = options.unknown or 'ignore'
@@ -1960,8 +2002,8 @@ _validate_map = function(values, descriptors, base_path, context, options)
     merged[key] = value
   end
 
-  local claimed = {}
   local defaulted = {}
+  local sources = {}
   local fields = {}
 
   -- Three passes, because `pairs` yields descriptors in no particular order.
@@ -1974,7 +2016,12 @@ _validate_map = function(values, descriptors, base_path, context, options)
       spec = spec,
       path = base_path and (base_path .. '.' .. field) or field,
     }
-    claimed[field] = true
+    -- Two writes with different weight. Declaring a spelling fills an empty
+    -- slot only, while claiming the value under one overwrites whatever was
+    -- there. The value lands under whichever descriptor claimed it, so the
+    -- claim is what the map has to follow: a declaration that outranked it
+    -- would send a reader to a field the merge has already emptied.
+    _declare_spelling(sources, field, field, base_path, context)
 
     -- A value found under an alias, or under the other spelling, moves to the
     -- name the schema declares. The key it came from is removed, so `merged`
@@ -1984,7 +2031,7 @@ _validate_map = function(values, descriptors, base_path, context, options)
     local found, found_key = _lookup(merged, field)
     if found ~= nil then
       merged[field] = found
-      claimed[found_key] = true
+      sources[found_key] = field
       supplied_key = found_key
       if found_key ~= field then
         merged[found_key] = nil
@@ -1993,10 +2040,10 @@ _validate_map = function(values, descriptors, base_path, context, options)
 
     if type(spec.aliases) == 'table' then
       for _, alias in ipairs(spec.aliases) do
-        claimed[alias] = true
+        _declare_spelling(sources, alias, field, base_path, context)
         local aliased, alias_key = _lookup(merged, alias)
         if aliased ~= nil then
-          claimed[alias_key] = true
+          sources[alias_key] = field
           if merged[field] == nil then
             merged[field] = aliased
             supplied_key = alias_key
@@ -2055,7 +2102,7 @@ _validate_map = function(values, descriptors, base_path, context, options)
 
   if unknown_policy ~= 'ignore' or options.additional then
     for key, value in pairs(values) do
-      if not claimed[key] then
+      if sources[key] == nil then
         local path = base_path and (base_path .. '.' .. tostring(key)) or tostring(key)
         if options.additional then
           local coerced = _coerce(value, options.additional.type)
@@ -2072,7 +2119,7 @@ _validate_map = function(values, descriptors, base_path, context, options)
     end
   end
 
-  return merged, defaulted
+  return merged, defaulted, sources
 end
 
 --- Start a validation run.
@@ -2253,20 +2300,50 @@ function M.validate_shortcode(name, args, kwargs, entry, options)
     end
   end
 
-  if type(entry.attributes) == 'table' then
-    merged.attributes = _validate_map(kwargs or {}, entry.attributes, name, context, {
+  local declared = type(entry.attributes) == 'table'
+  local spellings
+  if declared then
+    local attributes, _, resolved = _validate_map(kwargs or {}, entry.attributes, name, context, {
       unknown = options.unknown or 'warn',
     })
+    merged.attributes = attributes
+    spellings = resolved
   end
 
   if type(entry.required) == 'table' then
-    -- `merged.attributes` is filled only when the entry declares `attributes`.
-    -- The vocabulary allows `required` on its own, so fall back to what the
-    -- caller supplied rather than reporting every name as missing.
-    local supplied = kwargs or {}
+    -- `merged.attributes` is filled only when the entry declares `attributes`,
+    -- and it is authoritative when it is: it keeps every unclaimed key and it
+    -- drops a key that a deprecation cleared. The vocabulary allows `required`
+    -- on its own, so fall back to what the caller supplied only when the
+    -- entry declares no `attributes`. A name that names an alias is not
+    -- missing either: `_validate_map` moves its value to the field that
+    -- declares the alias and clears the alias spelling, the same way it
+    -- clears a deprecated key, so look for the value under that field. The
+    -- merge reports which declared name each spelling resolves to, so that
+    -- is one lookup rather than a second walk over the descriptors. It goes
+    -- through `_lookup`, the same as every other name comparison in this
+    -- module, so a hyphen in one spelling and an underscore in the other
+    -- still match.
+    --
+    -- This asks what the shortcode receives, not what the author wrote, so
+    -- a `default` present in `merged.attributes` satisfies a name here.
+    -- That is the opposite of `dependentRequired` above, which asks what
+    -- the author wrote and treats a default as an annotation nobody
+    -- supplied. Neither reading is a bug: they answer different questions
+    -- about the same instance.
+    local function _required_satisfied(required)
+      local field = (spellings and _lookup(spellings, required)) or required
+      if _lookup(merged.attributes, field) ~= nil then
+        return true
+      end
+      if not declared then
+        return _lookup(kwargs or {}, required) ~= nil
+      end
+      return false
+    end
+
     for _, required in ipairs(entry.required) do
-      if _lookup(merged.attributes, required) == nil
-        and _lookup(supplied, required) == nil then
+      if not _required_satisfied(required) then
         _report(context, 'error', name .. '.' .. required, 'required',
           'is required but was not provided.')
       end
