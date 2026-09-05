@@ -429,6 +429,22 @@ do
 end
 
 do
+  -- `tonumber` reads `1e999` as `inf`. `inf` is not 1, so the future-version
+  -- test used to take it as a version from the future and skip every
+  -- checksum, licence and orphan check for the extension silently, instead of
+  -- reporting the typo it is.
+  local overflow = run_fixture('vendored-overflow-version', '--layer conformance')
+  local overflow_case = overflow and find_case(overflow, 'conformance/vendored/vend')
+  check(overflow_case ~= nil and overflow_case.status == 'fail',
+    'a format version that overflows to infinity fails rather than skips',
+    overflow_case and overflow_case.status)
+  check(overflow_case ~= nil and overflow_case.failure
+    and overflow_case.failure.reason == 'dependencies-invalid',
+    'the failure names the manifest rather than an unknown format version',
+    overflow_case and overflow_case.failure and overflow_case.failure.reason)
+end
+
+do
   local results = run_fixture('vendored-no-licence', '--layer conformance')
   local case = results and find_case(results, 'conformance/vendored/vend/example/source-licence')
   check(case ~= nil and case.status == 'fail',

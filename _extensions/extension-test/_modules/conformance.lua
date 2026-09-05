@@ -510,6 +510,17 @@ local function check_dependencies(ext, dependencies_schema, emit)
   -- Reading `schema: "2"` any other way would walk a manifest from the future
   -- as if it were version 1.
   local declared_version = tonumber(parsed.schema)
+  if declared_version ~= nil
+    and (declared_version ~= declared_version
+      or declared_version == math.huge
+      or declared_version == -math.huge) then
+    -- `inf`, `-inf` and NaN are not whole numbers in any useful sense, and the
+    -- vendored validator's own integer test rejects them too. Without this,
+    -- `schema: 1e999` reads as a version from the future and skips every
+    -- checksum, licence and orphan check silently, instead of failing the
+    -- typo it is.
+    declared_version = nil
+  end
   local from_the_future = declared_version ~= nil
     and declared_version == math.floor(declared_version)
     and declared_version ~= DEPENDENCIES_VERSION
