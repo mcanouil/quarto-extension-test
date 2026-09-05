@@ -564,18 +564,27 @@ local function check_dependencies(ext, dependencies_schema, emit)
         'conformance', 'vendored-licence-missing'))
     end
 
-    for _, file_name in ipairs(util.sorted_keys(source.files)) do
-      local entry = source.files[file_name]
+    --- Check one declared file: its keys, its presence and its checksum.
+    ---
+    --- The entry's shape is guarded here, not by the caller. Nothing has
+    --- validated the manifest when the descriptors did not load, and reading
+    --- `entry.sha256` off a number raises and takes the whole run with it.
+    local function check_file(file_name, entry)
       local file_id = string.format('%s/%s/%s', id, source_name, file_name)
       local file_path = util.join(dir, file_name)
 
-      if type(entry) == 'table' then
-        for _, key in ipairs(util.sorted_keys(entry)) do
-          if not util.contains(FILE_KEYS, key) then
-            emit(advisory(string.format('%s/unknown-key/%s', file_id, key), string.format(
-              '`sources.%s.files.%s` declares the unrecognised key `%s`',
-              source_name, file_name, key)))
-          end
+      if type(entry) ~= 'table' then
+        emit(case(file_id, 'fail', string.format(
+          '`sources.%s.files.%s` is not a file entry carrying a checksum',
+          source_name, file_name), 'conformance', 'dependencies-invalid'))
+        return
+      end
+
+      for _, key in ipairs(util.sorted_keys(entry)) do
+        if not util.contains(FILE_KEYS, key) then
+          emit(advisory(string.format('%s/unknown-key/%s', file_id, key), string.format(
+            '`sources.%s.files.%s` declares the unrecognised key `%s`',
+            source_name, file_name, key)))
         end
       end
 
@@ -612,6 +621,10 @@ local function check_dependencies(ext, dependencies_schema, emit)
           '`%s` declares `runtime: pandoc`, so it cannot load where only a plain Lua is available',
           file_name)))
       end
+    end
+
+    for _, file_name in ipairs(util.sorted_keys(source.files)) do
+      check_file(file_name, source.files[file_name])
     end
 
     -- The check aimed at the copying habit: a file that reached the vendor

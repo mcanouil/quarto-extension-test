@@ -1,0 +1,9 @@
+schema: 1
+sources:
+  example:
+    origin: https://github.com/mcanouil/example
+    fetch: "{origin}/releases/download/{version}/{file}"
+    version: "1.0.0"
+    licence: MIT
+    files:
+      sample.lua: 42

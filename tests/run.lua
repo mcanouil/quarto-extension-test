@@ -519,6 +519,26 @@ do
 end
 
 do
+  -- A file entry that is not a map used to reach `entry.sha256` and raise. A
+  -- Lua error there takes the JSON, the TAP and every other layer with it.
+  local results, output = run_without_descriptors('vendored-invalid-file-entry', 'dependencies-schema.yml')
+  check(results ~= nil,
+    'a file entry that is not a map still produces a result document', output)
+  local case = results and find_case(results, 'conformance/vendored/vend/example/sample.lua')
+  check(case ~= nil and case.status == 'fail',
+    'a file entry that is not a map fails rather than crashing the run',
+    case and case.status)
+  check(case ~= nil and case.failure and case.failure.reason == 'dependencies-invalid',
+    'the failure names the manifest rather than the checksum',
+    case and case.failure and case.failure.reason)
+  check(case ~= nil and case.failure and case.failure.message
+    and case.failure.message:find('sample.lua', 1, true) ~= nil
+    and case.failure.message:find('example', 1, true) ~= nil,
+    'the failure names both the source and the file',
+    case and case.failure and case.failure.message)
+end
+
+do
   -- The framework is the format's first consumer. If its own manifest does not
   -- pass its own checks, the format is not usable by anyone.
   local results = run_self()
