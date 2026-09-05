@@ -349,6 +349,35 @@ do
 end
 
 do
+  -- `schema` is required, so a manifest that never declares it is malformed
+  -- rather than written to a version this runner has not heard of. Skipping it
+  -- takes every checksum, licence and orphan check for that extension with it.
+  local missing = run_fixture('vendored-missing-version', '--layer conformance')
+  local missing_case = missing and find_case(missing, 'conformance/vendored/vend')
+  check(missing_case ~= nil and missing_case.status == 'fail',
+    'a manifest that declares no format version fails rather than skipping',
+    missing_case and missing_case.status)
+  check(missing_case ~= nil and missing_case.failure
+    and missing_case.failure.reason == 'dependencies-invalid',
+    'the failure names the manifest rather than an unknown format version',
+    missing_case and missing_case.failure and missing_case.failure.reason)
+
+  -- `schema: "1"` beside the quoted `version: "1.0.0"` on the next line is an
+  -- easy mistake. The validator coerces a quoted scalar toward its declared
+  -- type, so this manifest does declare version 1, and every vendored check
+  -- for it must still run. It used to be read as a version from the future.
+  local quoted = run_fixture('vendored-quoted-version', '--layer conformance')
+  local quoted_case = quoted and find_case(quoted, 'conformance/vendored/vend')
+  check(quoted_case ~= nil and quoted_case.status ~= 'skip',
+    'a format version written as a string is not read as a version from the future',
+    quoted_case and quoted_case.status)
+  local quoted_file = quoted and find_case(quoted, 'conformance/vendored/vend/example/sample.lua')
+  check(quoted_file ~= nil and quoted_file.status == 'pass',
+    'a format version written as a string still has its vendored files checked',
+    quoted_file and quoted_file.status)
+end
+
+do
   local results = run_fixture('vendored-no-licence', '--layer conformance')
   local case = results and find_case(results, 'conformance/vendored/vend/example/source-licence')
   check(case ~= nil and case.status == 'fail',

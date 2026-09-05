@@ -498,7 +498,22 @@ local function check_dependencies(ext, dependencies_schema, emit)
   -- the way an unrecognised schema vocabulary is, because every copy of this
   -- framework already released would otherwise report a future format as the
   -- author's defect.
-  if parsed.schema ~= DEPENDENCIES_VERSION then
+  --
+  -- Only a whole number that is not 1 is a version from the future. `schema`
+  -- is required, so a value that is absent, fractional or not a number at all
+  -- is a malformed manifest, and it falls through to the validator below,
+  -- which says so. Skipping it would take every checksum, licence and orphan
+  -- check for that extension with it.
+  --
+  -- The version is read the way the validator reads it, through a numeric
+  -- coercion, because the validator accepts a quoted scalar for an integer.
+  -- Reading `schema: "2"` any other way would walk a manifest from the future
+  -- as if it were version 1.
+  local declared_version = tonumber(parsed.schema)
+  local from_the_future = declared_version ~= nil
+    and declared_version == math.floor(declared_version)
+    and declared_version ~= DEPENDENCIES_VERSION
+  if from_the_future then
     emit(case(id, 'skip', string.format(
       'the manifest declares format version %s; this runner reads version %d',
       tostring(parsed.schema), DEPENDENCIES_VERSION),
