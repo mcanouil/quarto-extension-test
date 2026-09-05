@@ -1,0 +1,128 @@
+name: Extension Test
+description: Set up Quarto and run the extension test framework over a repository.
+
+inputs:
+  quarto:
+    description: "Quarto channel: release or pre-release."
+    required: false
+    default: "release"
+  runner:
+    description: "Glob that resolves to the runner."
+    required: false
+    default: "tests/_extensions/*/extension-test/run.lua"
+  args:
+    description: "Further options passed to the runner."
+    required: false
+    default: ""
+  results:
+    description: "Path the runner writes the result JSON to."
+    required: false
+    default: "tests/_results/results.json"
+
+runs:
+  using: composite
+  steps:
+    # The channel and the glob resolve here rather than in the run step, so a
+    # bad channel or a repository that holds no runner fails with a sentence
+    # instead of a silent fallback or a shell error.
+    - name: Check the inputs and resolve the runner
+      id: resolve
+      shell: bash
+      env:
+        QUARTO_CHANNEL: ${{ inputs.quarto }}
+        RUNNER_GLOB: ${{ inputs.runner }}
+        RESULTS: ${{ inputs.results }}
+      run: |
+        set -euo pipefail
+        case "${QUARTO_CHANNEL}" in
+          release | pre-release) ;;
+          *)
+            printf 'Error: quarto must be release or pre-release, not %s.\n' "${QUARTO_CHANNEL}" >&2
+            exit 1
+            ;;
+        esac
+        mapfile -t runners < <(compgen -G "${RUNNER_GLOB}" || true)
+        if [[ "${#runners[@]}" -eq 0 ]]; then
+          printf 'Error: no runner matched %s.\n' "${RUNNER_GLOB}" >&2
+          exit 1
+        fi
+        # The runner writes the logs beside the result file and the rendered
+        # documents beside the tests directory, so the upload follows the
+        # result path rather than a second input that could disagree with it.
+        results_dir="$(dirname -- "${RESULTS}")"
+        tests_dir="$(dirname -- "${results_dir}")"
+        {
+          printf 'path=%s\n' "${runners[0]}"
+          printf 'logs=%s\n' "${results_dir}/logs"
+          printf 'output=%s\n' "${tests_dir}/_output"
+        } >> "${GITHUB_OUTPUT}"
+
+    - name: Setup Quarto
+      uses: quarto-dev/quarto-actions/setup@v2
+      with:
+        version: ${{ inputs.quarto }}
+
+    - name: Run the tests
+      id: run
+      shell: bash
+      env:
+        RUNNER_PATH: ${{ steps.resolve.outputs.path }}
+        RUNNER_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+        # Word splitting is deliberate: `args` is a command line, not one path.
+        # shellcheck disable=SC2086
+        quarto pandoc lua "${RUNNER_PATH}" ${RUNNER_ARGS}
+
+    - name: Write the summary
+      if: always()
+      shell: bash
+      env:
+        RESULTS: ${{ inputs.results }}
+        RUN_OUTCOME: ${{ steps.run.outcome }}
+      run: |
+        set -euo pipefail
+        if [[ ! -f "${RESULTS}" ]]; then
+          # A missing file after a failed run is expected, because the harness
+          # can stop before it writes one. A missing file after a run that
+          # passed means `results` names the wrong path, so it is an error.
+          if [[ "${RUN_OUTCOME}" == "success" ]]; then
+            printf 'Error: the tests passed but no result file is at %s.\n' "${RESULTS}" >&2
+            exit 1
+          fi
+          printf 'No result file at %s.\n' "${RESULTS}" >> "${GITHUB_STEP_SUMMARY}"
+          exit 0
+        fi
+        # A summary that renders an empty table and exits 0 hides the very
+        # failure this framework exists to report, so the shape is checked
+        # before it is rendered.
+        if ! jq -e '.layer_order and .layers and .summary and .framework.version' "${RESULTS}" > /dev/null; then
+          printf 'Error: %s does not carry the expected result shape.\n' "${RESULTS}" >&2
+          exit 1
+        fi
+        printf '## Extension test\n\n' >> "${GITHUB_STEP_SUMMARY}"
+        jq -r '
+          "| Layer | Total | Pass | Fail | Skip |",
+          "|---|---|---|---|---|",
+          (.layer_order[] as $name | .layers[$name] |
+            "| \($name) | \(.total) | \(.pass) | \(.fail) | \(.skip) |"),
+          "",
+          "Overall: \(.status), \(.summary.total) cases, framework \(.framework.version).",
+          "",
+          (if (.summary.fail // 0) > 0 then
+            "### Failures", "",
+            (.cases[] | select(.status == "fail") |
+              "- `\(.id)`: \(.failure.message // .failure.reason // "no message")")
+           else empty end)
+        ' "${RESULTS}" >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Upload the results
+      if: ${{ always() && steps.resolve.outputs.path != '' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: extension-test-${{ inputs.quarto }}
+        path: |
+          ${{ inputs.results }}
+          ${{ steps.resolve.outputs.logs }}/**
+          ${{ steps.resolve.outputs.output }}/**
+        if-no-files-found: ignore
