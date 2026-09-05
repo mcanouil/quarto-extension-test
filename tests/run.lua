@@ -361,6 +361,30 @@ do
 end
 
 do
+  -- A name the manifest does declare, written at `_vendor/<name>` as a file
+  -- rather than a directory. The verdict is a failure either way, and telling
+  -- the author it is "not a source the manifest declares" contradicts the
+  -- manifest they are reading.
+  local results = run_fixture('vendored-source-not-a-directory', '--layer conformance')
+  local root_case = nil
+  for _, entry in ipairs((results or {}).cases or {}) do
+    if entry.id == 'conformance/vendored/vend/example' then
+      root_case = entry
+    end
+  end
+  check(root_case ~= nil and root_case.status == 'fail',
+    'a declared source written as a file fails', root_case and root_case.status)
+  check(root_case ~= nil and root_case.failure
+    and root_case.failure.reason == 'vendored-source-not-a-directory',
+    'the failure names the source that is not a directory',
+    root_case and root_case.failure and root_case.failure.reason)
+  check(root_case ~= nil and root_case.failure and root_case.failure.message
+    and root_case.failure.message:find('is not a source the manifest declares', 1, true) == nil,
+    'the failure does not deny that the manifest declares the source',
+    root_case and root_case.failure and root_case.failure.message)
+end
+
+do
   -- The sweep runs over other people's repositories. A manifest written to a
   -- later version of the format is not their defect, and every copy of this
   -- framework already released would call it one.

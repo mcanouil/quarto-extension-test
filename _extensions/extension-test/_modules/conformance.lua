@@ -669,11 +669,19 @@ local function check_dependencies(ext, dependencies_schema, emit)
   local vendor_root = util.join(ext.dir, VENDOR_DIR)
   if util.is_dir(vendor_root) then
     for _, present in ipairs(util.list_dir(vendor_root)) do
-      local declared = parsed.sources[present] ~= nil and util.is_dir(util.join(vendor_root, present))
-      if not declared then
-        emit(case(string.format('%s/%s', id, present), 'fail',
+      local root_id = string.format('%s/%s', id, present)
+      if parsed.sources[present] == nil then
+        emit(case(root_id, 'fail',
           string.format('`%s/%s` is not a source the manifest declares', VENDOR_DIR, present),
           'conformance', 'vendored-undeclared'))
+      elseif not util.is_dir(util.join(vendor_root, present)) then
+        -- A name the manifest does declare, written as a file. The verdict is
+        -- the same failure, and the sentence above is not: telling the author
+        -- the manifest does not declare it contradicts the file they wrote.
+        emit(case(root_id, 'fail', string.format(
+          'the manifest declares `%s` as a source, so `%s/%s` must be a directory, and it is a file',
+          present, VENDOR_DIR, present),
+          'conformance', 'vendored-source-not-a-directory'))
       end
     end
   end
