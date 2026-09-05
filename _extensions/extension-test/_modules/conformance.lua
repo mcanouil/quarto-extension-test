@@ -1,5 +1,4 @@
 --- Extension Test - Layer A, conformance.
---- @version 0.0.0
 ---
 --- Generalises the reference conformance sweep from "walk directories looking
 --- for `_schema.yml`" into "check the extensions of one repository". Two

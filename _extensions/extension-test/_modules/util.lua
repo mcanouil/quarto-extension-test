@@ -1,5 +1,4 @@
 --- Extension Test - Shared helpers for the test runner.
---- @version 0.0.0
 ---
 --- Every iteration helper here returns keys in a deterministic order. Lua
 --- table order is not stable between runs, and a test report whose findings

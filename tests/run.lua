@@ -727,6 +727,18 @@ do
     'two runs of the failing fixture produce identical cases and messages')
 end
 
+io.stdout:write('# version\n')
+
+do
+  local text = util.read_file(here .. '_extensions/extension-test/_extension.yml')
+  local parsed = schema._parse_yaml_text(text)
+  local pipe = io.popen('quarto pandoc lua ' .. RUNNER .. ' --version')
+  local reported = pipe:read('*l')
+  pipe:close()
+  equal(reported, tostring(parsed.version),
+    'the runner reports the version its manifest declares')
+end
+
 io.stdout:write(string.format('\n%d checks, %d failed\n', passed + failed, failed))
 io.stdout:flush()
 os.exit(failed == 0 and 0 or 1, true)

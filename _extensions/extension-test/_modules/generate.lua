@@ -1,5 +1,4 @@
 --- Extension Test - Layer C, generated smoke.
---- @version 0.0.0
 ---
 --- Synthesises documents from what `_schema.yml` already declares: the
 --- options, shortcodes, element attributes, classes and formats an extension

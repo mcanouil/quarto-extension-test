@@ -37,7 +37,20 @@ local generate = require('generate')
 local stage = require('stage')
 local schema = require('schema')
 
-local VERSION = '0.0.0'
+--- The version the extension manifest declares. The release workflow rewrites
+--- `_extension.yml`, and nothing rewrites a constant, so a constant here goes
+--- stale at the first release and tells the catalogue the wrong thing.
+local VERSION = (function()
+  local text = util.read_file(pandoc.path.join({ script_dir, '_extension.yml' }))
+  if not text then
+    return 'unknown'
+  end
+  local ok, parsed = pcall(schema._parse_yaml_text, text)
+  if not ok or type(parsed) ~= 'table' or parsed.version == nil then
+    return 'unknown'
+  end
+  return tostring(parsed.version)
+end)()
 local LAYERS = { conformance = true, render = true, smoke = true }
 
 local USAGE = [[
