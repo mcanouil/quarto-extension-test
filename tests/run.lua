@@ -419,7 +419,7 @@ do
   -- for it must still run. It used to be read as a version from the future.
   local quoted = run_fixture('vendored-quoted-version', '--layer conformance')
   local quoted_case = quoted and find_case(quoted, 'conformance/vendored/vend')
-  check(quoted_case ~= nil and quoted_case.status ~= 'skip',
+  check(quoted_case ~= nil and quoted_case.status == 'pass',
     'a format version written as a string is not read as a version from the future',
     quoted_case and quoted_case.status)
   local quoted_file = quoted and find_case(quoted, 'conformance/vendored/vend/example/sample.lua')
