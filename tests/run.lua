@@ -142,6 +142,43 @@ local function run_without_descriptors(name, removed)
   return parsed, output
 end
 
+--- Run a copy of the framework whose manifest declares a version nothing
+--- else would produce by coincidence.
+---
+--- The real manifest and the runner's old hard-coded fallback both happened
+--- to read `0.0.0` before the first release, so asserting `--version`
+--- against the real manifest alone cannot fail: reverting the runner to a
+--- constant would still agree with it. Diverging a copy, the way
+--- `run_without_descriptors` diverges a copy to reach a path a fixture
+--- cannot reach, is what makes the check able to fail.
+--- @param version string a value nothing else would produce
+--- @return string|nil reported, string|nil error
+local function run_with_manifest_version(version)
+  local copy = DEGRADED
+  util.remove_tree(copy)
+  local ok, copy_err = util.copy_tree(here .. '_extensions/extension-test',
+    util.join(copy, 'extension-test'))
+  if not ok then
+    util.remove_tree(copy)
+    return nil, tostring(copy_err)
+  end
+
+  local manifest = util.join(copy, 'extension-test', '_extension.yml')
+  local text = util.read_file(manifest)
+  local rewritten = text and text:gsub('version:%s*[^\r\n]+', 'version: ' .. version, 1)
+  if not rewritten then
+    util.remove_tree(copy)
+    return nil, 'could not read ' .. manifest
+  end
+  util.write_file(manifest, rewritten)
+
+  local command = string.format('quarto pandoc lua %s --version',
+    util.shell_quote(util.join(copy, 'extension-test', 'run.lua')))
+  local _, output = util.capture(command)
+  util.remove_tree(copy)
+  return util.trim(output), nil
+end
+
 --- Find the first case id a result document writes twice.
 ---
 --- The result JSON is the contract the catalogue reads, and two cases sharing
@@ -737,6 +774,19 @@ do
   pipe:close()
   equal(reported, tostring(parsed.version),
     'the runner reports the version its manifest declares')
+end
+
+do
+  -- The check above documents the happy path, but it cannot fail on its
+  -- own: the real manifest and a hard-coded fallback constant could agree
+  -- by coincidence, as they did before this task. Diverging a copy's
+  -- manifest from anything real is what makes the check able to fail
+  -- whenever the runner stops reading it.
+  local marker = 'not-a-real-version-8f2c1e'
+  local reported, err = run_with_manifest_version(marker)
+  check(reported == marker,
+    'the runner reports a manifest version nothing else could produce by coincidence',
+    err or reported)
 end
 
 io.stdout:write(string.format('\n%d checks, %d failed\n', passed + failed, failed))
