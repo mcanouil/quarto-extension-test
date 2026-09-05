@@ -25,6 +25,9 @@ local report = require('report')
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
 
+--- Where the degraded runs copy the framework to, and clean up after.
+local DEGRADED = here .. 'tests/_results/degraded'
+
 local passed, failed = 0, 0
 
 --- Record one assertion.
@@ -104,11 +107,12 @@ end
 --- @param removed string descriptor file to remove from the copy
 --- @return table|nil results, string output
 local function run_without_descriptors(name, removed)
-  local copy = util.join(here .. 'tests/_results', 'degraded')
+  local copy = DEGRADED
   util.remove_tree(copy)
   local ok, copy_err = util.copy_tree(here .. '_extensions/extension-test',
     util.join(copy, 'extension-test'))
   if not ok then
+    util.remove_tree(copy)
     return nil, tostring(copy_err)
   end
   os.remove(util.join(copy, 'extension-test', removed))
@@ -122,7 +126,12 @@ local function run_without_descriptors(name, removed)
     util.shell_quote(json))
   local _, output = util.capture(command)
 
+  -- The copy is the whole framework, vendored validator included. Read the
+  -- result out of it, then take it away again, the way `run_fixture` cleans up
+  -- after itself. Leaving it behind puts a second copy of the extension in the
+  -- working tree after every run.
   local text = util.read_file(json)
+  util.remove_tree(copy)
   if not text then
     return nil, output
   end
@@ -536,6 +545,11 @@ do
     and case.failure.message:find('example', 1, true) ~= nil,
     'the failure names both the source and the file',
     case and case.failure and case.failure.message)
+
+  -- The copy is the framework itself. A degraded run that does not take it
+  -- away leaves a second copy of the extension in the working tree.
+  check(not util.is_dir(DEGRADED),
+    'a degraded run leaves no copy of the framework behind', DEGRADED)
 end
 
 do
