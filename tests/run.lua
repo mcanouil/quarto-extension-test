@@ -133,6 +133,24 @@ local function run_without_descriptors(name, removed)
   return parsed, output
 end
 
+--- Find the first case id a result document writes twice.
+---
+--- The result JSON is the contract the catalogue reads, and two cases sharing
+--- one id in it is a defect: a reader keying on the id sees one of the two and
+--- never learns which.
+--- @param results table|nil
+--- @return string|nil the duplicated id
+local function duplicate_id(results)
+  local seen = {}
+  for _, entry in ipairs((results or {}).cases or {}) do
+    if seen[entry.id] then
+      return entry.id
+    end
+    seen[entry.id] = true
+  end
+  return nil
+end
+
 --- Find one case by the tail of its id.
 local function find_case(results, suffix)
   for _, case in ipairs((results or {}).cases or {}) do
@@ -433,13 +451,7 @@ do
   -- one id in it is a defect. A source's own licence case and a declared file
   -- named `licence` used to write the same id.
   local results = run_fixture('vendored-licence-collision', '--layer conformance')
-  local seen, duplicate = {}, nil
-  for _, entry in ipairs((results or {}).cases or {}) do
-    if seen[entry.id] then
-      duplicate = entry.id
-    end
-    seen[entry.id] = true
-  end
+  local duplicate = duplicate_id(results)
   check(results ~= nil and duplicate == nil,
     'no two cases share one id when a declared file is named `licence`', duplicate)
 
@@ -485,6 +497,25 @@ do
   check(case ~= nil and case.failure and case.failure.reason == 'dependencies-invalid',
     'the failure names the source that is not a declaration',
     case and case.failure and case.failure.reason)
+end
+
+do
+  -- `sources` that is not a map is reported after the manifest has already
+  -- passed, so the guard needs an id of its own. Writing the manifest's own id
+  -- puts one id on two cases in the document the catalogue reads.
+  local results, output = run_without_descriptors('vendored-invalid-sources', 'dependencies-schema.yml')
+  check(results ~= nil,
+    'a manifest whose `sources` is not a map still produces a result document', output)
+  local duplicate = duplicate_id(results)
+  check(results ~= nil and duplicate == nil,
+    'no two cases share one id when `sources` is not a map', duplicate)
+
+  local case = results and find_case(results, 'conformance/vendored/vend/sources')
+  check(case ~= nil and case.status == 'fail',
+    '`sources` that is not a map fails under an id of its own',
+    case and case.status)
+  check(case ~= nil and case.failure and case.failure.reason == 'dependencies-invalid',
+    'the failure names the manifest', case and case.failure and case.failure.reason)
 end
 
 do

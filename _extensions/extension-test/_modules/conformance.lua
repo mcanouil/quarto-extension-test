@@ -628,8 +628,11 @@ local function check_dependencies(ext, dependencies_schema, emit)
     end
   end
 
+  -- An id of its own. The manifest's own id has already been written above,
+  -- and one id on two cases loses one of them for every reader that keys on
+  -- the id.
   if type(parsed.sources) ~= 'table' then
-    emit(case(id, 'fail', '`sources` is not a map of source declarations',
+    emit(case(id .. '/sources', 'fail', '`sources` is not a map of source declarations',
       'conformance', 'dependencies-invalid'))
     return nil
   end
