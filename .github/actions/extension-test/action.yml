@@ -15,7 +15,11 @@ inputs:
     required: false
     default: ""
   results:
-    description: "Path the runner writes the result JSON to."
+    description: >-
+      Path the runner writes the result JSON to. The upload follows it: the
+      logs are read from the `logs` directory beside it, and the rendered
+      documents from the `_output` directory beside its parent. Move it out of
+      a `_results` directory and those two move with it.
     required: false
     default: "tests/_results/results.json"
 
@@ -51,6 +55,10 @@ runs:
         # result path rather than a second input that could disagree with it.
         results_dir="$(dirname -- "${RESULTS}")"
         tests_dir="$(dirname -- "${results_dir}")"
+        if [[ "$(basename -- "${results_dir}")" != "_results" ]]; then
+          printf '::warning::results is %s, which is not inside a _results directory, so the artefact looks for the logs at %s and the rendered documents at %s. Check both.\n' \
+            "${RESULTS}" "${results_dir}/logs" "${tests_dir}/_output"
+        fi
         {
           printf 'path=%s\n' "${runners[0]}"
           printf 'logs=%s\n' "${results_dir}/logs"
@@ -93,10 +101,24 @@ runs:
           printf 'No result file at %s.\n' "${RESULTS}" >> "${GITHUB_STEP_SUMMARY}"
           exit 0
         fi
-        # A summary that renders an empty table and exits 0 hides the very
-        # failure this framework exists to report, so the shape is checked
-        # before it is rendered.
-        if ! jq -e '.layer_order and .layers and .summary and .framework.version' "${RESULTS}" > /dev/null; then
+        # A summary that renders headers only, or a row of nulls, and exits 0
+        # hides the very failure this framework exists to report. Presence is
+        # not enough: every field the table reads is checked for its type, and
+        # the layer list is checked for being non-empty.
+        if ! jq -e '
+          (.layer_order | type) == "array"
+            and (.layer_order | length) > 0
+            and (.layers | type) == "object"
+            and (.status | type) == "string"
+            and (.summary.total | type) == "number"
+            and (.summary.fail | type) == "number"
+            and (.framework.version | type) == "string"
+            and ([.layer_order[] as $name | .layers[$name]
+                  | (.total | type) == "number"
+                    and (.pass | type) == "number"
+                    and (.fail | type) == "number"
+                    and (.skip | type) == "number"] | all)
+        ' "${RESULTS}" > /dev/null; then
           printf 'Error: %s does not carry the expected result shape.\n' "${RESULTS}" >&2
           exit 1
         fi

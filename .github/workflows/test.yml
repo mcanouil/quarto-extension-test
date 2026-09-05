@@ -49,4 +49,7 @@ jobs:
           results: "tests/fixtures/clean/_t/_results/results.json"
 
       - name: Run the unit tests
-        run: quarto pandoc lua tests/run.lua
+        shell: bash
+        run: |
+          set -euo pipefail
+          quarto pandoc lua tests/run.lua

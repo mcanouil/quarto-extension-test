@@ -32,6 +32,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # `@main` is a moving branch, so a consumer that pins this workflow at a
+      # tag still gets the action from main. There is no way to avoid that
+      # today: a relative `./` path resolves against the calling repository's
+      # checkout, and this repository has no release to pin to. The reference
+      # moves to a tag at the first release.
       - name: Run the tests
         uses: mcanouil/quarto-extension-test/.github/actions/extension-test@main
         with:
@@ -88,7 +93,10 @@ jobs:
                 "- `\(.id)`: \(.failure.message // .failure.reason // "no message")")
             ' "${file}" >> "${body}"
           done
-          number="$(gh issue list --state open --limit 100 --json number,title \
+          # A title search, not a listing: a listing of the first hundred open
+          # issues can miss the one that exists and then open a duplicate.
+          number="$(gh issue list --state open --search "in:title \"${TITLE}\"" \
+            --json number,title \
             --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')"
           if [[ -n "${number}" ]]; then
             gh issue comment "${number}" --body-file "${body}"
