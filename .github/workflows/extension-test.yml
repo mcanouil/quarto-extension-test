@@ -32,12 +32,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # `@main` is a moving branch, so a consumer that pins this workflow at a
-      # tag still gets the action from main. There is no way to avoid that
-      # today: a relative `./` path resolves against the calling repository's
-      # checkout, and this repository has no release to pin to. The reference
-      # moves to a tag at the first release.
+      # The action is pinned to a release rather than to `@main`, so a consumer
+      # that pins this workflow at a tag gets the action that tag was tested
+      # with. A relative `./` path cannot be used instead, because it resolves
+      # against the calling repository's checkout rather than this one.
+      # Move this reference with each release.
       - name: Run the tests
-        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@main
+        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.1.0
         with:
           quarto: ${{ matrix.quarto }}
