@@ -21,6 +21,7 @@ local schema = require('schema')
 local values = require('values')
 local emit = require('emit')
 local report = require('report')
+local conformance = require('conformance')
 
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
@@ -274,6 +275,25 @@ equal(report.yaml_scalar('ERROR: broke'), '"ERROR: broke"',
 equal(report.yaml_scalar('say "hi"'), '"say \\"hi\\""',
   'a quote inside a TAP diagnostic is escaped')
 
+io.stdout:write('# conformance\n')
+
+-- The licence rule is a rule about names, and the fixtures below can only ask
+-- the filesystem they run on. A case-insensitive one answers for `LICENSE`
+-- when the directory holds `license`, so it hides the half of the rule that
+-- the Linux runner sees. These read the name alone.
+check(conformance._is_licence_file('LICENSE'),
+  'the licence rule accepts the name upstreams ship most often')
+check(conformance._is_licence_file('license'),
+  'the licence rule accepts a licence spelled in lower case')
+check(conformance._is_licence_file('licence.md'),
+  'the licence rule accepts the British spelling in lower case')
+check(conformance._is_licence_file('Copying'),
+  'the licence rule accepts a name spelled in mixed case')
+check(not conformance._is_licence_file('licensed.lua'),
+  'the licence rule refuses a name that merely starts like a licence')
+check(not conformance._is_licence_file('sample.lua'),
+  'the licence rule refuses a vendored module')
+
 io.stdout:write('# fixtures\n')
 
 do
@@ -500,6 +520,20 @@ do
   check(spelling ~= nil and (spelling.summary.fail or 0) == 0,
     'a licence shipped as `LICENSE.md` is not reported as an undeclared file',
     spelling and spelling.summary and spelling.summary.fail)
+
+  -- Upstreams also spell the file in lower case. The names used to be compared
+  -- exactly, so `license` failed the licence check on a case-sensitive
+  -- filesystem and passed on a case-insensitive one, and was reported as an
+  -- undeclared file on both. The verdict belongs to the repository, not to the
+  -- machine that reads it.
+  local lower = run_fixture('vendored-licence-case', '--layer conformance')
+  local lower_case = lower and find_case(lower, 'conformance/vendored/vend/example/source-licence')
+  check(lower_case ~= nil and lower_case.status == 'pass',
+    'a licence shipped as `license` satisfies the licence check',
+    lower_case and lower_case.status)
+  check(lower ~= nil and (lower.summary.fail or 0) == 0,
+    'a licence shipped as `license` is not reported as an undeclared file',
+    lower and lower.summary and lower.summary.fail)
 
   local runtime = run_fixture('vendored-pandoc-runtime', '--layer conformance')
   local runtime_case = runtime and find_case(runtime, '/runtime')
