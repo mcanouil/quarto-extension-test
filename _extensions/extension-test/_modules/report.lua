@@ -1,5 +1,4 @@
 --- Extension Test - Result tree and report emission.
---- @version 0.0.0
 ---
 --- JSON is the canonical format because every downstream consumer is bash
 --- and `jq`. TAP 13 is written alongside for humans and for CI systems that

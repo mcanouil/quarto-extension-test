@@ -1,5 +1,4 @@
 --- Extension Test - Deriving a concrete value from a field descriptor.
---- @version 0.0.0
 ---
 --- The governing invariant: every value this module hands back has been
 --- validated against the descriptor it came from. Candidates are tried in

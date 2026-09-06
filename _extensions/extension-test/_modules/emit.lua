@@ -1,5 +1,4 @@
 --- Extension Test - Turning derived values into Quarto source.
---- @version 0.0.0
 ---
 --- One distinction runs through this module. A document option is a real YAML
 --- value, so a boolean is written `true`. A Pandoc attribute always arrives as

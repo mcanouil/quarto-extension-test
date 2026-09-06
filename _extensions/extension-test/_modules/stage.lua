@@ -1,5 +1,4 @@
 --- Extension Test - Staging the extension under test.
---- @version 0.0.0
 ---
 --- Quarto builds its extension registry while reading `_quarto.yml`, before
 --- any `pre-render` script runs, so an extension copied in from inside a

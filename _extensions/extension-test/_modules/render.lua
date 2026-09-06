@@ -1,5 +1,4 @@
 --- Extension Test - Layer B, render.
---- @version 0.0.0
 ---
 --- Renders each test document to each of its formats and inspects what the
 --- render leaves behind. Exit code alone is not enough: an extension that

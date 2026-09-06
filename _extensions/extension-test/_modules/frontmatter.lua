@@ -1,5 +1,4 @@
 --- Extension Test - Reading the `test:` block from a document.
---- @version 0.0.0
 ---
 --- The vocabulary is additive only. The catalogue sweep runs one pinned
 --- framework version against repositories that pinned an older one, so a key
