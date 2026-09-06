@@ -10,7 +10,7 @@ Install it inside a `tests` directory, so it never mixes with the extension unde
 
 ```bash
 mkdir -p tests
-cd tests && quarto add mcanouil/quarto-extension-test
+cd tests && quarto add mcanouil/quarto-extension-test@0.1.0
 ```
 
 Make `tests` a Quarto project, which is what lets a render resolve the extension under test:
