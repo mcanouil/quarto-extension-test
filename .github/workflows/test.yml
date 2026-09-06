@@ -6,12 +6,14 @@ on:
     paths:
       - "_extensions/**"
       - "tests/**"
+      - ".github/actions/extension-test/action.yml"
       - ".github/workflows/test.yml"
   push:
     branches: [main]
     paths:
       - "_extensions/**"
       - "tests/**"
+      - ".github/actions/extension-test/action.yml"
       - ".github/workflows/test.yml"
   workflow_dispatch:
 
@@ -32,10 +34,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # The fixture tests drive the Quarto CLI, and the unit tests call
-      # `pandoc.*`, so both need Quarto rather than a standalone interpreter.
-      - name: Setup Quarto
-        uses: quarto-dev/quarto-actions/setup@v2
+      # The repository is the first consumer of its own action. The action sets
+      # up Quarto, which the unit suite also needs, because the fixture tests
+      # drive the Quarto CLI and the unit tests call `pandoc.*`.
+      #
+      # The runner lives at the repository root here rather than under
+      # `tests/_extensions`, and the repository is the framework rather than an
+      # extension under test, so the action is pointed at one fixture.
+      - name: Run the framework over its own fixtures
+        uses: ./.github/actions/extension-test
+        with:
+          runner: "_extensions/extension-test/run.lua"
+          args: "--root tests/fixtures/clean --tests tests/fixtures/clean/_t"
+          results: "tests/fixtures/clean/_t/_results/results.json"
 
-      - name: Run the tests
-        run: quarto pandoc lua tests/run.lua
+      - name: Run the unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          quarto pandoc lua tests/run.lua
