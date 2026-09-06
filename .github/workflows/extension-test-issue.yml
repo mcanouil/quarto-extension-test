@@ -56,12 +56,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mapfile -t files < <(find artefacts -type f -name 'results.json' 2> /dev/null | sort)
+
+          # The caller decides when this job runs, so it can be reached after a
+          # run in which nothing failed. Opening an issue then would state the
+          # opposite of what happened. A missing result file is still worth an
+          # issue, because it means the harness stopped before writing one.
+          if [[ "${#files[@]}" -gt 0 ]]; then
+            failing=0
+            for file in "${files[@]}"; do
+              failing=$((failing + $(jq '[.cases[] | select(.status == "fail")] | length' "${file}")))
+            done
+            if [[ "${failing}" -eq 0 ]]; then
+              printf 'Every case passed in %d result file(s); no issue opened.\n' "${#files[@]}"
+              exit 0
+            fi
+          fi
+
           body="$(mktemp)"
           {
             printf 'The extension test framework reported failures.\n\n'
             printf 'Run: %s\n' "${RUN_URL}"
           } > "${body}"
-          mapfile -t files < <(find artefacts -type f -name 'results.json' 2> /dev/null | sort)
           if [[ "${#files[@]}" -eq 0 ]]; then
             printf '\nNo result file reached the artefacts, so the harness stopped before it wrote one.\n' >> "${body}"
           fi
