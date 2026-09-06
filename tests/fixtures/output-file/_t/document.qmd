@@ -1,0 +1,13 @@
+---
+title: Renamed
+format: html
+output-file: renamed
+test:
+  formats: [html]
+---
+
+The document sets `output-file`, so the render writes `renamed.html` rather
+than a file named after this document. The render layer has to find it, or it
+asserts nothing while the run still reports a pass.
+
+{{< present >}}

@@ -736,6 +736,112 @@ do
 end
 
 do
+  -- A document that sets `output-file` writes somewhere other than a file
+  -- named after itself. Looking only for the latter finds nothing, and the
+  -- layer that exists to read the output then asserts nothing while the run
+  -- still reports a pass.
+  local results = run_fixture('output-file')
+  local case = results and find_case(results, 'render/document/')
+  check(case ~= nil and case.status == 'pass',
+    'a document that renames its output is rendered and checked',
+    case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)))
+end
+
+do
+  -- A project can name any output directory. Assuming `_output` reads a
+  -- working render as having written nothing, which is now a failure rather
+  -- than a skip, so the assumption would fail every such repository.
+  local results = run_fixture('output-dir')
+  local case = results and find_case(results, 'render/document/')
+  check(case ~= nil and case.status == 'pass',
+    'a project writing outside _output is rendered and checked',
+    case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)))
+end
+
+do
+  -- An extension documents itself by showing its own syntax, and that reaches
+  -- the output looking exactly like a shortcode that failed to expand. The
+  -- scan has to tell the two apart, or every self-documenting extension fails.
+  local render = require('render')
+  local scratch = util.join(here, 'tests/_results/unexpanded')
+  pcall(pandoc.system.make_directory, scratch, true)
+
+  local quoted = util.join(scratch, 'quoted.html')
+  util.write_file(quoted,
+    '<p>Write it like this:</p><pre class="sourceCode"><code>{{&lt; demo icon &gt;}}</code></pre>')
+  check(render.has_unexpanded(quoted) == false,
+    'shortcode syntax quoted in a code block is not read as unexpanded')
+
+  local inline = util.join(scratch, 'inline.md')
+  util.write_file(inline, 'Write it as `{{< demo icon >}}` in your document.\n')
+  check(render.has_unexpanded(inline) == false,
+    'shortcode syntax in an inline code span is not read as unexpanded')
+
+  local leaked = util.join(scratch, 'leaked.html')
+  util.write_file(leaked, '<p>Here is the icon: {{&lt; demo icon &gt;}}</p>')
+  check(render.has_unexpanded(leaked) == true,
+    'a shortcode left in the body is still read as unexpanded')
+
+  util.remove_tree(scratch)
+end
+
+do
+  -- The two ways `output_path` comes back empty mean different things, and the
+  -- render layer grades them differently: nowhere to look is this harness's
+  -- gap, nothing written is the extension's failure.
+  local render = require('render')
+  local document = { relative = 'absent.qmd', absolute = FIXTURES .. '/absent.qmd' }
+
+  local path, reason = render.output_path(FIXTURES, document, 'html')
+  check(path == nil and reason == 'output-not-found',
+    'a known format with no output reports output-not-found', tostring(reason))
+
+  path, reason = render.output_path(FIXTURES, document, 'some-unknown-format')
+  check(path == nil and reason == 'unknown-suffix',
+    'a format this harness cannot place reports unknown-suffix', tostring(reason))
+
+  -- The name and the directory come from Quarto, so they are pinned here
+  -- rather than left to how the installed version happens to report them.
+  local scratch = util.join(here, 'tests/_results/paths')
+  pcall(pandoc.system.make_directory, util.join(scratch, 'elsewhere'), true)
+  local placed = { relative = 'doc.qmd', absolute = util.join(scratch, 'doc.qmd') }
+
+  util.write_file(util.join(scratch, 'renamed.html'), 'x')
+  path = render.output_path(scratch, placed, 'html', 'renamed')
+  check(path == util.join(scratch, 'renamed.html'),
+    'a reported name without its suffix has one added', tostring(path))
+
+  path = render.output_path(scratch, placed, 'html', 'renamed.html')
+  check(path == util.join(scratch, 'renamed.html'),
+    'a reported name carrying its suffix is used as it stands', tostring(path))
+
+  path = render.output_path(scratch, placed, 'some-unknown-format', 'renamed.html')
+  check(path == util.join(scratch, 'renamed.html'),
+    'a format with no mapped suffix is placed by the name Quarto reports',
+    tostring(path))
+
+  util.write_file(util.join(scratch, 'elsewhere', 'doc.html'), 'x')
+  os.remove(util.join(scratch, 'renamed.html'))
+  path = render.output_path(scratch, placed, 'html', nil, 'elsewhere')
+  check(path == util.join(scratch, 'elsewhere', 'doc.html'),
+    'the output directory Quarto names is searched', tostring(path))
+
+  -- A stale copy in any candidate would let a render that wrote nothing read
+  -- as a pass, so the render clears every candidate rather than the first one
+  -- that happens to exist.
+  local candidates = render.output_candidates(scratch, placed, 'html', nil, 'elsewhere')
+  check(candidates ~= nil and #candidates == 4,
+    'every place a render could have written is offered for removal',
+    candidates and tostring(#candidates))
+  check(candidates ~= nil and util.contains(candidates, util.join(scratch, 'elsewhere', 'doc.html')),
+    'the candidates include the directory Quarto names')
+  check(candidates ~= nil and util.contains(candidates, util.join(scratch, '_site', 'doc.html')),
+    'the candidates keep the defaults as a fallback')
+
+  util.remove_tree(scratch)
+end
+
+do
   -- Without a project file the staged extension is not resolved, and every
   -- document then reports a shortcode that is not found. The harness knows it
   -- staged the extension itself, so it says what is missing instead.

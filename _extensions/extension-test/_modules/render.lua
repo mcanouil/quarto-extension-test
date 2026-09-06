@@ -101,18 +101,44 @@ end
 --- @param cwd string directory to inspect from
 --- @return string[] formats
 --- @return string|nil error
+--- @return table output_files format to the file name Quarto writes for it
+--- @return string|nil output_dir the project output directory Quarto resolved
 function M.formats(document, cwd)
   local command = string.format('cd %s && quarto inspect %s',
     util.shell_quote(cwd), util.shell_quote(document))
   local code, output = util.capture(command)
   if code ~= 0 then
-    return {}, 'quarto inspect failed: ' .. util.trim(output)
+    return {}, 'quarto inspect failed: ' .. util.trim(output), {}, nil
   end
   local ok, parsed = pcall(pandoc.json.decode, output, false)
   if not ok or type(parsed) ~= 'table' or type(parsed.formats) ~= 'table' then
-    return {}, 'quarto inspect returned no formats'
+    return {}, 'quarto inspect returned no formats', {}, nil
   end
-  return util.sorted_keys(parsed.formats), nil
+
+  -- Quarto resolves `output-file` here, so the name it reports is the file the
+  -- render will write. Asking it is the only way to know: the name can come
+  -- from the document, from a project profile, or from a format default.
+  local output_files = {}
+  for name, entry in pairs(parsed.formats) do
+    if type(entry) == 'table' and type(entry.pandoc) == 'table' then
+      local file = entry.pandoc['output-file']
+      if type(file) == 'string' and file ~= '' then
+        output_files[name] = file
+      end
+    end
+  end
+  -- A project can name any output directory, and a repository that names one
+  -- other than `_output` would otherwise have every render read as writing
+  -- nothing. Quarto resolves it here, so it is read rather than assumed.
+  local output_dir
+  local project = type(parsed.project) == 'table' and parsed.project or nil
+  local config = project and type(project.config) == 'table' and project.config or nil
+  local settings = config and type(config.project) == 'table' and config.project or nil
+  if settings and type(settings['output-dir']) == 'string' and settings['output-dir'] ~= '' then
+    output_dir = settings['output-dir']
+  end
+
+  return util.sorted_keys(parsed.formats), nil, output_files, output_dir
 end
 
 --- Scan a render log for errors and promoted warnings.
@@ -170,7 +196,37 @@ function M.first_error(output, errors)
   return headline or frame or 'the render failed with no diagnostic output'
 end
 
+--- Remove the regions of an output that quote code.
+---
+--- An extension documents itself by showing its own shortcode syntax, in a
+--- fenced block or an inline span. Both reach the output as literal text that
+--- looks exactly like a shortcode which failed to expand, so they are removed
+--- before the scan. Quarto's `{{{< … >}}}` escape is not handled: it renders
+--- to a literal `{{<` wherever it is written, and the same text in running
+--- prose is indistinguishable from the failure this scan exists to find.
+--- @param text string
+--- @return string
+local function without_code(text)
+  -- HTML first, because a rendered code block is `<pre>` or `<code>` by then
+  -- and the fence characters are long gone.
+  text = text:gsub('<pre.-</pre>', ' ')
+  text = text:gsub('<code.-</code>', ' ')
+  -- Markdown and Typst outputs keep their fences and spans. Both are matched
+  -- on a run of backticks closed by a run of the same length, because Pandoc
+  -- widens the run when the quoted content holds backticks of its own, and a
+  -- pattern fixed at three strips half of a wider one. Under-stripping here
+  -- fails a case rather than missing one, so it is worth the care.
+  -- The leading newline lets the pattern match a fence that opens the file.
+  text = ('\n' .. text):gsub('\n(```+)[^\n]*\n.-\n%1', '\n')
+  text = text:gsub('(`+)[^\n]-%1', ' ')
+  return text
+end
+
 --- Whether an output file still holds unexpanded shortcode text.
+---
+--- A heuristic, and the secondary net: Quarto reports an unresolved shortcode
+--- as a warning, which `PROMOTED_WARNINGS` fails on directly. A miss here
+--- therefore costs a check rather than the whole layer.
 --- @param path string
 --- @return boolean
 function M.has_unexpanded(path)
@@ -178,6 +234,7 @@ function M.has_unexpanded(path)
   if not text then
     return false
   end
+  text = without_code(text)
   for _, marker in ipairs(M.UNEXPANDED_MARKERS) do
     if text:find(marker, 1, true) then
       return true
@@ -207,11 +264,13 @@ local function render_one(context, format)
     util.shell_quote(document.absolute), util.shell_quote(format),
     util.shell_quote(log_path))
 
-  -- A previous format wrote into the same directory. Removing the output
-  -- first means a missing file after the render is a fact, not a leftover.
-  local expected = M.output_path(context.tests, document, format)
-  if expected then
-    os.remove(expected)
+  -- A previous format wrote into the same directory. Every candidate is
+  -- removed rather than the first one that exists, because a stale copy left
+  -- in any of them would let a render that wrote nothing be read as a pass.
+  local stale = M.output_candidates(context.tests, document, format,
+    context.output_files and context.output_files[format], context.output_dir)
+  for _, path in ipairs(stale or {}) do
+    os.remove(path)
   end
 
   local code, output = util.capture(command)
@@ -271,13 +330,21 @@ local function render_one(context, format)
     return case
   end
 
-  local output_path = M.output_path(context.tests, document, format)
+  local output_path, missing = M.output_path(context.tests, document, format,
+    context.output_files and context.output_files[format], context.output_dir)
   if not output_path then
-    case.status = 'skip'
+    -- An unknown suffix means there is nowhere to look, which is a gap in this
+    -- harness rather than a fault in the extension, so it stays a skip. A
+    -- missing output when the name is known is a failure: the render claimed
+    -- success and produced nothing to read, and reporting that as a skip is
+    -- how a layer comes to assert nothing inside a run that passes.
+    case.status = missing == 'unknown-suffix' and 'skip' or 'fail'
     case.failure = {
       stage = 'assert',
-      reason = 'output-not-found',
-      message = string.format('the render reported success but no `%s` output was found to check', format),
+      reason = missing,
+      message = missing == 'unknown-suffix'
+        and string.format('this harness does not know what file a `%s` render writes', format)
+        or string.format('the render reported success but wrote no `%s` output to check', format),
       log = log_path,
     }
     return case
@@ -307,15 +374,32 @@ local function render_one(context, format)
   return case
 end
 
---- Guess where a render put its output.
+--- Where a render put its output.
 ---
---- Only used for the unexpanded-shortcode scan, so a miss costs a check
---- rather than a false failure.
 --- @param tests string
 --- @param document table
 --- @param format string
---- @return string|nil
-function M.output_path(tests, document, format)
+--- @param output_file string|nil the name Quarto reports for this format
+--- @param output_dir string|nil the output directory Quarto resolved
+--- @return string|nil path
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look
+function M.output_path(tests, document, format, output_file, output_dir)
+  local candidates, reason = M.output_candidates(tests, document, format, output_file, output_dir)
+  if not candidates then
+    return nil, reason
+  end
+  for _, candidate in ipairs(candidates) do
+    if util.exists(candidate) then
+      return candidate, nil
+    end
+  end
+  return nil, 'output-not-found'
+end
+
+--- Every path a render of this document and format could have written.
+--- @return string[]|nil candidates
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look
+function M.output_candidates(tests, document, format, output_file, output_dir)
   local extensions = {
     html = 'html', revealjs = 'html', typst = 'pdf', pdf = 'pdf',
     docx = 'docx', gfm = 'md', markdown = 'md', commonmark = 'md',
@@ -324,25 +408,48 @@ function M.output_path(tests, document, format)
   -- A contributed format is `<extension>-<base>`, so the trailing base name
   -- decides the suffix. There is deliberately no fallback: guessing `.html`
   -- finds the previous format's output in the same directory, and scanning
-  -- the wrong file gives a false pass or blames the wrong format.
+  -- the wrong file gives a false pass or blames the wrong format. A format
+  -- this table does not know is still placed when Quarto reports a name
+  -- carrying its own extension, because that name needs no guess.
   local base = format:match('([^%-]+)$') or format
   local suffix = extensions[format] or extensions[base]
-  if not suffix then
-    return nil
+
+  -- A document that sets `output-file` writes under that name rather than its
+  -- own, and `quarto inspect` reports the name per format. Looking only for a
+  -- file named after the document finds nothing in that case, which used to
+  -- leave the layer asserting nothing while the run reported a pass. Quarto
+  -- reports the name with or without the suffix, so one is added only when it
+  -- is missing.
+  local name
+  if output_file and output_file ~= '' then
+    name = output_file
+    if suffix then
+      if name:sub(-#suffix - 1) ~= '.' .. suffix then
+        name = name .. '.' .. suffix
+      end
+    elseif not name:match('%.[%w]+$') then
+      -- No mapped suffix and a reported name with no extension of its own
+      -- leaves nothing to look for.
+      return nil, 'unknown-suffix'
+    end
+  elseif suffix then
+    name = (document.relative:match('([^/]+)%.qmd$') or 'index') .. '.' .. suffix
+  else
+    return nil, 'unknown-suffix'
   end
 
-  local relative = document.relative:gsub('%.qmd$', '') .. '.' .. suffix
-  local candidates = {
-    document.absolute:gsub('%.qmd$', '') .. '.' .. suffix,
-    util.join(tests, '_output', relative),
-    util.join(tests, '_site', relative),
-  }
-  for _, candidate in ipairs(candidates) do
-    if util.exists(candidate) then
-      return candidate
-    end
+  -- `output-file` renames the file, never the directory it sits in.
+  local relative_dir = document.relative:match('^(.*/)[^/]+%.qmd$') or ''
+  local absolute_dir = document.absolute:match('^(.*[/\\])[^/\\]+%.qmd$') or ''
+  local candidates = { absolute_dir .. name }
+  if output_dir then
+    candidates[#candidates + 1] = util.join(tests, output_dir, relative_dir .. name)
   end
-  return nil
+  -- The defaults stay as a fallback, for a document inspected without a
+  -- project or a Quarto that reports no directory.
+  candidates[#candidates + 1] = util.join(tests, '_output', relative_dir .. name)
+  candidates[#candidates + 1] = util.join(tests, '_site', relative_dir .. name)
+  return candidates, nil
 end
 
 --- Render a list of documents and judge each result.
@@ -384,7 +491,8 @@ function M.execute(options, documents, descriptors, layer, emit)
     end
 
     do
-      local available, inspect_err = M.formats(document.absolute, options.tests)
+      local available, inspect_err, output_files, output_dir =
+        M.formats(document.absolute, options.tests)
       if inspect_err then
         emit({
           id = base_id,
@@ -424,6 +532,8 @@ function M.execute(options, documents, descriptors, layer, emit)
         context.settings = settings
         context.document = document
         context.layer = layer
+        context.output_files = output_files
+        context.output_dir = output_dir
         local case = render_one(context, format)
         for _, warning in ipairs(warnings) do
           table.insert(case.diagnostics.warnings, warning)
