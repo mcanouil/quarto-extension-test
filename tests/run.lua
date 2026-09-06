@@ -826,6 +826,18 @@ do
   check(path == util.join(scratch, 'elsewhere', 'doc.html'),
     'the output directory Quarto names is searched', tostring(path))
 
+  -- A stale copy in any candidate would let a render that wrote nothing read
+  -- as a pass, so the render clears every candidate rather than the first one
+  -- that happens to exist.
+  local candidates = render.output_candidates(scratch, placed, 'html', nil, 'elsewhere')
+  check(candidates ~= nil and #candidates == 4,
+    'every place a render could have written is offered for removal',
+    candidates and tostring(#candidates))
+  check(candidates ~= nil and util.contains(candidates, util.join(scratch, 'elsewhere', 'doc.html')),
+    'the candidates include the directory Quarto names')
+  check(candidates ~= nil and util.contains(candidates, util.join(scratch, '_site', 'doc.html')),
+    'the candidates keep the defaults as a fallback')
+
   util.remove_tree(scratch)
 end
 

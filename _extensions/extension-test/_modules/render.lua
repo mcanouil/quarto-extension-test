@@ -264,12 +264,13 @@ local function render_one(context, format)
     util.shell_quote(document.absolute), util.shell_quote(format),
     util.shell_quote(log_path))
 
-  -- A previous format wrote into the same directory. Removing the output
-  -- first means a missing file after the render is a fact, not a leftover.
-  local expected = M.output_path(context.tests, document, format,
+  -- A previous format wrote into the same directory. Every candidate is
+  -- removed rather than the first one that exists, because a stale copy left
+  -- in any of them would let a render that wrote nothing be read as a pass.
+  local stale = M.output_candidates(context.tests, document, format,
     context.output_files and context.output_files[format], context.output_dir)
-  if expected then
-    os.remove(expected)
+  for _, path in ipairs(stale or {}) do
+    os.remove(path)
   end
 
   local code, output = util.capture(command)
@@ -383,6 +384,22 @@ end
 --- @return string|nil path
 --- @return string|nil reason `unknown-suffix` when there is nowhere to look
 function M.output_path(tests, document, format, output_file, output_dir)
+  local candidates, reason = M.output_candidates(tests, document, format, output_file, output_dir)
+  if not candidates then
+    return nil, reason
+  end
+  for _, candidate in ipairs(candidates) do
+    if util.exists(candidate) then
+      return candidate, nil
+    end
+  end
+  return nil, 'output-not-found'
+end
+
+--- Every path a render of this document and format could have written.
+--- @return string[]|nil candidates
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look
+function M.output_candidates(tests, document, format, output_file, output_dir)
   local extensions = {
     html = 'html', revealjs = 'html', typst = 'pdf', pdf = 'pdf',
     docx = 'docx', gfm = 'md', markdown = 'md', commonmark = 'md',
@@ -432,12 +449,7 @@ function M.output_path(tests, document, format, output_file, output_dir)
   -- project or a Quarto that reports no directory.
   candidates[#candidates + 1] = util.join(tests, '_output', relative_dir .. name)
   candidates[#candidates + 1] = util.join(tests, '_site', relative_dir .. name)
-  for _, candidate in ipairs(candidates) do
-    if util.exists(candidate) then
-      return candidate, nil
-    end
-  end
-  return nil, 'output-not-found'
+  return candidates, nil
 end
 
 --- Render a list of documents and judge each result.
