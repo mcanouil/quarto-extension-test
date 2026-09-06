@@ -102,16 +102,17 @@ end
 --- @return string[] formats
 --- @return string|nil error
 --- @return table output_files format to the file name Quarto writes for it
+--- @return string|nil output_dir the project output directory Quarto resolved
 function M.formats(document, cwd)
   local command = string.format('cd %s && quarto inspect %s',
     util.shell_quote(cwd), util.shell_quote(document))
   local code, output = util.capture(command)
   if code ~= 0 then
-    return {}, 'quarto inspect failed: ' .. util.trim(output), {}
+    return {}, 'quarto inspect failed: ' .. util.trim(output), {}, nil
   end
   local ok, parsed = pcall(pandoc.json.decode, output, false)
   if not ok or type(parsed) ~= 'table' or type(parsed.formats) ~= 'table' then
-    return {}, 'quarto inspect returned no formats', {}
+    return {}, 'quarto inspect returned no formats', {}, nil
   end
 
   -- Quarto resolves `output-file` here, so the name it reports is the file the
@@ -126,7 +127,18 @@ function M.formats(document, cwd)
       end
     end
   end
-  return util.sorted_keys(parsed.formats), nil, output_files
+  -- A project can name any output directory, and a repository that names one
+  -- other than `_output` would otherwise have every render read as writing
+  -- nothing. Quarto resolves it here, so it is read rather than assumed.
+  local output_dir
+  local project = type(parsed.project) == 'table' and parsed.project or nil
+  local config = project and type(project.config) == 'table' and project.config or nil
+  local settings = config and type(config.project) == 'table' and config.project or nil
+  if settings and type(settings['output-dir']) == 'string' and settings['output-dir'] ~= '' then
+    output_dir = settings['output-dir']
+  end
+
+  return util.sorted_keys(parsed.formats), nil, output_files, output_dir
 end
 
 --- Scan a render log for errors and promoted warnings.
@@ -187,10 +199,11 @@ end
 --- Remove the regions of an output that quote code.
 ---
 --- An extension documents itself by showing its own shortcode syntax, in a
---- fenced block, in an inline span, or behind Quarto's `{{{< … >}}}` escape.
---- All of those reach the output as literal text that looks exactly like a
---- shortcode which failed to expand. Scanning them fails every extension whose
---- demo document explains how to use it, so they are removed before the scan.
+--- fenced block or an inline span. Both reach the output as literal text that
+--- looks exactly like a shortcode which failed to expand, so they are removed
+--- before the scan. Quarto's `{{{< … >}}}` escape is not handled: it renders
+--- to a literal `{{<` wherever it is written, and the same text in running
+--- prose is indistinguishable from the failure this scan exists to find.
 --- @param text string
 --- @return string
 local function without_code(text)
@@ -199,7 +212,8 @@ local function without_code(text)
   text = text:gsub('<pre.-</pre>', ' ')
   text = text:gsub('<code.-</code>', ' ')
   -- Markdown and Typst outputs keep their fences and spans.
-  text = text:gsub('\n```.-\n```', '\n')
+  -- The leading newline lets the pattern match a fence that opens the file.
+  text = ('\n' .. text):gsub('\n```.-\n```', '\n')
   text = text:gsub('`[^\n`]-`', ' ')
   return text
 end
@@ -249,7 +263,7 @@ local function render_one(context, format)
   -- A previous format wrote into the same directory. Removing the output
   -- first means a missing file after the render is a fact, not a leftover.
   local expected = M.output_path(context.tests, document, format,
-    context.output_files and context.output_files[format])
+    context.output_files and context.output_files[format], context.output_dir)
   if expected then
     os.remove(expected)
   end
@@ -312,7 +326,7 @@ local function render_one(context, format)
   end
 
   local output_path, missing = M.output_path(context.tests, document, format,
-    context.output_files and context.output_files[format])
+    context.output_files and context.output_files[format], context.output_dir)
   if not output_path then
     -- An unknown suffix means there is nowhere to look, which is a gap in this
     -- harness rather than a fault in the extension, so it stays a skip. A
@@ -361,9 +375,10 @@ end
 --- @param document table
 --- @param format string
 --- @param output_file string|nil the name Quarto reports for this format
+--- @param output_dir string|nil the output directory Quarto resolved
 --- @return string|nil path
 --- @return string|nil reason `unknown-suffix` when there is nowhere to look
-function M.output_path(tests, document, format, output_file)
+function M.output_path(tests, document, format, output_file, output_dir)
   local extensions = {
     html = 'html', revealjs = 'html', typst = 'pdf', pdf = 'pdf',
     docx = 'docx', gfm = 'md', markdown = 'md', commonmark = 'md',
@@ -398,11 +413,14 @@ function M.output_path(tests, document, format, output_file)
   -- `output-file` renames the file, never the directory it sits in.
   local relative_dir = document.relative:match('^(.*/)[^/]+%.qmd$') or ''
   local absolute_dir = document.absolute:match('^(.*[/\\])[^/\\]+%.qmd$') or ''
-  local candidates = {
-    absolute_dir .. name,
-    util.join(tests, '_output', relative_dir .. name),
-    util.join(tests, '_site', relative_dir .. name),
-  }
+  local candidates = { absolute_dir .. name }
+  if output_dir then
+    candidates[#candidates + 1] = util.join(tests, output_dir, relative_dir .. name)
+  end
+  -- The defaults stay as a fallback, for a document inspected without a
+  -- project or a Quarto that reports no directory.
+  candidates[#candidates + 1] = util.join(tests, '_output', relative_dir .. name)
+  candidates[#candidates + 1] = util.join(tests, '_site', relative_dir .. name)
   for _, candidate in ipairs(candidates) do
     if util.exists(candidate) then
       return candidate, nil
@@ -450,7 +468,8 @@ function M.execute(options, documents, descriptors, layer, emit)
     end
 
     do
-      local available, inspect_err, output_files = M.formats(document.absolute, options.tests)
+      local available, inspect_err, output_files, output_dir =
+        M.formats(document.absolute, options.tests)
       if inspect_err then
         emit({
           id = base_id,
@@ -491,6 +510,7 @@ function M.execute(options, documents, descriptors, layer, emit)
         context.document = document
         context.layer = layer
         context.output_files = output_files
+        context.output_dir = output_dir
         local case = render_one(context, format)
         for _, warning in ipairs(warnings) do
           table.insert(case.diagnostics.warnings, warning)

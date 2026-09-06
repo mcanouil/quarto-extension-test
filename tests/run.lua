@@ -748,6 +748,17 @@ do
 end
 
 do
+  -- A project can name any output directory. Assuming `_output` reads a
+  -- working render as having written nothing, which is now a failure rather
+  -- than a skip, so the assumption would fail every such repository.
+  local results = run_fixture('output-dir')
+  local case = results and find_case(results, 'render/document/')
+  check(case ~= nil and case.status == 'pass',
+    'a project writing outside _output is rendered and checked',
+    case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)))
+end
+
+do
   -- An extension documents itself by showing its own syntax, and that reaches
   -- the output looking exactly like a shortcode that failed to expand. The
   -- scan has to tell the two apart, or every self-documenting extension fails.

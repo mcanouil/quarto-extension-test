@@ -12,6 +12,7 @@ _site/
 /tests/fixtures/*/_t/_extensions/
 /tests/fixtures/*/_t/_results/
 /tests/fixtures/*/_t/_output/
+/tests/fixtures/*/_t/out/
 /tests/fixtures/*/_t/generated/
 /tests/fixtures/*/_t/.quarto/
 /tests/fixtures/*/_t/results.json
