@@ -461,6 +461,28 @@ local LICENCE_FILES = {
   'COPYING',
 }
 
+--- Whether a vendor directory entry is a source's licence file.
+---
+--- The names are matched without regard to case. Upstreams ship `license` in
+--- lower case as readily as `LICENSE`, and the format offers no way to say
+--- which. An exact comparison also made the verdict depend on the machine: a
+--- case-insensitive filesystem accepted what a case-sensitive one refused, so
+--- the same repository passed on macOS and failed on the Linux runner.
+---
+--- The licence check and the orphan check both read this. A name that
+--- satisfies the one is never an undeclared file to the other.
+--- @param name string a directory entry, as the filesystem spells it
+--- @return boolean
+local function is_licence_file(name)
+  local lowered = string.lower(name)
+  for _, licence in ipairs(LICENCE_FILES) do
+    if lowered == string.lower(licence) then
+      return true
+    end
+  end
+  return false
+end
+
 --- Check one extension's `_dependencies.yml`.
 ---
 --- An extension with no manifest is skipped, not failed. The catalogued
@@ -558,10 +580,16 @@ local function check_dependencies(ext, dependencies_schema, emit)
     end
 
     -- Third-party source shipped inside an extension carries its licence.
+    --
+    -- The directory is read, rather than probed once for each name, because a
+    -- probe answers from the filesystem's own idea of case and accepts on
+    -- macOS what it refuses on Linux. Reading the entries the directory holds
+    -- gives the same verdict on either machine, and gives the orphan check
+    -- below the very names this check has already accepted.
     local licence_id = string.format('%s/%s/source-licence', id, source_name)
     local licence_present = false
-    for _, name in ipairs(LICENCE_FILES) do
-      if util.exists(util.join(dir, name)) then
+    for _, present in ipairs(util.list_dir(dir)) do
+      if is_licence_file(present) then
         licence_present = true
       end
     end
@@ -641,7 +669,7 @@ local function check_dependencies(ext, dependencies_schema, emit)
     -- directory without passing through the manifest.
     if util.is_dir(dir) then
       for _, present in ipairs(util.list_dir(dir)) do
-        if not util.contains(LICENCE_FILES, present) and source.files[present] == nil then
+        if not is_licence_file(present) and source.files[present] == nil then
           emit(case(string.format('%s/%s/%s', id, source_name, present), 'fail',
             string.format('`%s/%s/%s` is not declared by the manifest',
               VENDOR_DIR, source_name, present),
@@ -764,5 +792,13 @@ function M.run(options, emit)
 
   return extensions
 end
+
+--- Exposed for the framework's own tests.
+---
+--- The licence rule is a rule about names, and a fixture can only ask the
+--- filesystem it runs on. A case-insensitive one answers for `LICENSE` when
+--- the directory holds `license`, and hides half the rule. This reads the name
+--- alone, so the tests assert the rule on either machine.
+M._is_licence_file = is_licence_file
 
 return M
