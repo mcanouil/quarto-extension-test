@@ -211,10 +211,14 @@ local function without_code(text)
   -- and the fence characters are long gone.
   text = text:gsub('<pre.-</pre>', ' ')
   text = text:gsub('<code.-</code>', ' ')
-  -- Markdown and Typst outputs keep their fences and spans.
+  -- Markdown and Typst outputs keep their fences and spans. Both are matched
+  -- on a run of backticks closed by a run of the same length, because Pandoc
+  -- widens the run when the quoted content holds backticks of its own, and a
+  -- pattern fixed at three strips half of a wider one. Under-stripping here
+  -- fails a case rather than missing one, so it is worth the care.
   -- The leading newline lets the pattern match a fence that opens the file.
-  text = ('\n' .. text):gsub('\n```.-\n```', '\n')
-  text = text:gsub('`[^\n`]-`', ' ')
+  text = ('\n' .. text):gsub('\n(```+)[^\n]*\n.-\n%1', '\n')
+  text = text:gsub('(`+)[^\n]-%1', ' ')
   return text
 end
 
@@ -387,12 +391,11 @@ function M.output_path(tests, document, format, output_file, output_dir)
   -- A contributed format is `<extension>-<base>`, so the trailing base name
   -- decides the suffix. There is deliberately no fallback: guessing `.html`
   -- finds the previous format's output in the same directory, and scanning
-  -- the wrong file gives a false pass or blames the wrong format.
+  -- the wrong file gives a false pass or blames the wrong format. A format
+  -- this table does not know is still placed when Quarto reports a name
+  -- carrying its own extension, because that name needs no guess.
   local base = format:match('([^%-]+)$') or format
   local suffix = extensions[format] or extensions[base]
-  if not suffix then
-    return nil, 'unknown-suffix'
-  end
 
   -- A document that sets `output-file` writes under that name rather than its
   -- own, and `quarto inspect` reports the name per format. Looking only for a
@@ -403,11 +406,19 @@ function M.output_path(tests, document, format, output_file, output_dir)
   local name
   if output_file and output_file ~= '' then
     name = output_file
-    if name:sub(-#suffix - 1) ~= '.' .. suffix then
-      name = name .. '.' .. suffix
+    if suffix then
+      if name:sub(-#suffix - 1) ~= '.' .. suffix then
+        name = name .. '.' .. suffix
+      end
+    elseif not name:match('%.[%w]+$') then
+      -- No mapped suffix and a reported name with no extension of its own
+      -- leaves nothing to look for.
+      return nil, 'unknown-suffix'
     end
-  else
+  elseif suffix then
     name = (document.relative:match('([^/]+)%.qmd$') or 'index') .. '.' .. suffix
+  else
+    return nil, 'unknown-suffix'
   end
 
   -- `output-file` renames the file, never the directory it sits in.

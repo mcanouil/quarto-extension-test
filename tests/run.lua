@@ -799,6 +799,34 @@ do
   path, reason = render.output_path(FIXTURES, document, 'some-unknown-format')
   check(path == nil and reason == 'unknown-suffix',
     'a format this harness cannot place reports unknown-suffix', tostring(reason))
+
+  -- The name and the directory come from Quarto, so they are pinned here
+  -- rather than left to how the installed version happens to report them.
+  local scratch = util.join(here, 'tests/_results/paths')
+  pcall(pandoc.system.make_directory, util.join(scratch, 'elsewhere'), true)
+  local placed = { relative = 'doc.qmd', absolute = util.join(scratch, 'doc.qmd') }
+
+  util.write_file(util.join(scratch, 'renamed.html'), 'x')
+  path = render.output_path(scratch, placed, 'html', 'renamed')
+  check(path == util.join(scratch, 'renamed.html'),
+    'a reported name without its suffix has one added', tostring(path))
+
+  path = render.output_path(scratch, placed, 'html', 'renamed.html')
+  check(path == util.join(scratch, 'renamed.html'),
+    'a reported name carrying its suffix is used as it stands', tostring(path))
+
+  path = render.output_path(scratch, placed, 'some-unknown-format', 'renamed.html')
+  check(path == util.join(scratch, 'renamed.html'),
+    'a format with no mapped suffix is placed by the name Quarto reports',
+    tostring(path))
+
+  util.write_file(util.join(scratch, 'elsewhere', 'doc.html'), 'x')
+  os.remove(util.join(scratch, 'renamed.html'))
+  path = render.output_path(scratch, placed, 'html', nil, 'elsewhere')
+  check(path == util.join(scratch, 'elsewhere', 'doc.html'),
+    'the output directory Quarto names is searched', tostring(path))
+
+  util.remove_tree(scratch)
 end
 
 do
