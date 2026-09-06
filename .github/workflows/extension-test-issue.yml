@@ -58,38 +58,51 @@ jobs:
           set -euo pipefail
           mapfile -t files < <(find artefacts -type f -name 'results.json' 2> /dev/null | sort)
 
-          # The caller decides when this job runs, so it can be reached after a
-          # run in which nothing failed. Opening an issue then would state the
-          # opposite of what happened. A missing result file is still worth an
-          # issue, because it means the harness stopped before writing one.
-          if [[ "${#files[@]}" -gt 0 ]]; then
-            failing=0
-            for file in "${files[@]}"; do
-              failing=$((failing + $(jq '[.cases[] | select(.status == "fail")] | length' "${file}")))
-            done
-            if [[ "${failing}" -eq 0 ]]; then
-              printf 'Every case passed in %d result file(s); no issue opened.\n' "${#files[@]}"
-              exit 0
+          # The artefacts are read to write an accurate opening line, never to
+          # decide whether to open the issue at all. The caller's condition is
+          # the only thing that knows the run failed: the upload step sets
+          # `if-no-files-found: ignore`, so a matrix leg that crashed before
+          # writing a result file uploads nothing, and "no failing case in what
+          # arrived" would then hide the failure this workflow exists to record.
+          #
+          # A result file that cannot be read counts as a failure rather than as
+          # zero, so a malformed one is reported instead of being counted out.
+          failing=0
+          unreadable=0
+          for file in "${files[@]}"; do
+            count="$(jq '[(.cases // [])[] | select(.status == "fail")] | length' "${file}" 2> /dev/null || true)"
+            if [[ "${count}" =~ ^[0-9]+$ ]]; then
+              failing=$((failing + count))
+            else
+              unreadable=$((unreadable + 1))
             fi
-          fi
+          done
 
           body="$(mktemp)"
           {
-            printf 'The extension test framework reported failures.\n\n'
+            if [[ "${failing}" -gt 0 ]]; then
+              printf 'The extension test framework reported %d failing case(s).\n\n' "${failing}"
+            else
+              printf 'The extension test run failed, and no failing case was recorded in the results that reached the artefacts.\n\n'
+            fi
             printf 'Run: %s\n' "${RUN_URL}"
           } > "${body}"
           if [[ "${#files[@]}" -eq 0 ]]; then
             printf '\nNo result file reached the artefacts, so the harness stopped before it wrote one.\n' >> "${body}"
           fi
+          if [[ "${unreadable}" -gt 0 ]]; then
+            printf '\n%d result file(s) could not be read.\n' "${unreadable}" >> "${body}"
+          fi
           for file in "${files[@]}"; do
             relative="${file#artefacts/}"
             printf '\n### %s\n\n' "${relative%%/*}" >> "${body}"
             jq -r '
-              "Overall: \(.status), \(.summary.total) cases, framework \(.framework.version).",
+              "Overall: \(.status // "unknown"), \((.summary.total // "unknown" | tostring)) cases, framework \(.framework.version // "unknown").",
               "",
-              (.cases[] | select(.status == "fail") |
+              ((.cases // [])[] | select(.status == "fail") |
                 "- `\(.id)`: \(.failure.message // .failure.reason // "no message")")
-            ' "${file}" >> "${body}"
+            ' "${file}" >> "${body}" 2> /dev/null ||
+              printf 'This file could not be read.\n' >> "${body}"
           done
           # A title search, not a listing: a listing of the first hundred open
           # issues can miss the one that exists and then open a duplicate.
