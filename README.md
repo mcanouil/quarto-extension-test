@@ -35,6 +35,36 @@ It exits non-zero when a case fails, writes TAP to standard output, and writes J
 
 Write your own cases as `tests/*.qmd`, each with a `test:` block in its front matter. A repository with none still gets the other two layers.
 
+## Continuous integration
+
+Call the reusable workflow. It needs `contents: read` and nothing else.
+
+```yaml
+# .github/workflows/test.yml
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
+```
+
+Pass `quarto-channels` to test more than one channel, for example `'["release", "pre-release"]'`.
+
+To have a failing run open or update one issue in your repository, add a second job and grant it `issues: write` there:
+
+```yaml
+  issue:
+    needs: test
+    if: ${{ failure() }}
+    permissions:
+      contents: read
+      issues: write
+    uses: mcanouil/quarto-extension-test/.github/workflows/extension-test-issue.yml@main
+```
+
+The permission is granted on that job alone. A repository that does not want the issue omits the job and grants nothing.
+
 ## Documentation
 
 The full documentation lives at <https://m.canouil.dev/quarto-extension-test/>: the `test:` front matter, what each layer checks, and the result format.

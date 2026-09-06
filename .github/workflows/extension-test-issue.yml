@@ -1,0 +1,87 @@
+name: Extension Test Issue
+
+# Opens or updates one issue naming the cases that failed, for a repository that
+# wants a failing scheduled run to leave a trace rather than only a red tick.
+#
+# Call it as a second job, after the job that calls `extension-test.yml`, and
+# grant it `issues: write` there:
+#
+#   jobs:
+#     test:
+#       uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
+#     issue:
+#       needs: test
+#       if: ${{ failure() }}
+#       permissions:
+#         contents: read
+#         issues: write
+#       uses: mcanouil/quarto-extension-test/.github/workflows/extension-test-issue.yml@main
+#
+# It reads the artefacts the test job uploaded in the same run, so it has to be
+# called from that run rather than scheduled on its own.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # One issue for the repository, not one for every run, so a weekly schedule
+  # does not open a new issue every week.
+  issue:
+    name: Report the failure
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # The download fails when the run stopped before it uploaded anything.
+      # The issue is still worth opening in that case, so the failure is not
+      # allowed to end the job.
+      - name: Download the results
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: extension-test-*
+          path: artefacts
+
+      # The artefact layout depends on which directories the run produced, so
+      # the result files are found rather than assumed.
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: Extension test failures
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          {
+            printf 'The extension test framework reported failures.\n\n'
+            printf 'Run: %s\n' "${RUN_URL}"
+          } > "${body}"
+          mapfile -t files < <(find artefacts -type f -name 'results.json' 2> /dev/null | sort)
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            printf '\nNo result file reached the artefacts, so the harness stopped before it wrote one.\n' >> "${body}"
+          fi
+          for file in "${files[@]}"; do
+            relative="${file#artefacts/}"
+            printf '\n### %s\n\n' "${relative%%/*}" >> "${body}"
+            jq -r '
+              "Overall: \(.status), \(.summary.total) cases, framework \(.framework.version).",
+              "",
+              (.cases[] | select(.status == "fail") |
+                "- `\(.id)`: \(.failure.message // .failure.reason // "no message")")
+            ' "${file}" >> "${body}"
+          done
+          # A title search, not a listing: a listing of the first hundred open
+          # issues can miss the one that exists and then open a duplicate.
+          number="$(gh issue list --state open --search "in:title \"${TITLE}\"" \
+            --json number,title \
+            --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')"
+          if [[ -n "${number}" ]]; then
+            gh issue comment "${number}" --body-file "${body}"
+          else
+            gh issue create --title "${TITLE}" --body-file "${body}"
+          fi
