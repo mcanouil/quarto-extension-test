@@ -101,18 +101,32 @@ end
 --- @param cwd string directory to inspect from
 --- @return string[] formats
 --- @return string|nil error
+--- @return table output_files format to the file name Quarto writes for it
 function M.formats(document, cwd)
   local command = string.format('cd %s && quarto inspect %s',
     util.shell_quote(cwd), util.shell_quote(document))
   local code, output = util.capture(command)
   if code ~= 0 then
-    return {}, 'quarto inspect failed: ' .. util.trim(output)
+    return {}, 'quarto inspect failed: ' .. util.trim(output), {}
   end
   local ok, parsed = pcall(pandoc.json.decode, output, false)
   if not ok or type(parsed) ~= 'table' or type(parsed.formats) ~= 'table' then
-    return {}, 'quarto inspect returned no formats'
+    return {}, 'quarto inspect returned no formats', {}
   end
-  return util.sorted_keys(parsed.formats), nil
+
+  -- Quarto resolves `output-file` here, so the name it reports is the file the
+  -- render will write. Asking it is the only way to know: the name can come
+  -- from the document, from a project profile, or from a format default.
+  local output_files = {}
+  for name, entry in pairs(parsed.formats) do
+    if type(entry) == 'table' and type(entry.pandoc) == 'table' then
+      local file = entry.pandoc['output-file']
+      if type(file) == 'string' and file ~= '' then
+        output_files[name] = file
+      end
+    end
+  end
+  return util.sorted_keys(parsed.formats), nil, output_files
 end
 
 --- Scan a render log for errors and promoted warnings.
@@ -170,7 +184,31 @@ function M.first_error(output, errors)
   return headline or frame or 'the render failed with no diagnostic output'
 end
 
+--- Remove the regions of an output that quote code.
+---
+--- An extension documents itself by showing its own shortcode syntax, in a
+--- fenced block, in an inline span, or behind Quarto's `{{{< … >}}}` escape.
+--- All of those reach the output as literal text that looks exactly like a
+--- shortcode which failed to expand. Scanning them fails every extension whose
+--- demo document explains how to use it, so they are removed before the scan.
+--- @param text string
+--- @return string
+local function without_code(text)
+  -- HTML first, because a rendered code block is `<pre>` or `<code>` by then
+  -- and the fence characters are long gone.
+  text = text:gsub('<pre.-</pre>', ' ')
+  text = text:gsub('<code.-</code>', ' ')
+  -- Markdown and Typst outputs keep their fences and spans.
+  text = text:gsub('\n```.-\n```', '\n')
+  text = text:gsub('`[^\n`]-`', ' ')
+  return text
+end
+
 --- Whether an output file still holds unexpanded shortcode text.
+---
+--- A heuristic, and the secondary net: Quarto reports an unresolved shortcode
+--- as a warning, which `PROMOTED_WARNINGS` fails on directly. A miss here
+--- therefore costs a check rather than the whole layer.
 --- @param path string
 --- @return boolean
 function M.has_unexpanded(path)
@@ -178,6 +216,7 @@ function M.has_unexpanded(path)
   if not text then
     return false
   end
+  text = without_code(text)
   for _, marker in ipairs(M.UNEXPANDED_MARKERS) do
     if text:find(marker, 1, true) then
       return true
@@ -209,7 +248,8 @@ local function render_one(context, format)
 
   -- A previous format wrote into the same directory. Removing the output
   -- first means a missing file after the render is a fact, not a leftover.
-  local expected = M.output_path(context.tests, document, format)
+  local expected = M.output_path(context.tests, document, format,
+    context.output_files and context.output_files[format])
   if expected then
     os.remove(expected)
   end
@@ -271,13 +311,21 @@ local function render_one(context, format)
     return case
   end
 
-  local output_path = M.output_path(context.tests, document, format)
+  local output_path, missing = M.output_path(context.tests, document, format,
+    context.output_files and context.output_files[format])
   if not output_path then
-    case.status = 'skip'
+    -- An unknown suffix means there is nowhere to look, which is a gap in this
+    -- harness rather than a fault in the extension, so it stays a skip. A
+    -- missing output when the name is known is a failure: the render claimed
+    -- success and produced nothing to read, and reporting that as a skip is
+    -- how a layer comes to assert nothing inside a run that passes.
+    case.status = missing == 'unknown-suffix' and 'skip' or 'fail'
     case.failure = {
       stage = 'assert',
-      reason = 'output-not-found',
-      message = string.format('the render reported success but no `%s` output was found to check', format),
+      reason = missing,
+      message = missing == 'unknown-suffix'
+        and string.format('this harness does not know what file a `%s` render writes', format)
+        or string.format('the render reported success but wrote no `%s` output to check', format),
       log = log_path,
     }
     return case
@@ -307,15 +355,15 @@ local function render_one(context, format)
   return case
 end
 
---- Guess where a render put its output.
+--- Where a render put its output.
 ---
---- Only used for the unexpanded-shortcode scan, so a miss costs a check
---- rather than a false failure.
 --- @param tests string
 --- @param document table
 --- @param format string
---- @return string|nil
-function M.output_path(tests, document, format)
+--- @param output_file string|nil the name Quarto reports for this format
+--- @return string|nil path
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look
+function M.output_path(tests, document, format, output_file)
   local extensions = {
     html = 'html', revealjs = 'html', typst = 'pdf', pdf = 'pdf',
     docx = 'docx', gfm = 'md', markdown = 'md', commonmark = 'md',
@@ -328,21 +376,39 @@ function M.output_path(tests, document, format)
   local base = format:match('([^%-]+)$') or format
   local suffix = extensions[format] or extensions[base]
   if not suffix then
-    return nil
+    return nil, 'unknown-suffix'
   end
 
-  local relative = document.relative:gsub('%.qmd$', '') .. '.' .. suffix
+  -- A document that sets `output-file` writes under that name rather than its
+  -- own, and `quarto inspect` reports the name per format. Looking only for a
+  -- file named after the document finds nothing in that case, which used to
+  -- leave the layer asserting nothing while the run reported a pass. Quarto
+  -- reports the name with or without the suffix, so one is added only when it
+  -- is missing.
+  local name
+  if output_file and output_file ~= '' then
+    name = output_file
+    if name:sub(-#suffix - 1) ~= '.' .. suffix then
+      name = name .. '.' .. suffix
+    end
+  else
+    name = (document.relative:match('([^/]+)%.qmd$') or 'index') .. '.' .. suffix
+  end
+
+  -- `output-file` renames the file, never the directory it sits in.
+  local relative_dir = document.relative:match('^(.*/)[^/]+%.qmd$') or ''
+  local absolute_dir = document.absolute:match('^(.*[/\\])[^/\\]+%.qmd$') or ''
   local candidates = {
-    document.absolute:gsub('%.qmd$', '') .. '.' .. suffix,
-    util.join(tests, '_output', relative),
-    util.join(tests, '_site', relative),
+    absolute_dir .. name,
+    util.join(tests, '_output', relative_dir .. name),
+    util.join(tests, '_site', relative_dir .. name),
   }
   for _, candidate in ipairs(candidates) do
     if util.exists(candidate) then
-      return candidate
+      return candidate, nil
     end
   end
-  return nil
+  return nil, 'output-not-found'
 end
 
 --- Render a list of documents and judge each result.
@@ -384,7 +450,7 @@ function M.execute(options, documents, descriptors, layer, emit)
     end
 
     do
-      local available, inspect_err = M.formats(document.absolute, options.tests)
+      local available, inspect_err, output_files = M.formats(document.absolute, options.tests)
       if inspect_err then
         emit({
           id = base_id,
@@ -424,6 +490,7 @@ function M.execute(options, documents, descriptors, layer, emit)
         context.settings = settings
         context.document = document
         context.layer = layer
+        context.output_files = output_files
         local case = render_one(context, format)
         for _, warning in ipairs(warnings) do
           table.insert(case.diagnostics.warnings, warning)

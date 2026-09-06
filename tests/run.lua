@@ -736,6 +736,61 @@ do
 end
 
 do
+  -- A document that sets `output-file` writes somewhere other than a file
+  -- named after itself. Looking only for the latter finds nothing, and the
+  -- layer that exists to read the output then asserts nothing while the run
+  -- still reports a pass.
+  local results = run_fixture('output-file')
+  local case = results and find_case(results, 'render/document/')
+  check(case ~= nil and case.status == 'pass',
+    'a document that renames its output is rendered and checked',
+    case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)))
+end
+
+do
+  -- An extension documents itself by showing its own syntax, and that reaches
+  -- the output looking exactly like a shortcode that failed to expand. The
+  -- scan has to tell the two apart, or every self-documenting extension fails.
+  local render = require('render')
+  local scratch = util.join(here, 'tests/_results/unexpanded')
+  pcall(pandoc.system.make_directory, scratch, true)
+
+  local quoted = util.join(scratch, 'quoted.html')
+  util.write_file(quoted,
+    '<p>Write it like this:</p><pre class="sourceCode"><code>{{&lt; demo icon &gt;}}</code></pre>')
+  check(render.has_unexpanded(quoted) == false,
+    'shortcode syntax quoted in a code block is not read as unexpanded')
+
+  local inline = util.join(scratch, 'inline.md')
+  util.write_file(inline, 'Write it as `{{< demo icon >}}` in your document.\n')
+  check(render.has_unexpanded(inline) == false,
+    'shortcode syntax in an inline code span is not read as unexpanded')
+
+  local leaked = util.join(scratch, 'leaked.html')
+  util.write_file(leaked, '<p>Here is the icon: {{&lt; demo icon &gt;}}</p>')
+  check(render.has_unexpanded(leaked) == true,
+    'a shortcode left in the body is still read as unexpanded')
+
+  util.remove_tree(scratch)
+end
+
+do
+  -- The two ways `output_path` comes back empty mean different things, and the
+  -- render layer grades them differently: nowhere to look is this harness's
+  -- gap, nothing written is the extension's failure.
+  local render = require('render')
+  local document = { relative = 'absent.qmd', absolute = FIXTURES .. '/absent.qmd' }
+
+  local path, reason = render.output_path(FIXTURES, document, 'html')
+  check(path == nil and reason == 'output-not-found',
+    'a known format with no output reports output-not-found', tostring(reason))
+
+  path, reason = render.output_path(FIXTURES, document, 'some-unknown-format')
+  check(path == nil and reason == 'unknown-suffix',
+    'a format this harness cannot place reports unknown-suffix', tostring(reason))
+end
+
+do
   -- Without a project file the staged extension is not resolved, and every
   -- document then reports a shortcode that is not found. The harness knows it
   -- staged the extension itself, so it says what is missing instead.
