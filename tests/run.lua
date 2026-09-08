@@ -824,7 +824,6 @@ do
   -- has never seen must not.
   check(render.grade_missing('a-reason-nobody-has-written-yet', 'html', nil) == 'fail',
     'an unrecognised reason is a failure rather than a skip')
-
   -- The name and the directory come from Quarto, so they are pinned here
   -- rather than left to how the installed version happens to report them.
   local scratch = util.join(here, 'tests/_results/paths')
@@ -864,6 +863,43 @@ do
     'the candidates keep the defaults as a fallback')
 
   util.remove_tree(scratch)
+end
+
+do
+  -- The same fault one layer over. A digest that cannot be computed used to
+  -- emit an advisory, which passes, so on a machine carrying neither hashing
+  -- tool every digest case reported success without having looked, over the
+  -- manifest contract the whole fleet run depends on.
+  --
+  -- `conformance` reads `util` through the loader this file already set up, so
+  -- replacing the function here is the same instance the layer calls.
+  local real_sha256 = util.sha256
+  util.sha256 = function()
+    return nil, 'no-tool'
+  end
+  local cases = {}
+  local ok = pcall(conformance.run, {
+    root = here,
+    extension_dir = here .. '_extensions/extension-test',
+    severity = 'strict',
+  }, function(entry)
+    cases[#cases + 1] = entry
+  end)
+  util.sha256 = real_sha256
+
+  local unverifiable
+  for _, entry in ipairs(cases) do
+    if entry.failure and entry.failure.reason == 'vendored-checksum-unverifiable' then
+      unverifiable = entry
+    end
+  end
+  check(ok, 'the conformance layer runs with no hashing tool available')
+  check(unverifiable ~= nil,
+    'a digest that cannot be computed is reported, not passed over')
+  check(unverifiable ~= nil and unverifiable.status == 'skip',
+    'a digest that cannot be computed is a skip, never a pass',
+    unverifiable and unverifiable.status)
+
 end
 
 do

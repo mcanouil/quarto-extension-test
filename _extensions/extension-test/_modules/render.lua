@@ -361,15 +361,6 @@ local function render_one(context, format)
   return case
 end
 
---- Where a render put its output.
----
---- @param tests string
---- @param document table
---- @param format string
---- @param output_file string|nil the name Quarto reports for this format
---- @param output_dir string|nil the output directory Quarto resolved
---- @return string|nil path
---- @return string|nil reason `unknown-suffix` when there is nowhere to look
 --- Grade a render whose output could not be found.
 ---
 --- An unknown suffix means there is nowhere to look, which is a gap in this
@@ -400,6 +391,15 @@ function M.grade_missing(missing, format, log_path)
   }
 end
 
+--- Where a render put its output.
+---
+--- @param tests string
+--- @param document table
+--- @param format string
+--- @param output_file string|nil the name Quarto reports for this format
+--- @param output_dir string|nil the output directory Quarto resolved
+--- @return string|nil path
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look
 function M.output_path(tests, document, format, output_file, output_dir)
   local candidates, reason = M.output_candidates(tests, document, format, output_file, output_dir)
   if not candidates then
