@@ -800,6 +800,31 @@ do
   check(path == nil and reason == 'unknown-suffix',
     'a format this harness cannot place reports unknown-suffix', tostring(reason))
 
+  -- The reasons above only matter for the status they produce. Reporting a
+  -- missing output as a skip is the defect this layer exists to remove, and
+  -- nothing else in the suite would notice the mapping being flipped or
+  -- dropped. The messages are asserted with the statuses, because a status
+  -- alone would only restate the line it checks.
+  local status, failure = render.grade_missing('unknown-suffix', 'some-unknown-format', nil)
+  check(status == 'skip',
+    'a format this harness cannot place is a skip', tostring(status))
+  check(failure.message:find('does not know what file', 1, true) ~= nil,
+    'the unplaceable message says the harness cannot look', tostring(failure.message))
+
+  status, failure = render.grade_missing('output-not-found', 'html', '/tmp/render.log')
+  check(status == 'fail',
+    'a render that wrote no output is a failure, not a skip', tostring(status))
+  check(failure.message:find('wrote no', 1, true) ~= nil,
+    'the missing-output message says the render produced nothing', tostring(failure.message))
+  check(failure.reason == 'output-not-found' and failure.log == '/tmp/render.log',
+    'the failure carries the reason and the log it was given', tostring(failure.reason))
+
+  -- The default branch, which no reason in the code reaches today. Only an
+  -- unplaceable format may downgrade a case to a skip; a reason this harness
+  -- has never seen must not.
+  check(render.grade_missing('a-reason-nobody-has-written-yet', 'html', nil) == 'fail',
+    'an unrecognised reason is a failure rather than a skip')
+
   -- The name and the directory come from Quarto, so they are pinned here
   -- rather than left to how the installed version happens to report them.
   local scratch = util.join(here, 'tests/_results/paths')
