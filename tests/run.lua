@@ -824,6 +824,7 @@ do
   -- has never seen must not.
   check(render.grade_missing('a-reason-nobody-has-written-yet', 'html', nil) == 'fail',
     'an unrecognised reason is a failure rather than a skip')
+
   -- The name and the directory come from Quarto, so they are pinned here
   -- rather than left to how the installed version happens to report them.
   local scratch = util.join(here, 'tests/_results/paths')
@@ -899,7 +900,6 @@ do
   check(unverifiable ~= nil and unverifiable.status == 'skip',
     'a digest that cannot be computed is a skip, never a pass',
     unverifiable and unverifiable.status)
-
 end
 
 do
