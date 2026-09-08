@@ -333,20 +333,7 @@ local function render_one(context, format)
   local output_path, missing = M.output_path(context.tests, document, format,
     context.output_files and context.output_files[format], context.output_dir)
   if not output_path then
-    -- An unknown suffix means there is nowhere to look, which is a gap in this
-    -- harness rather than a fault in the extension, so it stays a skip. A
-    -- missing output when the name is known is a failure: the render claimed
-    -- success and produced nothing to read, and reporting that as a skip is
-    -- how a layer comes to assert nothing inside a run that passes.
-    case.status = missing == 'unknown-suffix' and 'skip' or 'fail'
-    case.failure = {
-      stage = 'assert',
-      reason = missing,
-      message = missing == 'unknown-suffix'
-        and string.format('this harness does not know what file a `%s` render writes', format)
-        or string.format('the render reported success but wrote no `%s` output to check', format),
-      log = log_path,
-    }
+    case.status, case.failure = M.grade_missing(missing, format, log_path)
     return case
   end
   if M.has_unexpanded(output_path) then
@@ -372,6 +359,36 @@ local function render_one(context, format)
 
   case.status = 'pass'
   return case
+end
+
+--- Grade a render whose output could not be found.
+---
+--- An unknown suffix means there is nowhere to look, which is a gap in this
+--- harness rather than a fault in the extension, so it stays a skip. Every
+--- other reason is a failure: the render claimed success and produced nothing
+--- to read, and reporting that as a skip is how a layer comes to assert nothing
+--- inside a run that passes.
+---
+--- Separate from `render_one` so the mapping can be exercised. Nothing reaches
+--- it through a fixture: a render that succeeds while writing nothing findable
+--- was easy to construct when the harness guessed the output name, and is not
+--- now that the name and the directory both come from `quarto inspect`.
+---
+--- @param missing string The reason `output_path` gave.
+--- @param format string The format that was rendered.
+--- @param log_path string|nil The render log, when one was written.
+--- @return string status `skip` for an unplaceable format, otherwise `fail`.
+--- @return table failure The failure record for the case.
+function M.grade_missing(missing, format, log_path)
+  local unplaceable = missing == 'unknown-suffix'
+  return unplaceable and 'skip' or 'fail', {
+    stage = 'assert',
+    reason = missing,
+    message = unplaceable
+      and string.format('this harness does not know what file a `%s` render writes', format)
+      or string.format('the render reported success but wrote no `%s` output to check', format),
+    log = log_path,
+  }
 end
 
 --- Where a render put its output.

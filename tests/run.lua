@@ -800,6 +800,31 @@ do
   check(path == nil and reason == 'unknown-suffix',
     'a format this harness cannot place reports unknown-suffix', tostring(reason))
 
+  -- The reasons above only matter for the status they produce. Reporting a
+  -- missing output as a skip is the defect this layer exists to remove, and
+  -- nothing else in the suite would notice the mapping being flipped or
+  -- dropped. The messages are asserted with the statuses, because a status
+  -- alone would only restate the line it checks.
+  local status, failure = render.grade_missing('unknown-suffix', 'some-unknown-format', nil)
+  check(status == 'skip',
+    'a format this harness cannot place is a skip', tostring(status))
+  check(failure.message:find('does not know what file', 1, true) ~= nil,
+    'the unplaceable message says the harness cannot look', tostring(failure.message))
+
+  status, failure = render.grade_missing('output-not-found', 'html', '/tmp/render.log')
+  check(status == 'fail',
+    'a render that wrote no output is a failure, not a skip', tostring(status))
+  check(failure.message:find('wrote no', 1, true) ~= nil,
+    'the missing-output message says the render produced nothing', tostring(failure.message))
+  check(failure.reason == 'output-not-found' and failure.log == '/tmp/render.log',
+    'the failure carries the reason and the log it was given', tostring(failure.reason))
+
+  -- The default branch, which no reason in the code reaches today. Only an
+  -- unplaceable format may downgrade a case to a skip; a reason this harness
+  -- has never seen must not.
+  check(render.grade_missing('a-reason-nobody-has-written-yet', 'html', nil) == 'fail',
+    'an unrecognised reason is a failure rather than a skip')
+
   -- The name and the directory come from Quarto, so they are pinned here
   -- rather than left to how the installed version happens to report them.
   local scratch = util.join(here, 'tests/_results/paths')
@@ -839,6 +864,42 @@ do
     'the candidates keep the defaults as a fallback')
 
   util.remove_tree(scratch)
+end
+
+do
+  -- The same fault one layer over. A digest that cannot be computed used to
+  -- emit an advisory, which passes, so on a machine carrying neither hashing
+  -- tool every digest case reported success without having looked, over the
+  -- manifest contract the whole fleet run depends on.
+  --
+  -- `conformance` reads `util` through the loader this file already set up, so
+  -- replacing the function here is the same instance the layer calls.
+  local real_sha256 = util.sha256
+  util.sha256 = function()
+    return nil, 'no-tool'
+  end
+  local cases = {}
+  local ok = pcall(conformance.run, {
+    root = here,
+    extension_dir = here .. '_extensions/extension-test',
+    severity = 'strict',
+  }, function(entry)
+    cases[#cases + 1] = entry
+  end)
+  util.sha256 = real_sha256
+
+  local unverifiable
+  for _, entry in ipairs(cases) do
+    if entry.failure and entry.failure.reason == 'vendored-checksum-unverifiable' then
+      unverifiable = entry
+    end
+  end
+  check(ok, 'the conformance layer runs with no hashing tool available')
+  check(unverifiable ~= nil,
+    'a digest that cannot be computed is reported, not passed over')
+  check(unverifiable ~= nil and unverifiable.status == 'skip',
+    'a digest that cannot be computed is a skip, never a pass',
+    unverifiable and unverifiable.status)
 end
 
 do
