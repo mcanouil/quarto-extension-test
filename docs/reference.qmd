@@ -6,7 +6,8 @@ description: "Every test: key, runner option, layer check, and result field of t
 
 ## The `test:` front matter
 
-A test document is any `.qmd` file under `tests/`, outside the directories whose name starts with an underscore and outside `generated/`.
+A test document is any `.qmd` file under `tests/`.
+A file or directory whose name starts with an underscore is skipped, and so are `generated/` and `.quarto/`.
 Its `test:` block describes the case.
 Every key is optional, so a document with no `test:` block renders to every format `quarto inspect` reports for it, strictly, expecting success.
 
@@ -34,7 +35,7 @@ test:
 | `skip` | boolean or string | `false` | Skip the case. A string is reported as the reason. |
 | `expect` | `pass` or `fail` | `pass` | Whether the render should succeed. With `fail`, the case passes when the render fails. |
 | `strict` | boolean | `true` | Fail on an error in the render log. With `false`, the error is recorded but the case does not fail on it. |
-| `timeout` | integer | `300` | Seconds allowed for each format. |
+| `timeout` | integer | `300` | Seconds allowed for each format. It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
 
 : The `test:` keys. {.striped .hover tbl-colwidths="[14,20,20,46]"}
 
@@ -91,11 +92,12 @@ It checks that:
 
 - `_extension.yml` is a valid manifest, and every file it contributes exists.
 - `_schema.yml` loads and has descriptors that are consistent with themselves: known types, patterns that compile, and examples, `const` values, and defaults that satisfy their own descriptors.
-- Shortcode entries use only the keys the schema allows, and attribute groups name real Pandoc elements.
+- Shortcode entries use only the keys the schema allows, and each attribute group is `_any`, a Pandoc element, or a class or ID token.
 - `_dependencies.yml`, when it exists, is valid, and each vendored file is present, carries its licence, and matches its SHA-256 checksum.
 
 An extension with no `_schema.yml` or no `_dependencies.yml` gets a skip for that check, not a failure.
 So does a schema in the v1 vocabulary, with a message listing the keys to rename, because the runner validates v2 only.
+A `$schema` the runner does not recognise is a skip too.
 A schema with no `$schema` key is read as v2 and gets a warning asking you to declare it.
 
 ### Render
@@ -116,7 +118,7 @@ Any other warning in the log is recorded on the case and does not fail it.
 ### Smoke
 
 The smoke layer generates documents from each `_schema.yml`, renders them the same way, and removes them again.
-For each extension, it writes one document with every option at its default, one with every option set, a minimal and a full document for each shortcode, one for each attribute group, and one for each contributed format.
+For each extension, it writes one document with every option at its default, one with every option set, a minimal and a full document for each shortcode, one for each attribute group, one covering every contributed class, and one for each format section of `_schema.yml`.
 
 Every generated value is validated against the descriptor it came from before it is written.
 A descriptor that no candidate value satisfies is reported as a skip, and so is the cap set by `--max-generated`.
@@ -139,10 +141,12 @@ Two runs can be compared case by case.
 | `quarto` | The Quarto version and its channel, `release` or `prerelease`. |
 | `extension` | The repository root and the names of the extensions found. |
 | `environment` | The severity and the tests directory. |
+| `tier` | The test tier, currently always `render`. |
+| `layer_order` | The layers in the order they ran. |
 | `status` | `fail` when any case failed, `pass` when any passed, and `skip` when every case was skipped. |
 | `summary` | Counts of all cases, by status. |
 | `layers` | The same counts and status for each layer. |
-| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
+| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions`, empty for now, and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
 
 : Top-level fields of `results.json`. {.striped .hover tbl-colwidths="[20,80]"}
 
