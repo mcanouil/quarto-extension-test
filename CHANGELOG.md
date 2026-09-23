@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- fix: Remove the placeholder extension schema, which offered an `example-option` that the extension never read. (#14)
+
+### Documentation
+
+- docs: Document the `test:` front matter, the runner options, each layer, and the result format on the website. (#14)
+
 ## 0.1.1 (2026-09-23)
 
 ### Refactoring

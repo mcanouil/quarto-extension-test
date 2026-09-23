@@ -1,39 +1,173 @@
 ---
 title: "Examples"
-subtitle: "Every option, rendered."
-description: "AGENT GUIDELINES: one sentence naming what this page shows, distinct from the other pages."
+subtitle: "Common test cases, and a run from start to finish."
+description: "Worked test: blocks for expected failures, format subsets, skips, and project defaults, with the output of a real extension-test run."
 ---
 
-<!--
-AGENT GUIDELINES
+Each case below is a `.qmd` document under `tests/`, next to `tests/_quarto.yml`.
 
-Show the extension working, rather than describing it again. The extension is
-available to this site, so anything it can render should be rendered here rather
-than pasted as expected output.
+## A case with nothing to declare
 
-One section per feature, each with the source alongside its result. A two-column
-table of shortcode and rendered output works well for inline output; a fenced
-block followed by the result works better for block output.
+A document with no `test:` block is a complete case.
+It renders to every format `quarto inspect` reports, and passes when the render is clean.
 
-A format extension cannot be demonstrated inline. Add a `preview.qmd` whose
-front matter selects the format, and link its output from here: Quarto renders
-it as part of the website, so `preview.pdf` lands in `_site` alongside the
-pages.
+```markdown
+---
+title: "Default greeting"
+format:
+  html: default
+  typst: default
+---
 
-Finish with a link to the repository's example.qmd or template.qmd, which stays
-short on purpose.
--->
+{{{< greeting >}}}
+```
 
-AGENT GUIDELINES: say where the configuration on this page comes from, so a reader can reproduce it.
+## A render that should fail
 
-## AGENT GUIDELINES: one section per feature
+Set `expect: fail` to check that the extension stops a render it should stop.
+The case passes when the render fails, and fails with `unexpected-pass` when it succeeds.
 
-| Source | Renders as |
-| --- | --- |
-| `{{{< extension-test argument >}}}` | AGENT GUIDELINES: the live shortcode. |
+```markdown
+---
+title: "Expected failure"
+format: html
+test:
+  formats: [html]
+  expect: fail
+---
 
-: AGENT GUIDELINES: caption. {.striped .hover tbl-colwidths="[60,40]"}
+{{{< boom >}}}
+```
 
-## Source
+A timeout never counts as the expected failure.
 
-The repository ships a short, standalone starting point you can copy: [`example.qmd`](https://github.com/mcanouil/quarto-extension-test/blob/main/example.qmd).
+## One format only
+
+Name the formats in `formats` when a case applies to some of them.
+Each one must also be declared in the document's own front matter.
+
+```markdown
+---
+title: "Typst only"
+format:
+  html: default
+  typst: default
+test:
+  description: "The Typst output uses the native function."
+  formats: typst
+---
+```
+
+## A case to skip for now
+
+A string in `skip` becomes the message of the skipped case in `results.json`, so the reason stays next to the result.
+
+```yaml
+test:
+  skip: "Waits for the fix in the next Quarto release."
+```
+
+## Errors that should not fail
+
+A document that logs an error on purpose can set `strict: false`.
+The error is still recorded on the case, but the case does not fail on it.
+
+```yaml
+test:
+  strict: false
+```
+
+## Defaults for every case
+
+A `test:` block in `tests/_quarto.yml` applies to every document, and each document overrides it key by key.
+
+```yaml
+# tests/_quarto.yml
+project:
+  type: extension-test
+
+test:
+  formats: [html, typst]
+  timeout: 120
+```
+
+## A run from start to finish
+
+This is the repository's `clean` fixture, an extension with one shortcode and a `_schema.yml`, and no authored test document:
+
+```bash
+quarto pandoc lua _extensions/extension-test/run.lua \
+  --root tests/fixtures/clean --tests tests/fixtures/clean/_t
+```
+
+The summary goes to standard error:
+
+```txt
+  conformance  ok    5 passed, 0 failed, 1 skipped
+  render       skip  0 passed, 0 failed, 1 skipped
+  smoke        ok    4 passed, 0 failed, 0 skipped
+  PASS: 11 cases, 9 passed, 0 failed, 2 skipped, 0 warnings
+```
+
+The TAP goes to standard output:
+
+```txt
+TAP version 13
+1..11
+ok 1 - conformance/manifest/clean
+ok 2 - conformance/path/clean/shortcodes/clean.lua
+ok 3 - conformance/schema/clean
+ok 4 - conformance/descriptors/clean
+ok 5 - conformance/defaults/clean
+ok 6 - conformance/vendored/clean # SKIP no-dependency-manifest
+ok 7 - render/discover # SKIP no-test-document
+ok 8 - smoke/generated/clean-options-defaults/html
+ok 9 - smoke/generated/clean-options-full/html
+ok 10 - smoke/generated/clean-shortcode-clean-minimal/html
+ok 11 - smoke/generated/clean-shortcode-clean-full/html
+```
+
+The render layer had nothing to render, and says so.
+The smoke layer still tested the shortcode four ways from the schema alone.
+
+## Continuous integration
+
+This workflow tests on the release and pre-release channels every week, and on each pull request that touches the extension or its tests.
+When the weekly run fails, it opens an issue, or comments on the one it opened before:
+
+```yaml
+# .github/workflows/test.yml
+name: Test
+
+on:
+  pull_request:
+    paths:
+      - "_extensions/**"
+      - "tests/**"
+  schedule:
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
+    with:
+      quarto-channels: '["release", "pre-release"]'
+  issue:
+    needs: test
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: mcanouil/quarto-extension-test/.github/workflows/extension-test-issue.yml@main
+```
+
+A failing pull request shows up on the pull request itself, so the issue is kept for the scheduled run.
+The `issues: write` permission belongs to the `issue` job alone.
+Leave that job out, and the workflow needs nothing beyond `contents: read`.
