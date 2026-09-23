@@ -1,60 +1,171 @@
 ---
 title: "Reference"
-subtitle: "Every option the extension-test extension accepts."
-description: "AGENT GUIDELINES: one sentence naming what this page covers, distinct from the other pages."
+subtitle: "The `test:` front matter, the command line, and what each layer checks."
+description: "Every test: key, runner option, layer check, and result field of the extension-test framework, with its default."
 ---
 
-<!--
-AGENT GUIDELINES
+## The `test:` front matter
 
-This page is the complete option list, and `_extensions/extension-test/_schema.yml`
-is its source: every option, type, default, and description is already there,
-and the two must not disagree. Work through the schema key by key.
-
-Structure, keeping only the sections that apply to this extension type:
-
-- Shortcode: the syntax, then a table of arguments and attributes.
-- Filter: the YAML that enables it, the timing (pre-quarto, post-quarto), and
-  the div or span syntax it acts on.
-- Format: the format name, the front matter keys, one table per top-level key.
-- RevealJS plugin: how it is added to revealjs-plugins, and its options.
-
-Then, where they apply:
-
-- Validation: what is rejected, what is dropped, and what is warned about.
-- Limitations: output formats it does not apply to, and known issues.
-
-Every table gets a caption and `{.striped .hover}`.
-Use Quarto callout divs for warnings and cautions, not bare bold text and not
-GitHub's `> [!WARNING]` syntax, which Quarto renders as a plain blockquote:
-
-::: {.callout-caution}
-The caution text.
-:::
--->
-
-## Configuration
-
-AGENT GUIDELINES: the YAML that configures the extension, with a realistic example rather than `option1: value1`.
+A test document is any `.qmd` file under `tests/`, outside the directories whose name starts with an underscore and outside `generated/`.
+Its `test:` block describes the case.
+Every key is optional, so a document with no `test:` block renders to every format `quarto inspect` reports for it, strictly, expecting success.
 
 ```yaml
-extensions:
-  extension-test:
-    option: value
+---
+title: "Unknown icon"
+format:
+  html: default
+  typst: default
+test:
+  name: "Unknown icon"
+  description: "An unknown icon name stops the render."
+  formats: [html, typst]
+  expect: fail
+  timeout: 120
+---
 ```
 
-### Options
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `schema` | integer | `1` | The `test:` vocabulary version the document is written against. |
+| `name` | string | The file stem | A human name for the case. |
+| `description` | string | `""` | What the case covers. |
+| `formats` | string or array of strings | Every format `quarto inspect` reports | The formats to render. |
+| `skip` | boolean or string | `false` | Skip the case. A string is reported as the reason. |
+| `expect` | `pass` or `fail` | `pass` | Whether the render should succeed. With `fail`, the case passes when the render fails. |
+| `strict` | boolean | `true` | Fail on an error in the render log. With `false`, the error is recorded but the case does not fail on it. |
+| `timeout` | integer | `300` | Seconds allowed for each format. |
 
-| Option | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `option` | string | No | | AGENT GUIDELINES: taken from `_schema.yml`. |
+: The `test:` keys. {.striped .hover tbl-colwidths="[14,20,20,46]"}
 
-: Extension Test options. {.striped .hover tbl-colwidths="[15,13,10,10,52]"}
+A `test:` block in `tests/_quarto.yml` sets defaults for every document, and each document overrides them key by key.
 
-## Validation
+The vocabulary only ever grows.
+A key this version does not know is reported as a warning and ignored.
+A value that does not validate is reported as a warning too, never as a failure, so an older runner still tests a newer document.
 
-AGENT GUIDELINES: what the extension rejects or drops, and how it reports it. Remove this section if it validates nothing.
+::: {.callout-note}
+A format named in `formats` that `quarto inspect` does not report for the document fails the case with `format-not-available`.
+Declare the format in the document's front matter as well.
+:::
+
+## Command line
+
+```bash
+quarto pandoc lua tests/_extensions/*/extension-test/run.lua [options]
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--root <dir>` | The parent of the tests directory | Repository root. |
+| `--tests <dir>` | Found from the runner's location | Tests directory. |
+| `--layer <name>` | All three | `conformance`, `render`, or `smoke`. Repeat it to run several. |
+| `--severity <level>` | `strict` | `strict` or `lenient`. With `lenient`, a schema pattern that does not compile is reported as a warning rather than a failure. |
+| `--max-generated <n>` | `200` | The most documents the smoke layer generates for one extension. |
+| `--keep-generated` | Off | Leave the generated documents in `tests/generated/` to inspect them. |
+| `--json <path>` | `tests/_results/results.json` | Where to write the result JSON. |
+| `--tap <path>` | `-` | Where to write TAP 13. `-` means standard output. |
+| `--list` | Off | Print the plan and run nothing. |
+| `--quiet` | Off | Leave out the summary on standard error. |
+| `--version` | | Print the framework version. |
+| `--help` | | Print the usage. |
+
+: Runner options. {.striped .hover tbl-colwidths="[24,28,48]"}
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Every case passed or was skipped. |
+| `1` | At least one case failed. |
+| `2` | The runner could not run, for example because of an unknown option or a root that is not a directory. |
+
+: Exit codes. {.striped .hover tbl-colwidths="[20,80]"}
+
+## Layers
+
+### Conformance
+
+The conformance layer reads each extension under `<root>/_extensions/`, and nothing else.
+Copies under `docs/` or `tests/` are left out, because they exercise an extension rather than ship one.
+
+It checks that:
+
+- `_extension.yml` is a valid manifest, and every file it contributes exists.
+- `_schema.yml` loads and has descriptors that are consistent with themselves: known types, patterns that compile, and examples, `const` values, and defaults that satisfy their own descriptors.
+- Shortcode entries use only the keys the schema allows, and attribute groups name real Pandoc elements.
+- `_dependencies.yml`, when it exists, is valid, and each vendored file is present, carries its licence, and matches its SHA-256 checksum.
+
+An extension with no `_schema.yml` or no `_dependencies.yml` gets a skip for that check, not a failure.
+So does a schema in the v1 vocabulary, with a message listing the keys to rename, because the runner validates v2 only.
+A schema with no `$schema` key is read as v2 and gets a warning asking you to declare it.
+
+### Render
+
+The render layer stages a copy of each extension into the tests project, then renders each test document to each of its formats.
+When `tests/` holds no document, it renders `example.qmd` or `template.qmd` from the repository root instead.
+
+A render passes only when all of these hold:
+
+- Quarto exits 0 within the timeout.
+- The log reports no shortcode, extension, or filter that was not found.
+- The log holds no error, unless `strict` is `false`.
+- The output file exists.
+- The output holds no shortcode text outside code, which would mean a shortcode did not expand.
+
+Any other warning in the log is recorded on the case and does not fail it.
+
+### Smoke
+
+The smoke layer generates documents from each `_schema.yml`, renders them the same way, and removes them again.
+For each extension, it writes one document with every option at its default, one with every option set, a minimal and a full document for each shortcode, one for each attribute group, and one for each contributed format.
+
+Every generated value is validated against the descriptor it came from before it is written.
+A descriptor that no candidate value satisfies is reported as a skip, and so is the cap set by `--max-generated`.
+A smoke failure is therefore the extension's fault, not the generator's.
+
+A pass here means the document rendered cleanly.
+It asserts nothing about the content of the output.
+
+## Results
+
+Each case has a stable identifier, `<layer>/<kind>/<name>/<format>` for a render, such as `render/greeting/html` or `smoke/generated/clean-options-defaults/html`.
+Two runs can be compared case by case.
+
+`results.json` holds:
+
+| Field | Description |
+| --- | --- |
+| `version` | The result format version, currently `1`. |
+| `framework` | The framework name and version. |
+| `quarto` | The Quarto version and its channel, `release` or `prerelease`. |
+| `extension` | The repository root and the names of the extensions found. |
+| `environment` | The severity and the tests directory. |
+| `status` | `fail` when any case failed, `pass` when any passed, and `skip` when every case was skipped. |
+| `summary` | Counts of all cases, by status. |
+| `layers` | The same counts and status for each layer. |
+| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
+
+: Top-level fields of `results.json`. {.striped .hover tbl-colwidths="[20,80]"}
+
+The render log of each case lands in `tests/_results/logs/`.
+Under GitHub Actions, each failure is also written as an error annotation on the document it came from.
+
+## Continuous integration
+
+The reusable workflow `.github/workflows/extension-test.yml` checks out the calling repository, sets up Quarto, and runs the tests.
+It needs `contents: read` and nothing else.
+
+| Input | Type | Default | Description |
+| --- | --- | --- | --- |
+| `quarto-channels` | string | `'["release"]'` | A JSON array of Quarto channels, each run as its own job. |
+
+: Inputs of the `extension-test.yml` workflow. {.striped .hover tbl-colwidths="[22,12,20,46]"}
+
+The companion workflow `.github/workflows/extension-test-issue.yml` opens or updates a single issue naming the failed cases.
+It takes no input.
+Call it as a second job of the same run, and grant `issues: write` to that job alone.
 
 ## Limitations
 
-AGENT GUIDELINES: the output formats it does not apply to, and any known issue. Remove this section if there are none.
+- The smoke layer generates no document for a project type extension.
+- A format whose output file the runner cannot place is reported as a skip.
+- The unexpanded shortcode check looks for an opening shortcode delimiter in the output, so a document that prints one on purpose outside code fails it.

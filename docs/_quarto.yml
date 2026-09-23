@@ -18,7 +18,7 @@ project:
 
 website:
   title: "Extension Test"
-  description: "A Quarto extension."
+  description: "Test a Quarto extension against the Quarto CLI: its schema, its test documents, and documents generated from its schema."
   # No trailing slash: Quarto builds the social image URL by concatenating this
   # with a leading-slash image path, without normalising.
   site-url: &site-url https://m.canouil.dev/quarto-extension-test
@@ -125,8 +125,6 @@ extensions:
     # Blocks here are configuration to copy rather than files to save, so a
     # filename derived from the language would only add noise.
     auto-filename: false
-  # AGENT GUIDELINES: add the configuration of whatever this site documents
-  # here, when the pages need it, so the site demonstrates what it describes.
 
 brand: _extensions/mcanouil/pastel/brand.yml
 
