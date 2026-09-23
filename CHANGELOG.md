@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.1 (2026-09-23)
+
 ### Refactoring
 
 - build: Fetch the schema validator from a Quarto Wizard release asset rather than a raw path inside its repository, which a refactor could move without notice. The vendored file is unchanged. (#11)
