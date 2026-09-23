@@ -30,7 +30,7 @@ Install it inside a `tests` directory, so it never mixes with the extension unde
 
 ```bash
 mkdir -p tests
-cd tests && quarto add {{< var extension.reference >}}
+(cd tests && quarto add {{< var extension.reference >}})
 ```
 
 Make `tests` a Quarto project, which is what lets a render resolve the extension under test:

@@ -5,7 +5,6 @@ description: "Worked test: blocks for expected failures, format subsets, skips, 
 ---
 
 Each case below is a `.qmd` document under `tests/`, next to `tests/_quarto.yml`.
-The repository's own [fixtures](https://github.com/mcanouil/quarto-extension-test/tree/main/tests/fixtures) use the same layout.
 
 ## A case with nothing to declare
 
