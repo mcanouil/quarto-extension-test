@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.2 (2026-09-23)
+
 ### Bug Fixes
 
 - fix: Remove the placeholder extension schema, which offered an `example-option` that the extension never read. (#14)
