@@ -129,7 +129,9 @@ It asserts nothing about the content of the output.
 
 ## Results
 
-Each case has a stable identifier, `<layer>/<kind>/<name>/<format>` for a render, such as `render/greeting/html` or `smoke/generated/clean-options-defaults/html`.
+Each case has a stable identifier.
+A render is `<layer>/<document path without .qmd>/<format>`, such as `render/greeting/html` or `smoke/generated/clean-options-defaults/html`.
+A case reported before any render, such as `render/discover` or `conformance/schema/clean`, has no format segment.
 Two runs can be compared case by case.
 
 `results.json` holds:

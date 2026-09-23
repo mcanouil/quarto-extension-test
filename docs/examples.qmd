@@ -133,7 +133,8 @@ The smoke layer still tested the shortcode four ways from the schema alone.
 
 ## Continuous integration
 
-This workflow tests on the release and pre-release channels every week and on every pull request, and opens an issue when a run fails:
+This workflow tests on the release and pre-release channels every week, and on each pull request that touches the extension or its tests.
+When the weekly run fails, it opens an issue, or comments on the one it opened before:
 
 ```yaml
 # .github/workflows/test.yml
@@ -141,8 +142,15 @@ name: Test
 
 on:
   pull_request:
+    paths:
+      - "_extensions/**"
+      - "tests/**"
   schedule:
     - cron: "0 6 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -154,12 +162,13 @@ jobs:
       quarto-channels: '["release", "pre-release"]'
   issue:
     needs: test
-    if: ${{ failure() }}
+    if: ${{ failure() && github.event_name == 'schedule' }}
     permissions:
       contents: read
       issues: write
     uses: mcanouil/quarto-extension-test/.github/workflows/extension-test-issue.yml@main
 ```
 
+A failing pull request shows up on the pull request itself, so the issue is kept for the scheduled run.
 The `issues: write` permission belongs to the `issue` job alone.
 Leave that job out, and the workflow needs nothing beyond `contents: read`.
