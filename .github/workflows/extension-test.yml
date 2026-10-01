@@ -38,6 +38,6 @@ jobs:
       # against the calling repository's checkout rather than this one.
       # Move this reference with each release.
       - name: Run the tests
-        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.1.0
+        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.1.2
         with:
           quarto: ${{ matrix.quarto }}
