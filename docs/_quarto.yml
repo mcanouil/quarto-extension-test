@@ -21,6 +21,8 @@ website:
   description: "Test a Quarto extension against the Quarto CLI: its schema, its test documents, and documents generated from its schema."
   # No trailing slash: Quarto builds the social image URL by concatenating this
   # with a leading-slash image path, without normalising.
+  # quarto-dev/quarto-cli#15053 normalises this join. Drop this note once the
+  # minimum Quarto version is the first release after 1.11.6.
   site-url: &site-url https://m.canouil.dev/quarto-extension-test
   repo-url: https://github.com/mcanouil/quarto-extension-test
   # The Quarto project root is `docs/`, so without this every edit and issue
