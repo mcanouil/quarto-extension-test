@@ -26,6 +26,7 @@ local vocabulary = require('vocabulary')
 local log = require('log')
 local cli = require('cli')
 local frontmatter = require('frontmatter')
+local assertions = require('assert')
 
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
@@ -457,6 +458,106 @@ do
   util.write_file(util.join(scratch, '_quarto.yml'),
     'project:\n  type: default\n_quarto:\n  tests:\n    run:\n      extension-test:\n        timeout: 9\n')
   equal(frontmatter.project_problem(scratch), nil, 'a project file with only `run.extension-test` is valid')
+  util.remove_tree(scratch)
+end
+
+io.stdout:write('# assert\n')
+
+do
+  local compiled = schema._compile_pattern('^here$')
+  check(assertions.matches('a\nhere\nb', compiled, true), 'an anchored pattern matches one line of a file')
+  check(not assertions.matches('a\nhere\nb', compiled, false), 'without the line rule, the anchor is the whole text')
+
+  local entries = assertions.pattern_pair('ensureFileRegexMatches', { { 'here', '^b$' }, { 'gone' } },
+    'a\nhere\nb', true, 'doc.html')
+  equal(#entries, 3, 'each pattern gives one entry')
+  equal(entries[1].id, 'ensureFileRegexMatches/match/1', 'a match entry has its list and index')
+  equal(entries[3].id, 'ensureFileRegexMatches/noMatch/1', 'a no-match entry has its list and index')
+  check(entries[1].status == 'pass' and entries[2].status == 'pass' and entries[3].status == 'pass',
+    'patterns that match and patterns that do not match pass')
+
+  local failing = assertions.pattern_pair('ensureFileRegexMatches', { { 'absent' }, { 'here' } },
+    'here', true, 'doc.html')
+  equal(failing[1].message, 'not found in doc.html', 'a missing pattern says so')
+  equal(failing[2].message, 'found in doc.html', 'a forbidden pattern says so')
+
+  local empty_lists = assertions.pattern_pair('ensureFileRegexMatches', { {}, { 'x' } }, 'here', true, 'f')
+  check(#empty_lists == 1 and empty_lists[1].status == 'pass', 'an empty match list is valid')
+  local no_second = assertions.pattern_pair('ensureFileRegexMatches', { { 'here' } }, 'here', true, 'f')
+  check(#no_second == 1 and no_second[1].status == 'pass', 'the no-match list is optional')
+  local flat = assertions.pattern_pair('ensureFileRegexMatches', { 'here' }, 'here', true, 'f')
+  check(#flat == 1 and flat[1].status == 'fail' and flat[1].message:find('assertion-invalid', 1, true) == 1,
+    'a flat list of patterns is invalid')
+  local refused = assertions.pattern_pair('ensureFileRegexMatches', { { 'x{2}' } }, 'xx', true, 'f')
+  check(refused[1].status == 'skip' and refused[1].message:find('pattern-unsupported', 1, true) == 1,
+    'a pattern the compiler refuses is a skip')
+
+  local lines = {
+    { level = 'WARN', message = 'veil: undeclared group x' },
+    { level = 'INFO', message = 'veil: undeclared group y' },
+  }
+  local printed = assertions.evaluate({
+    { key = 'printsMessage', class = 'executed', value = { level = 'warning', regex = 'undeclared group' } },
+    { key = 'printsMessage', class = 'executed', value = { { level = 'ERROR', regex = 'boom', negate = true },
+      { level = 'DEBUG', regex = 'x' } } },
+  }, { lines = lines }, true)
+  equal(printed[1].status, 'pass', 'a WARN line matches `warning`')
+  equal(printed[2].status, 'pass', 'a negated message that is absent passes')
+  equal(printed[3].status, 'skip', 'a DEBUG entry is a skip, because the log is at info')
+
+  local skipped, notes = assertions.evaluate({
+    { key = 'ensureFileRegexMatches', class = 'executed', value = { { 'x' } } },
+    { key = 'postRenderCleanup', class = 'known', q2_rejects = true, value = {} },
+  }, { lines = {} }, true)
+  equal(#skipped, 1, 'under shouldError, file assertions give no entry')
+  check(#notes == 1 and notes[1]:find('shouldError', 1, true) ~= nil, 'under shouldError, a note says why')
+  check(skipped[1].status == 'skip' and skipped[1].warnings and skipped[1].warnings[1]:find('q2', 1, true) ~= nil,
+    'a known key that q2 rejects is a skip with a q2 warning')
+
+  local scratch = util.join(here, 'tests/_results/assert')
+  pcall(pandoc.system.make_directory, util.join(scratch, 'doc_files'), true)
+  util.write_file(util.join(scratch, 'doc.html'), 'x')
+  util.write_file(util.join(scratch, 'doc_files', 'style.css'), 'x')
+  local files = assertions.evaluate({
+    { key = 'fileExists', class = 'executed', value = { outputPath = 'doc.html', supportPath = 'style.css' } },
+    { key = 'fileExists', class = 'executed', value = { supportPath = 'gone.css' } },
+  }, { lines = {}, output_dir = scratch, support_dir = util.join(scratch, 'doc_files') }, false)
+  check(files[1].status == 'pass' and files[2].status == 'pass', 'files that exist pass')
+  check(files[3].status == 'fail' and files[3].id == 'fileExists/supportPath', 'a missing file fails')
+
+  util.write_file(util.join(scratch, 'doc.typ'), 'line\nhere\n')
+  local typst = assertions.evaluate({
+    { key = 'ensureTypstFileRegexMatches', class = 'executed', value = { { '^here$' }, { 'Backup' } } },
+  }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ', output_is_typ = false }, false)
+  check(typst[1].status == 'pass' and typst[2].status == 'pass', 'the kept Typst file is read')
+  check(not util.exists(util.join(scratch, 'doc.typ')), 'the kept Typst file is removed after the read')
+  local no_typ = assertions.evaluate({
+    { key = 'ensureTypstFileRegexMatches', class = 'executed', value = { { 'here' } } },
+  }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ' }, false)
+  equal(no_typ[1].message, 'set keep-typ: true', 'a missing Typst file asks for keep-typ')
+
+  local md = util.join(scratch, 'doc.md')
+  util.write_file(md, 'Always here\n')
+  local docx = util.join(scratch, 'doc.docx')
+  util.capture(string.format('quarto pandoc %s -o %s', util.shell_quote(md), util.shell_quote(docx)))
+  local word = assertions.evaluate({
+    { key = 'ensureDocxRegexMatches', class = 'executed', q2_rejects = true, value = { {}, { 'Backup' } } },
+  }, { lines = {}, output_path = docx, output_label = 'doc.docx' }, false)
+  check(word[1].status == 'pass', 'a word that is not in the DOCX passes the no-match list')
+  check(word[1].warnings and word[1].warnings[1]:find('q2', 1, true) ~= nil, 'a DOCX entry carries the q2 warning')
+  local word_match = assertions.evaluate({
+    { key = 'ensureDocxRegexMatches', class = 'executed', value = { { 'Always here' } } },
+  }, { lines = {}, output_path = docx, output_label = 'doc.docx' }, false)
+  check(word_match[1].status == 'pass', 'a word that is in the DOCX passes the match list')
+  util.write_file(util.join(scratch, 'broken.docx'), 'not a zip')
+  local broken = assertions.evaluate({
+    { key = 'ensureDocxRegexMatches', class = 'executed', value = { { 'x' } } },
+  }, { lines = {}, output_path = util.join(scratch, 'broken.docx'), output_label = 'broken.docx' }, false)
+  equal(broken[1].status, 'fail', 'a DOCX that is not a ZIP file fails rather than crashing')
+
+  equal(assertions.failure({ { status = 'pass' } }), nil, 'no failed entry gives no failure')
+  equal(assertions.failure(failing), 'ensureFileRegexMatches/match/1 "absent" not found in doc.html (2 of 2 assertions failed)',
+    'the failure names the first failed entry and the count')
   util.remove_tree(scratch)
 end
 
