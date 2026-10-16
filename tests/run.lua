@@ -1653,6 +1653,19 @@ do
     'with no top-level output-file, the output name is left to the format suffix')
   util.remove_tree(scratch)
 
+  -- A package that `npm ci` installs under the tests directory holds
+  -- `.qmd` files that are not test documents.
+  local packages = util.join(here, 'tests/_results/node-modules')
+  util.write_file(util.join(packages, 'a.qmd'), '---\ntitle: A\n---\n\nBody.\n')
+  util.write_file(util.join(packages, 'node_modules/pkg/readme.qmd'), '---\ntitle: R\n---\n\nBody.\n')
+  util.write_file(util.join(packages, 'sub/node_modules/pkg/readme.qmd'), '---\ntitle: R\n---\n\nBody.\n')
+  local found = {}
+  for _, document in ipairs(render.discover(packages, packages)) do
+    found[#found + 1] = document.relative
+  end
+  equal(table.concat(found, '|'), 'a.qmd', 'node_modules directories are not searched for test documents')
+  util.remove_tree(packages)
+
   -- A project inspect that fails cannot check the project keys, and says so.
   local config_case = render.project_check(util.join(here, 'tests/_results/no-such-project'))
   check(config_case ~= nil and config_case.id == 'render/_config' and config_case.status == 'skip'

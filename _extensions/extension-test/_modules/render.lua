@@ -43,6 +43,8 @@ local function is_ignored(relative)
     or relative:match('^_results/')
     or relative:match('^_output/')
     or relative:match('^%.quarto/')
+    or relative:match('^node_modules/')
+    or relative:match('/node_modules/')
 end
 
 --- Collect `.qmd` documents under a directory, relative to it.
