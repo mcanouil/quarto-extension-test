@@ -102,10 +102,12 @@ end
 --- @param by_line boolean
 --- @return boolean
 function M.matches(text, branches, by_line)
+  local split
   for _, compiled in ipairs(branches) do
     local branch = line_bounded(compiled)
     if by_line and anchored(branch) then
-      for _, line in ipairs(util.lines(text)) do
+      split = split or util.lines(text)
+      for _, line in ipairs(split) do
         if line:find(branch) then
           return true
         end
@@ -148,6 +150,9 @@ function M.pattern_pair(kind, value, text, by_line, label)
       end
       entries[#entries + 1] = entry
     end
+  end
+  if #entries == 0 then
+    return invalid(kind, 'names no pattern to match or to refuse')
   end
   return entries
 end

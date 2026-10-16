@@ -510,15 +510,16 @@ function M.fallback_output_file(output_files, stem)
   return shared or stem
 end
 
---- The `render/config` case, when the tests project sets a key it may not,
---- or when it cannot be inspected to find out.
+--- The `render/_config` case, when the tests project sets a key it may not,
+--- or when it cannot be inspected to find out. The leading underscore keeps
+--- the id apart from a document, because `discover` skips such names.
 --- @param tests string tests directory
 --- @return table|nil case
 function M.project_check(tests)
   local block, err = cli.project_tests(tests)
   if err then
     return {
-      id = 'render/config',
+      id = 'render/_config',
       layer = 'render',
       status = 'skip',
       failure = { stage = 'discover', reason = 'project-inspect-failed', message = err },
@@ -527,7 +528,7 @@ function M.project_check(tests)
   local problem = frontmatter.project_problem(block)
   if problem then
     return {
-      id = 'render/config',
+      id = 'render/_config',
       layer = 'render',
       status = 'fail',
       failure = { stage = 'discover', reason = 'project-tests-keys', message = problem },

@@ -63,7 +63,8 @@ Without it, the default rule fails the case on the warning that the entry expect
 
 Patterns are regular expressions.
 Escape a literal dot or brace, for example `"1\\.0"` or `"\\{\\{<"`.
-A pattern with `^` or `$` matches one line of the file.
+In `ensureFileRegexMatches` and `ensureTypstFileRegexMatches`, a pattern with `^` or `$` matches one line of the file.
+In `ensureDocxRegexMatches`, a pattern matches the whole `word/document.xml`, so `^` and `$` anchor the start and the end of that file.
 The runner does not translate some patterns, for example `x{2}` and `a*?`, and reports them as a `skip` entry.
 
 A pattern in the first list of `ensureDocxRegexMatches` can fail on text that the document contains, because Word can split a text across several XML elements.
@@ -100,8 +101,8 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 
 A value that does not validate fails the document with `options-invalid`.
 `tests/_quarto.yml` can set `_quarto.tests.run.extension-test` for every document, and each document overrides it key by key.
-Any other key under `_quarto.tests` in `tests/_quarto.yml` fails `render/config` with `project-tests-keys`, because q2 reads the document alone.
-If `quarto inspect` cannot read the tests project, `render/config` is a skip with `project-inspect-failed`.
+Any other key under `_quarto.tests` in `tests/_quarto.yml` fails `render/_config` with `project-tests-keys`, because q2 reads the document alone.
+If `quarto inspect` cannot read the tests project, `render/_config` is a skip with `project-inspect-failed`.
 
 ### Differences from q2
 

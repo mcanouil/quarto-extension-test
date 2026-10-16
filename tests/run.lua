@@ -496,6 +496,10 @@ do
   equal(failing[1].message, 'not found in doc.html', 'a missing pattern says so')
   equal(failing[2].message, 'found in doc.html', 'a forbidden pattern says so')
 
+  local no_patterns = assertions.pattern_pair('ensureFileRegexMatches', { {}, {} }, 'here', true, 'f')
+  check(#no_patterns == 1 and no_patterns[1].status == 'fail'
+    and no_patterns[1].message:find('assertion-invalid', 1, true) == 1,
+    'an assertion with no pattern at all is invalid, not a silent pass')
   local empty_lists = assertions.pattern_pair('ensureFileRegexMatches', { {}, { 'x' } }, 'here', true, 'f')
   check(#empty_lists == 1 and empty_lists[1].status == 'pass', 'an empty match list is valid')
   local no_second = assertions.pattern_pair('ensureFileRegexMatches', { { 'here' } }, 'here', true, 'f')
@@ -1291,16 +1295,16 @@ do
   check(duplicate_id(results) == nil, 'no two cases of the vocabulary fixture share an id')
 
   local project = run_fixture('project-tests-keys', '--layer render')
-  local config = find_case(project, 'render/config')
+  local config = find_case(project, 'render/_config')
   equal(config and (config.status .. ' ' .. tostring(config.failure and config.failure.reason)) or 'missing',
-    'fail project-tests-keys', 'a project file that sets `run.skip` fails `render/config`')
+    'fail project-tests-keys', 'a project file that sets `run.skip` fails `render/_config`')
 
   -- A key with no value is merged into every document by Quarto, but the
   -- vendored YAML reader drops it, so the guard reads what Quarto resolved.
   local null_key = run_fixture('project-null-key', '--layer render')
-  local null_config = find_case(null_key, 'render/config')
+  local null_config = find_case(null_key, 'render/_config')
   equal(null_config and (null_config.status .. ' ' .. tostring(null_config.failure and null_config.failure.reason))
-    or 'missing', 'fail project-tests-keys', 'a project file with an empty format key fails `render/config`')
+    or 'missing', 'fail project-tests-keys', 'a project file with an empty format key fails `render/_config`')
 
   if util.timeout_command() then
     local slow = run_fixture('slow', '--layer render')
@@ -1373,7 +1377,7 @@ do
 
   -- A project inspect that fails cannot check the project keys, and says so.
   local config_case = render.project_check(util.join(here, 'tests/_results/no-such-project'))
-  check(config_case ~= nil and config_case.id == 'render/config' and config_case.status == 'skip'
+  check(config_case ~= nil and config_case.id == 'render/_config' and config_case.status == 'skip'
     and config_case.failure.reason == 'project-inspect-failed',
     'a failed project inspect is reported as a skip, not passed over',
     config_case and (config_case.status .. ' ' .. tostring(config_case.failure and config_case.failure.reason)))
