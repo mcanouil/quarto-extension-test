@@ -23,6 +23,7 @@ local emit = require('emit')
 local report = require('report')
 local conformance = require('conformance')
 local vocabulary = require('vocabulary')
+local log = require('log')
 
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
@@ -306,6 +307,50 @@ do
   check(util.contains(keys, 'ensureHtmlElements') and util.contains(keys, 'noErrors')
     and not util.contains(keys, 'run'),
     'the list of valid keys holds executed and known keys, and not `run`')
+end
+
+io.stdout:write('# log\n')
+
+do
+  -- The records below are the shapes measured from quarto-cli with
+  -- `--log-format json-stream`: Lua filter output in one INFO record, and a
+  -- missing shortcode wrapped in ANSI colour codes with a trailing reset.
+  local text = table.concat({
+    '{"msg":"(W) veil: undeclared group x\\nsecond line\\n(E) veil: boom\\nplain output\\n","level":20,"levelName":"INFO","loggerName":"default"}',
+    '',
+    '{"msg":"\\u001b[33mWARNING (/q/shortcodes.lua:461) Shortcode \'x\' not found\\n\\u001b[39m","level":20,"levelName":"INFO","loggerName":"default"}',
+    '',
+    '{"msg":"FATAL (/q/includes.lua:3) stop","level":20,"levelName":"INFO","loggerName":"default"}',
+    '',
+    '{"msg":"pandoc failed\\n  at step","level":40,"levelName":"ERROR","loggerName":"default"}',
+    '',
+    '{"msg":"cut off',
+  }, '\n')
+  local lines, incomplete = log.parse(text)
+  local function at(index)
+    return lines[index] and (lines[index].level .. ' ' .. lines[index].message) or 'nil'
+  end
+  equal(at(1), 'WARN veil: undeclared group x', 'a `(W)` line is a warning, without its marker')
+  equal(at(2), 'INFO second line', 'a continuation line keeps the level of its record')
+  equal(at(3), 'ERROR veil: boom', 'an `(E)` line is an error, without its marker')
+  equal(at(4), 'INFO plain output', 'plain filter output stays at INFO')
+  equal(at(5), "WARN WARNING (/q/shortcodes.lua:461) Shortcode 'x' not found",
+    'a WARNING line inside colour codes is a warning, and the reset code is dropped')
+  equal(at(6), 'ERROR FATAL (/q/includes.lua:3) stop', 'a FATAL line is an error')
+  equal(at(7), 'ERROR pandoc failed', 'a record at ERROR gives error lines')
+  equal(at(8), 'ERROR   at step', 'every line of an ERROR record is an error line')
+  equal(#lines, 8, 'empty lines between records and inside messages give no log line')
+  check(incomplete, 'an incomplete last record is reported')
+
+  local none, none_incomplete = log.read(util.join(here, 'tests/_results/no-such.log'))
+  check(#none == 0 and none_incomplete == false, 'a missing log file gives no log line and no error')
+
+  equal(log.normalise_level('warning'), 'WARN', '`warning` in any case is WARN')
+  equal(log.normalise_level('Error'), 'ERROR', 'a level in mixed case is accepted')
+  equal(log.normalise_level('LOUD'), nil, 'an unknown level is refused')
+  equal(table.concat(log.messages_at(lines, 'WARN'), '|'),
+    "veil: undeclared group x|WARNING (/q/shortcodes.lua:461) Shortcode 'x' not found",
+    'the messages at one level keep their order')
 end
 
 io.stdout:write('# conformance\n')
