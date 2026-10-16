@@ -200,6 +200,7 @@ A smoke failure is therefore the extension's fault, not the generator's.
 A generated document renders under `noErrors`.
 The generator makes inputs, such as placeholder file names, that a careful extension warns about.
 These warnings are recorded on the case and do not fail it.
+A project default of `warnings: exhaustive` does not apply to a generated document.
 A shortcode, extension, or filter that was not found still fails the case.
 A pass here asserts nothing about the content of the output.
 

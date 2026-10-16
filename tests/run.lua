@@ -1565,6 +1565,19 @@ do
     and #((generated.diagnostics or {}).warnings or {}) > 0,
     'a generated document that logs a warning passes, and the warning is recorded',
     generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
+
+  -- A project default of `warnings: exhaustive` holds the authored
+  -- documents, and the generated documents keep the smoke rule.
+  local exhaustive = run_fixture('exhaustive-default')
+  local stray = find_case(exhaustive, 'render/stray/html')
+  check(stray ~= nil and stray.status == 'fail' and stray.failure.reason == 'unexpected-warning',
+    'a project default of exhaustive applies to an authored document',
+    stray and (stray.status .. ' ' .. tostring(stray.failure and stray.failure.reason)))
+  local smoke_exhaustive = find_case(exhaustive, 'smoke/generated/')
+  check(smoke_exhaustive ~= nil and smoke_exhaustive.status == 'pass',
+    'a project default of exhaustive does not apply to a generated document',
+    smoke_exhaustive and (smoke_exhaustive.status .. ' '
+      .. tostring(smoke_exhaustive.failure and smoke_exhaustive.failure.reason)))
 end
 
 do

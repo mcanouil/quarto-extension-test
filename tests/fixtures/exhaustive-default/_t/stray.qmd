@@ -1,0 +1,10 @@
+---
+title: A stray warning under the project default
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+---
+
+{{< warns >}}

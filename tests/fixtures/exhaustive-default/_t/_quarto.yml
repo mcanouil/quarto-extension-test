@@ -1,0 +1,8 @@
+project:
+  type: default
+  output-dir: _output
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive

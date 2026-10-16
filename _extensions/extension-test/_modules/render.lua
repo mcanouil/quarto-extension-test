@@ -225,7 +225,7 @@ end
 --- The checks run in a fixed order, and the first one that fails gives the
 --- reason of the case. Under `shouldError`, only the timeout check, the
 --- `shouldError` check, and the `printsMessage` entries apply.
---- @param context table {tests, log_dir, settings, document, layer, output_files, output_dir, fallback_output_file}
+--- @param context table {tests, log_dir, settings, exhaustive, document, layer, output_files, output_dir, fallback_output_file}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case
 local function render_and_grade(context, target, typ)
@@ -357,7 +357,7 @@ local function render_and_grade(context, target, typ)
 
   -- Under `exhaustive`, a `noErrors` format allows only the warnings that a
   -- `printsMessage` entry expects.
-  if settings.warnings == 'exhaustive' and target.policy == 'noErrors' then
+  if context.exhaustive and target.policy == 'noErrors' then
     local unexpected = assertions.unexpected_warnings(target.assertions, logged_warnings)
     if #unexpected > 0 then
       return fail('log', 'unexpected-warning', unexpected[1])
@@ -611,7 +611,10 @@ function M.execute(options, documents, descriptors, layer, emit)
         emit_document('fail', 'inspect', 'options-invalid', options_err, run_warnings)
         goto continue
       end
-      if settings.warnings == 'exhaustive' then
+      -- A generated document cannot set `noErrors` or expect a warning, so
+      -- it keeps the smoke rule under a project default of `exhaustive`.
+      local exhaustive = settings.warnings == 'exhaustive' and document.origin ~= 'generated'
+      if exhaustive then
         local has_no_errors = false
         for _, entry in ipairs(spec.formats) do
           if entry.policy == 'noErrors' then
@@ -637,6 +640,7 @@ function M.execute(options, documents, descriptors, layer, emit)
 
       context.document = document
       context.settings = settings
+      context.exhaustive = exhaustive
       context.layer = layer
       context.output_files = info.output_files
       context.output_dir = info.output_dir
