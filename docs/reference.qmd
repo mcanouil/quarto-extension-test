@@ -225,7 +225,7 @@ The exit code and the output of the command decide the result:
 | Result | Outcome |
 | --- | --- |
 | Exit 0, and no failing TAP line | The check passes. |
-| Exit 77 | One `check` entry with status `skip`. The runner ignores the TAP lines. |
+| Exit 77 | One `check` entry with status `skip`. The runner ignores the TAP lines. The status of the case does not change. |
 | Any other exit code | The case fails with stage `check` and reason `check-failed`. |
 | A `not ok` line without `# SKIP` or `# TODO` | The case fails with stage `check` and reason `check-failed`. |
 | A timeout | The case fails with stage `check` and reason `timeout`. |
@@ -249,6 +249,8 @@ The output of the command lands in `tests/_results/logs/<slug>.check.log`.
 
 A project default in `tests/_quarto.yml` runs for every format.
 If a command applies to some formats only, make it read `EXTENSION_TEST_FORMAT` and exit 77 for the others.
+A document turns off a project default with `check: "exit 77"`.
+A document with `check: ""` fails with `options-invalid`.
 
 A `check` command is repository code.
 It has the same trust as the Lua code of the repository.
@@ -306,11 +308,12 @@ It needs `contents: read` and nothing else.
 | --- | --- | --- | --- |
 | `quarto-channels` | string | `'["release"]'` | A JSON array of Quarto channels, each run as its own job. |
 | `node-version` | string | `""` | The Node.js version to set up for a check command. Empty means no Node.js setup. |
-| `playwright-browsers` | string | `""` | The Playwright browsers to install for a check command, such as `chromium`. Empty means no install. |
+| `playwright-browsers` | string | `""` | The Playwright browsers to install for a check command, such as `chromium`. Empty means no install. It needs `node-version`, and the action fails without it. |
 
 : Inputs of the `extension-test.yml` workflow. {.striped .hover tbl-colwidths="[22,12,20,46]"}
 
-If `tests/package-lock.json` exists, `npm ci` runs in `tests/` before the tests.
+If `node-version` is set and `tests/package-lock.json` exists, `npm ci` runs in `tests/` before the tests.
+Without `node-version`, `npm ci` does not run.
 
 The companion workflow `.github/workflows/extension-test-issue.yml` opens or updates a single issue naming the failed cases.
 It takes no input.
