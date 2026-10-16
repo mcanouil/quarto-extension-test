@@ -1282,6 +1282,38 @@ do
   end
 end
 
+do
+  local results = run_fixture('assertions', '--layer render')
+  for _, format in ipairs({ 'html', 'typst', 'docx' }) do
+    local pass = find_case(results, 'render/assert-pass/' .. format)
+    check(pass ~= nil and pass.status == 'pass',
+      'the passing assertions pass in ' .. format,
+      pass and (pass.status .. ' ' .. tostring(pass.failure and pass.failure.message)))
+    local fail = find_case(results, 'render/assert-fail/' .. format)
+    check(fail ~= nil and fail.status == 'fail' and fail.failure.reason == 'assertion-failed'
+      and fail.failure.stage == 'assert',
+      'the failing assertions fail in ' .. format,
+      fail and (fail.status .. ' ' .. tostring(fail.failure and fail.failure.reason)))
+  end
+  local typst_pass = find_case(results, 'render/assert-pass/typst')
+  check(typst_pass ~= nil and typst_pass.assertions[1].id == 'ensureTypstFileRegexMatches/match/1',
+    'the Typst entries carry their ids')
+  check(not util.exists(util.join(FIXTURES, 'assertions', '_t', 'assert-pass.typ')),
+    'no kept Typst file stays behind')
+  local html_fail = find_case(results, 'render/assert-fail/html')
+  check(html_fail ~= nil and html_fail.failure.message:find('2 of 2 assertions failed', 1, true) ~= nil,
+    'every assertion is evaluated, and the message gives the count',
+    html_fail and html_fail.failure.message)
+  local printed = find_case(results, 'render/prints-message/html')
+  check(printed ~= nil and printed.status == 'pass' and #printed.assertions == 2,
+    'printsMessage finds an INFO line and the absence of an ERROR line',
+    printed and (printed.status .. ' ' .. tostring(printed.failure and printed.failure.message)))
+  local files = find_case(results, 'render/file-exists/html')
+  check(files ~= nil and files.status == 'pass',
+    'fileExists finds the output and its support directory',
+    files and (files.status .. ' ' .. tostring(files.failure and files.failure.message)))
+end
+
 io.stdout:write('# determinism\n')
 
 do

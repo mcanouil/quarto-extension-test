@@ -1,0 +1,24 @@
+---
+title: Assertions that fail
+format:
+  html: default
+  typst:
+    keep-typ: true
+  docx: default
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["Backup"]
+        - ["here"]
+    typst:
+      ensureTypstFileRegexMatches:
+        - []
+        - ["here"]
+    docx:
+      ensureDocxRegexMatches:
+        - []
+        - ["here"]
+---
+
+{{< present >}}
