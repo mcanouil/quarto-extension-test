@@ -97,7 +97,8 @@ end
 ---
 --- A render that stops before Quarto writes the file leaves nothing to read.
 --- That is no log line rather than an error, and `missing` says so, because
---- an absent log is not a clean one.
+--- an absent log is not a clean one. Quarto always logs at least its
+--- settings and `Output created`, so a log with no line counts as missing.
 --- @param path string
 --- @return table[] lines, boolean incomplete, boolean missing
 function M.read(path)
@@ -106,7 +107,7 @@ function M.read(path)
     return {}, false, true
   end
   local lines, incomplete = M.parse(text)
-  return lines, incomplete, false
+  return lines, incomplete, #lines == 0
 end
 
 --- The messages of the log lines at one level, in log order.

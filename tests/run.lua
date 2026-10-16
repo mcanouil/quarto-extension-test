@@ -361,6 +361,11 @@ do
   local none, none_incomplete, none_missing = log.read(util.join(here, 'tests/_results/no-such.log'))
   check(#none == 0 and none_incomplete == false, 'a missing log file gives no log line and no error')
   check(none_missing == true, 'a missing log file is reported as missing, not read as a clean log')
+  local empty_log = util.join(here, 'tests/_results/empty.log')
+  util.write_file(empty_log, '')
+  local _, _, empty_missing = log.read(empty_log)
+  check(empty_missing == true, 'an empty log file is reported as missing, not read as a clean log')
+  os.remove(empty_log)
 
   equal(log.normalise_level('warning'), 'WARN', '`warning` in any case is WARN')
   equal(log.normalise_level('Error'), 'ERROR', 'a level in mixed case is accepted')
@@ -573,7 +578,7 @@ do
   util.write_file(util.join(scratch, 'doc.typ'), 'line\nhere\n')
   local typst = assertions.evaluate({
     { key = 'ensureTypstFileRegexMatches', class = 'executed', value = { { '^here$' }, { 'Backup' } } },
-  }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ', output_is_typ = false }, false)
+  }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ' }, false)
   check(typst[1].status == 'pass' and typst[2].status == 'pass', 'the kept Typst file is read')
   check(util.exists(util.join(scratch, 'doc.typ')),
     'the assertion leaves the kept Typst file in place; the render layer removes it')
@@ -1474,6 +1479,15 @@ do
   check(allowed ~= nil and allowed.status == 'pass' and allowed.assertions[1].status == 'pass',
     'noErrors allows the warning, and printsMessage finds it',
     allowed and (allowed.status .. ' ' .. tostring(allowed.failure and allowed.failure.message)))
+
+  -- The demo document is documentation, not a test, so it allows warnings
+  -- as the generated smoke documents do.
+  local demo = run_fixture('demo-warns', '--layer render')
+  local demo_case = find_case(demo, 'render/example/html')
+  check(demo_case ~= nil and demo_case.status == 'pass'
+    and #((demo_case.diagnostics or {}).warnings or {}) > 0,
+    'a demo document that logs a warning passes, and the warning is recorded',
+    demo_case and (demo_case.status .. ' ' .. tostring(demo_case.failure and demo_case.failure.reason)))
 
   -- Generated documents carry no policy, and the generator makes inputs a
   -- careful extension warns about, so the smoke layer renders under

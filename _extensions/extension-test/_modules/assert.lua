@@ -302,7 +302,7 @@ end
 
 --- Evaluate every assertion of a format entry.
 --- @param assertions table[] from `frontmatter.spec`
---- @param ctx table {lines, output_path, output_label, output_dir, support_dir, typ_path, typ_label, output_is_typ}
+--- @param ctx table {lines, output_path, output_label, output_dir, support_dir, typ_path, typ_label, typ_preexisting, format}
 --- @param log_only boolean true under `shouldError`, where only `printsMessage` runs
 --- @return table[] entries
 --- @return string[] notes warnings for the case

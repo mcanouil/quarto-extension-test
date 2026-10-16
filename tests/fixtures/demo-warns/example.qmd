@@ -1,0 +1,8 @@
+---
+title: Demo
+format: html
+---
+
+The demo of an extension, rendered when tests/ holds no document.
+
+{{< warns >}}

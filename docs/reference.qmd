@@ -169,6 +169,7 @@ A schema with no `$schema` key is read as v2 and gets a warning asking you to de
 
 The render layer stages a copy of each extension into the tests project, then renders each test document to each of its formats.
 When `tests/` holds no document, it renders `example.qmd` or `template.qmd` from the repository root instead.
+That demo document renders under `noErrors`, because it documents the extension rather than testing it.
 
 The runner does these checks in this order, and the first check that fails gives the reason of the case:
 

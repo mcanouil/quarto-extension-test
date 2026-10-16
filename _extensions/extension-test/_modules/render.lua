@@ -92,7 +92,9 @@ function M.discover(root, tests)
   for _, name in ipairs({ 'example.qmd', 'template.qmd' }) do
     local absolute = util.join(root, name)
     if util.exists(absolute) then
-      return { { relative = name, absolute = absolute, origin = 'demo' } }
+      -- The demo documents the extension rather than testing it, so, as for
+      -- a generated document, warnings are allowed.
+      return { { relative = name, absolute = absolute, origin = 'demo', default_policy = 'noErrors' } }
     end
   end
   return {}
@@ -377,7 +379,6 @@ local function render_and_grade(context, target, typ)
     format = format,
     typ_preexisting = typ_preexisting,
     typ_label = output_is_typ and output_label or pandoc.path.filename(typ_path),
-    output_is_typ = output_is_typ,
   }
   return grade_assertions(ctx, false)
 end
