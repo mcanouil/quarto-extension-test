@@ -95,16 +95,18 @@ end
 
 --- Read a json-stream log file.
 ---
---- A render that stops before Quarto writes the file leaves nothing to read,
---- and that is no log line rather than an error.
+--- A render that stops before Quarto writes the file leaves nothing to read.
+--- That is no log line rather than an error, and `missing` says so, because
+--- an absent log is not a clean one.
 --- @param path string
---- @return table[] lines, boolean incomplete
+--- @return table[] lines, boolean incomplete, boolean missing
 function M.read(path)
   local text = util.read_file(path)
   if not text then
-    return {}, false
+    return {}, false, true
   end
-  return M.parse(text)
+  local lines, incomplete = M.parse(text)
+  return lines, incomplete, false
 end
 
 --- The messages of the log lines at one level, in log order.

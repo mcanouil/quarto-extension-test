@@ -314,8 +314,12 @@ function M.evaluate(assertions, ctx, log_only)
       produced = not_executed(item.key, item.q2_rejects)
     elseif log_only and item.key ~= 'printsMessage' then
       skipped_files = true
-    else
+    elseif RUNNERS[item.key] then
       produced = RUNNERS[item.key](item.value, ctx)
+    else
+      -- A key the table calls executed with no runner here is a gap in this
+      -- runner, so it is a skip, never a crash of the whole layer.
+      produced = not_executed(item.key, item.q2_rejects)
     end
     for _, entry in ipairs(produced or {}) do
       entries[#entries + 1] = entry

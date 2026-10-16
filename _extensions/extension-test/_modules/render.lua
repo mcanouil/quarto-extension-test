@@ -261,7 +261,7 @@ local function render_and_grade(context, target, typ)
 
   local code, output = util.capture(cli.render_command(context.tests, document.absolute, format,
     log_path, settings.timeout))
-  local lines, incomplete = log.read(log_path)
+  local lines, incomplete, log_missing = log.read(log_path)
   local errors, logged_warnings = log.messages_at(lines, 'ERROR'), log.messages_at(lines, 'WARN')
   -- The diagnostics hold the logged warnings and the notes of the runner.
   -- The log rule reads `logged_warnings` alone.
@@ -316,6 +316,18 @@ local function render_and_grade(context, target, typ)
     return fail('render', 'timeout', string.format('the render exceeded %s seconds', tostring(settings.timeout)))
   end
 
+  -- With no log, the log rule cannot be judged, and an empty log would read
+  -- as a clean one. That is a gap in this run, so the case is a skip. A
+  -- render that exits with an error code is still judged on its exit code.
+  if log_missing and code == 0 then
+    case.status = 'skip'
+    case.failure = {
+      stage = 'log', reason = 'log-missing',
+      message = 'Quarto wrote no log to ' .. log_path .. ', so the log rule cannot be checked',
+    }
+    return case
+  end
+
   if target.policy == 'shouldError' then
     if code == 0 and #errors == 0 then
       return fail('log', 'unexpected-pass',
@@ -327,6 +339,7 @@ local function render_and_grade(context, target, typ)
   if code ~= 0 then
     return fail('render', 'exit ' .. tostring(code), M.first_error(output, errors))
   end
+
 
   -- The render succeeded. Everything below is the difference between
   -- "Quarto exited 0" and "the extension actually did something".
@@ -610,7 +623,8 @@ function M.execute(options, documents, descriptors, layer, emit)
             id = base_id .. '/' .. target.name,
             layer = layer,
             status = 'fail',
-            target = { document = document.relative, format = target.name },
+            target = { kind = document.origin, document = document.relative, format = target.name },
+            diagnostics = { errors = {}, warnings = run_warnings },
             failure = { stage = 'discover', reason = target.problem.reason, message = target.problem.message },
           })
         else

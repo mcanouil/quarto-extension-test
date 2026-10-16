@@ -358,8 +358,9 @@ do
   equal(pandoc_lines[3] and (pandoc_lines[3].level .. ' ' .. pandoc_lines[3].message), 'ERROR inline failure',
     'a Pandoc [ERROR] marker on the same line is an error, without its marker')
 
-  local none, none_incomplete = log.read(util.join(here, 'tests/_results/no-such.log'))
+  local none, none_incomplete, none_missing = log.read(util.join(here, 'tests/_results/no-such.log'))
   check(#none == 0 and none_incomplete == false, 'a missing log file gives no log line and no error')
+  check(none_missing == true, 'a missing log file is reported as missing, not read as a clean log')
 
   equal(log.normalise_level('warning'), 'WARN', '`warning` in any case is WARN')
   equal(log.normalise_level('Error'), 'ERROR', 'a level in mixed case is accepted')
@@ -559,6 +560,10 @@ do
   }, { lines = {}, output_dir = scratch, support_dir = util.join(scratch, 'doc_files') }, false)
   check(files[1].status == 'pass' and files[2].status == 'pass', 'files that exist pass')
   check(files[3].status == 'fail' and files[3].id == 'fileExists/supportPath', 'a missing file fails')
+  local no_runner = assertions.evaluate({ { key = 'ensureSomethingNew', class = 'executed', value = {} } },
+    { lines = {} }, false)
+  check(#no_runner == 1 and no_runner[1].status == 'skip',
+    'an executed key without a runner is a skip, not a crash of the whole layer')
   local no_paths = assertions.evaluate({ { key = 'fileExists', class = 'executed', value = {} } },
     { lines = {}, output_dir = scratch, support_dir = scratch }, false)
   check(#no_paths == 1 and no_paths[1].status == 'fail'
@@ -1311,6 +1316,10 @@ do
     and table.concat((unknown_run.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
     'an unknown key under run is named in the case warnings, as q2 ignores it',
     unknown_run and unknown_run.status)
+  local both = find_case(results, 'render/run-unknown-key-bad-assertion/html')
+  check(both ~= nil and both.status == 'fail'
+    and table.concat((both.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
+    'a format that fails on its keys still names the unknown run keys', both and both.status)
   local unknown_skipped = find_case(results, 'render/run-unknown-key-skipped')
   check(unknown_skipped ~= nil and unknown_skipped.status == 'skip'
     and table.concat((unknown_skipped.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,

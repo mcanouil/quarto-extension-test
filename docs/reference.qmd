@@ -181,6 +181,7 @@ The runner does these checks in this order, and the first check that fails gives
 7. Every assertion of the format passes.
 
 Under `shouldError`, the runner does only the timeout check, the `shouldError` check, and the `printsMessage` entries.
+When a render exits 0 but writes no log, the case is a skip with `log-missing`, because the log rule cannot be checked.
 
 ### Smoke
 
