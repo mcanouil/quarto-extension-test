@@ -379,6 +379,9 @@ do
 
   local bad, bad_err = cli.parse_inspect('not json')
   check(bad == nil and bad_err ~= nil, 'an inspect result that is not JSON is an error')
+  local no_meta, no_meta_err = cli.parse_inspect(pandoc.json.encode({ formats = { html = { pandoc = {} } } }))
+  check(no_meta == nil and no_meta_err ~= nil,
+    'a format without metadata is an error, not a document without a block')
 
   local command = cli.render_command('/t', '/t/doc.qmd', 'html', '/t/log.json', 30)
   check(command:find("quarto render '/t/doc.qmd' --to 'html'", 1, true) ~= nil
@@ -468,6 +471,14 @@ do
   local compiled = schema._compile_pattern('^here$')
   check(assertions.matches('a\nhere\nb', compiled, true), 'an anchored pattern matches one line of a file')
   check(not assertions.matches('a\nhere\nb', compiled, false), 'without the line rule, the anchor is the whole text')
+  local dot = schema._compile_pattern('Backup.*enabled')
+  check(not assertions.matches('Backup\nlater enabled', dot, true)
+    and not assertions.matches('Backup\nlater enabled', dot, false),
+    'a dot does not cross a line break, as in q2 and quarto-cli')
+  check(assertions.matches('Backup is enabled', dot, true), 'a dot still matches within a line')
+  check(assertions.matches('a.x', schema._compile_pattern('[.]x'), false), 'a dot inside a class stays literal')
+  check(assertions.matches('100%\nmore', schema._compile_pattern('100%$'), true),
+    'a literal percent before the end anchor keeps the anchor')
 
   local entries = assertions.pattern_pair('ensureFileRegexMatches', { { 'here', '^b$' }, { 'gone' } },
     'a\nhere\nb', true, 'doc.html')

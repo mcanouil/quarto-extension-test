@@ -48,7 +48,12 @@ function M.parse_inspect(text)
   local tests
   local first = formats[1] and parsed.formats[formats[1]]
   local metadata = type(first) == 'table' and type(first.metadata) == 'table' and first.metadata or nil
-  if metadata and type(metadata._quarto) == 'table' then
+  -- Without metadata the block cannot be read, and reading it as absent
+  -- would run the document with none of its assertions.
+  if not metadata then
+    return nil, 'quarto inspect returned no metadata for ' .. tostring(formats[1])
+  end
+  if type(metadata._quarto) == 'table' then
     tests = metadata._quarto.tests
   end
 

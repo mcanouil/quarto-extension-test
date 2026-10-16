@@ -222,8 +222,8 @@ end
 --- Render one document to one format and judge the result.
 ---
 --- The checks run in a fixed order, and the first one that fails gives the
---- reason of the case. Under `shouldError`, only the timeout, the log rule,
---- and `printsMessage` apply.
+--- reason of the case. Under `shouldError`, only the timeout check, the
+--- `shouldError` check, and the `printsMessage` entries apply.
 --- @param context table {tests, log_dir, settings, document, layer, output_files, output_dir, fallback_output_file}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case

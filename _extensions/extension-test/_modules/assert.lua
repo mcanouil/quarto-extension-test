@@ -27,8 +27,60 @@ local function is_string_list(value)
 end
 
 --- Whether a compiled branch is anchored at a line start or end.
+---
+--- A final `$` is escaped only when an odd run of `%` precedes it, because a
+--- literal `%` compiles to `%%`.
 local function anchored(branch)
-  return branch:sub(1, 1) == '^' or (branch:sub(-1) == '$' and branch:sub(-2, -2) ~= '%')
+  if branch:sub(1, 1) == '^' then
+    return true
+  end
+  if branch:sub(-1) ~= '$' then
+    return false
+  end
+  local percents = #(branch:sub(1, -2):match('%%*$'))
+  return percents % 2 == 0
+end
+
+--- A compiled branch whose `.` stops at a line break.
+---
+--- Lua's `.` matches a newline, and the `.` of q2 and quarto-cli does not, so
+--- each bare `.` outside a character class becomes `[^\n]`.
+local function line_bounded(branch)
+  local out, index, in_class = {}, 1, false
+  while index <= #branch do
+    local char = branch:sub(index, index)
+    if char == '%' then
+      out[#out + 1] = branch:sub(index, index + 1)
+      index = index + 2
+    else
+      if in_class then
+        if char == ']' then
+          in_class = false
+        end
+        out[#out + 1] = char
+      elseif char == '[' then
+        in_class = true
+        out[#out + 1] = char
+        -- A `]` right after `[` or `[^` is a literal member of the class.
+        local after = branch:sub(index + 1, index + 1)
+        if after == '^' then
+          out[#out + 1] = after
+          index = index + 1
+          after = branch:sub(index + 1, index + 1)
+        end
+        if after == ']' then
+          out[#out + 1] = after
+          index = index + 1
+        end
+      elseif char == '.' then
+        out[#out + 1] = '[^\n]'
+      else
+        out[#out + 1] = char
+      end
+      index = index + 1
+    end
+  end
+  return table.concat(out)
 end
 
 --- One failed entry that stands for the whole assertion.
@@ -50,7 +102,8 @@ end
 --- @param by_line boolean
 --- @return boolean
 function M.matches(text, branches, by_line)
-  for _, branch in ipairs(branches) do
+  for _, compiled in ipairs(branches) do
+    local branch = line_bounded(compiled)
     if by_line and anchored(branch) then
       for _, line in ipairs(util.lines(text)) do
         if line:find(branch) then
