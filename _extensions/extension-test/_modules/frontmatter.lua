@@ -14,6 +14,28 @@ local M = {}
 --- The options of the runner when a document declares none.
 M.DEFAULTS = { timeout = 300, description = '' }
 
+--- The keys of `_quarto.tests.run` that q2 reads, and the runner's own.
+local RUN_KEYS = {
+  skip = true, ci = true, os = true, not_os = true,
+  requires_js = true, requires = true, ['extension-test'] = true,
+}
+
+--- Keys under `_quarto.tests.run` that neither q2 nor the runner reads.
+---
+--- q2 ignores them, so they do not fail the document; they are named in the
+--- case warnings, because a typo such as `not-os` otherwise does nothing.
+--- @param run table
+--- @return string[] warnings
+function M.unknown_run_keys(run)
+  local out = {}
+  for _, key in ipairs(util.sorted_keys(run or {})) do
+    if not RUN_KEYS[key] then
+      out[#out + 1] = string.format('`_quarto.tests.run.%s` is not a key that q2 or this runner reads, and it is ignored', key)
+    end
+  end
+  return out
+end
+
 --- Commands that show an engine runtime is present.
 local ENGINE_COMMANDS = { knitr = 'Rscript', jupyter = 'jupyter' }
 
@@ -129,6 +151,15 @@ function M.options(run, descriptors, stem)
   end
   if not is_map(declared) then
     return settings, '`_quarto.tests.run.extension-test` must be a mapping'
+  end
+  -- Without descriptors, `run.lua` has already warned that the schema could
+  -- not be read. Every option would then read as unknown, so the declared
+  -- values are kept as they are.
+  if next(descriptors or {}) == nil then
+    for key, value in pairs(declared) do
+      settings[key] = value
+    end
+    return settings, nil
   end
   local _, errors, _, coerced = schema.validate(declared, descriptors, { unknown = 'error' })
   if errors and #errors > 0 then

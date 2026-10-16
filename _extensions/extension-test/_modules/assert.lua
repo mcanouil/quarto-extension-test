@@ -274,6 +274,9 @@ local function file_exists(value, ctx)
     end
     entries[#entries + 1] = entry
   end
+  if #entries == 0 then
+    return invalid(kind, 'names no path to look for')
+  end
   return entries
 end
 

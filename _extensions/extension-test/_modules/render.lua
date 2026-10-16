@@ -19,9 +19,8 @@ local M = {}
 ---
 --- Measured: an extension that is not resolved produces
 --- `WARNING ... Shortcode 'probe' not found` and `Output created`, exit 0.
---- A blanket "warnings never fail" rule would make this layer blind to the
---- one failure it exists to catch. Every other warning is recorded and does
---- not fail, because extensions warn legitimately all the time.
+--- These fail a case under every policy, including `noErrors`, where other
+--- warnings are allowed, because they mean the extension never ran.
 M.PROMOTED_WARNINGS = {
   { pattern = "Shortcode '[^']*' not found", reason = 'shortcode-not-found' },
   { pattern = 'Extension [^%s]* not found', reason = 'extension-not-found' },
@@ -253,12 +252,10 @@ local function render_and_grade(context, target, typ)
   -- may be hand-written. Only one the render kept is removed, after grading.
   local typ_path = M.kept_typ_path(document)
   local typ_preexisting = false
-  for _, item in ipairs(target.assertions) do
-    if item.key == 'ensureTypstFileRegexMatches' and not output_is_typ then
-      typ_preexisting = util.exists(typ_path)
-      typ.path, typ.remove = typ_path, not typ_preexisting
-      break
-    end
+  local base = format:match('([^%-]+)$') or format
+  if base == 'typst' and not output_is_typ then
+    typ_preexisting = util.exists(typ_path)
+    typ.path, typ.remove = typ_path, not typ_preexisting
   end
 
   local code, output = util.capture(cli.render_command(context.tests, document.absolute, format,
@@ -615,7 +612,11 @@ function M.execute(options, documents, descriptors, layer, emit)
             failure = { stage = 'discover', reason = target.problem.reason, message = target.problem.message },
           })
         else
-          emit(render_one(context, target))
+          local case = render_one(context, target)
+          for _, warning in ipairs(frontmatter.unknown_run_keys(spec.run)) do
+            table.insert(case.diagnostics.warnings, warning)
+          end
+          emit(case)
         end
       end
     end

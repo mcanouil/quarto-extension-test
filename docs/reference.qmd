@@ -84,7 +84,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 | --- | --- |
 | `skip` | Skips the document. A string is the reason. |
 | `os`, `not_os` | Runs the document only on, or never on, `darwin`, `linux`, or `windows`. |
-| `ci` | With `false`, skips the document on continuous integration. |
+| `ci` | With `false`, skips the document on continuous integration. Other values have no effect, as in q2. |
 | `requires_js` | Skips the document, because the runner does not execute JavaScript. |
 | `requires` | Skips the document when `Rscript` (`knitr`) or `jupyter` (`jupyter`) is not on the `PATH`. |
 | `extension-test` | Holds the options of this runner. |
@@ -100,6 +100,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 : The options under `_quarto.tests.run.extension-test`. {.striped .hover tbl-colwidths="[14,14,20,52]"}
 
 A value that does not validate fails the document with `options-invalid`.
+Any other key under `run` is ignored, as q2 ignores it, and the case warnings name it.
 `tests/_quarto.yml` can set `_quarto.tests.run.extension-test` for every document, and each document overrides it key by key.
 Any other key under `_quarto.tests` in `tests/_quarto.yml` fails `render/_config` with `project-tests-keys`, because q2 reads the document alone.
 If `quarto inspect` cannot read the tests project, `render/_config` is a skip with `project-inspect-failed`.

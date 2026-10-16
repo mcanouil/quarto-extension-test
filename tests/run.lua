@@ -439,6 +439,9 @@ do
   check(bad_value ~= nil and bad_value:find('timeout', 1, true) ~= nil, 'a timeout below 1 is invalid', bad_value)
   local _, bad_key = frontmatter.options({ ['extension-test'] = { strict = true } }, descriptors, 'doc')
   check(bad_key ~= nil and bad_key:find('strict', 1, true) ~= nil, 'a removed option is invalid', bad_key)
+  local unread, unread_problem = frontmatter.options({ ['extension-test'] = { timeout = 7 } }, {}, 'doc')
+  check(unread_problem == nil and unread.timeout == 7,
+    'without readable descriptors the options are kept, not all reported as unknown', unread_problem)
 
   local probe = { ci = true, os = 'linux', has_command = function(name) return name == 'Rscript' end }
   equal(frontmatter.skip_reason({ skip = 'later' }, probe), 'later', 'a skip string is the reason')
@@ -543,6 +546,11 @@ do
   }, { lines = {}, output_dir = scratch, support_dir = util.join(scratch, 'doc_files') }, false)
   check(files[1].status == 'pass' and files[2].status == 'pass', 'files that exist pass')
   check(files[3].status == 'fail' and files[3].id == 'fileExists/supportPath', 'a missing file fails')
+  local no_paths = assertions.evaluate({ { key = 'fileExists', class = 'executed', value = {} } },
+    { lines = {}, output_dir = scratch, support_dir = scratch }, false)
+  check(#no_paths == 1 and no_paths[1].status == 'fail'
+    and no_paths[1].message:find('assertion-invalid', 1, true) == 1,
+    'fileExists with no path is invalid, not a silent pass')
 
   util.write_file(util.join(scratch, 'doc.typ'), 'line\nhere\n')
   local typst = assertions.evaluate({
@@ -1285,6 +1293,11 @@ do
   check(rejected ~= nil and rejected.assertions[1].warnings ~= nil,
     'a key q2 rejects carries a warning')
   equal(reason('render/run-skip-os'), 'skip skipped', '`not_os` skips the document')
+  local unknown_run = find_case(results, 'render/run-unknown-key/html')
+  check(unknown_run ~= nil and unknown_run.status == 'pass'
+    and table.concat((unknown_run.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
+    'an unknown key under run is named in the case warnings, as q2 ignores it',
+    unknown_run and unknown_run.status)
   equal(reason('render/options-invalid'), 'fail options-invalid', 'an invalid timeout fails the document')
   equal(reason('render/no-format-keys/html'), 'pass nil', 'a document with no format keys renders every format')
   equal(reason('render/empty-format-value/html'), 'pass nil', 'an empty format value renders under the default rule')
@@ -1305,6 +1318,16 @@ do
   local null_config = find_case(null_key, 'render/_config')
   equal(null_config and (null_config.status .. ' ' .. tostring(null_config.failure and null_config.failure.reason))
     or 'missing', 'fail project-tests-keys', 'a project file with an empty format key fails `render/_config`')
+
+  -- `run.extension-test` in the project file reaches each document only
+  -- through the merge that `quarto inspect` does, so the merge is checked.
+  local defaults_dir = util.join(FIXTURES, 'project-defaults', '_t')
+  local merged = cli.inspect(util.join(defaults_dir, 'document.qmd'), defaults_dir)
+  local merged_spec = merged and frontmatter.spec(merged.tests)
+  local merged_settings = merged_spec and frontmatter.options(merged_spec.run,
+    schema.load_schema(here .. '_extensions/extension-test/test-schema.yml').options, 'document')
+  equal(merged_settings and merged_settings.timeout, 120,
+    'a project-level run.extension-test option reaches the document')
 
   if util.timeout_command() then
     local slow = run_fixture('slow', '--layer render')
@@ -1341,6 +1364,8 @@ do
     'the Typst entries carry their ids')
   check(not util.exists(util.join(FIXTURES, 'assertions', '_t', 'assert-pass.typ')),
     'no kept Typst file stays behind')
+  check(not util.exists(util.join(FIXTURES, 'assertions', '_t', 'keep-typ-only.typ')),
+    'a kept Typst file is removed even when no assertion reads it')
   local html_fail = find_case(results, 'render/assert-fail/html')
   check(html_fail ~= nil and html_fail.failure.message:find('2 of 2 assertions failed', 1, true) ~= nil,
     'every assertion is evaluated, and the message gives the count',
