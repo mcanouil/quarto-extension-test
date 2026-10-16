@@ -545,6 +545,32 @@ do
   equal(printed[1].status, 'pass', 'a WARN line matches `warning`')
   equal(printed[2].status, 'pass', 'a negated message that is absent passes')
   equal(printed[3].status, 'skip', 'a DEBUG entry is a skip, because the log is at info')
+  local counted_lines = {
+    { level = 'WARN', message = 'veil: undeclared group x' },
+    { level = 'WARN', message = 'veil: undeclared group y' },
+  }
+  local function count_entry(value)
+    return assertions.evaluate({ { key = 'printsMessage', class = 'executed', value = value } },
+      { lines = counted_lines }, false)[1]
+  end
+  equal(count_entry({ level = 'WARN', regex = 'undeclared group', count = 2 }).status, 'pass',
+    'count passes when exactly that many lines match')
+  local too_few = count_entry({ level = 'WARN', regex = 'undeclared group', count = 3 })
+  check(too_few.status == 'fail' and too_few.message == 'expected 3 WARN line(s) matching undeclared group, found 2',
+    'count fails with the expected and the actual number', too_few.message)
+  equal(count_entry({ level = 'WARN', regex = 'group x', count = 1 }).status, 'pass',
+    'count 1 passes on a single match')
+  for _, bad in ipairs({
+    { level = 'WARN', regex = 'x', count = 0 },
+    { level = 'WARN', regex = 'x', count = 1.5 },
+    { level = 'WARN', regex = 'x', count = '1' },
+    { level = 'WARN', regex = 'x', count = 1, negate = true },
+  }) do
+    local entry = count_entry(bad)
+    check(entry.status == 'fail' and entry.message:find('assertion-invalid', 1, true) == 1,
+      'an invalid count is assertion-invalid: ' .. tostring(bad.count) .. (bad.negate and ' with negate' or ''),
+      entry.message)
+  end
 
   local skipped, notes = assertions.evaluate({
     { key = 'ensureFileRegexMatches', class = 'executed', value = { { 'x' } } },

@@ -213,16 +213,19 @@ local function prints_message(value, ctx)
     list = { value }
   end
   if type(list) ~= 'table' or #list == 0 then
-    return invalid(kind, 'expects {level, regex, negate} or a list of them')
+    return invalid(kind, 'expects {level, regex, negate, count} or a list of them')
   end
   local entries = {}
   for index, item in ipairs(list) do
     local entry = { id = string.format('%s/%d', kind, index), kind = kind }
     local level = type(item) == 'table' and log.normalise_level(item.level) or nil
+    local count = type(item) == 'table' and item.count or nil
+    local count_valid = count == nil
+      or (type(count) == 'number' and count >= 1 and count == math.floor(count) and not item.negate)
     if not level or type(item.regex) ~= 'string'
-      or (item.negate ~= nil and type(item.negate) ~= 'boolean') then
+      or (item.negate ~= nil and type(item.negate) ~= 'boolean') or not count_valid then
       entry.status = 'fail'
-      entry.message = 'assertion-invalid: expects {level: DEBUG, INFO, WARN, or ERROR, regex: a string, negate: a boolean}'
+      entry.message = 'assertion-invalid: expects {level: DEBUG, INFO, WARN, or ERROR, regex: a string, negate: a boolean, count: a whole number of 1 or more, not with negate}'
     else
       entry.expected = level .. ' ' .. item.regex
       local branches, reason = schema._compile_pattern(item.regex)
@@ -237,8 +240,15 @@ local function prints_message(value, ctx)
             found = found + 1
           end
         end
-        local passed = (item.negate and found == 0) or (not item.negate and found > 0)
-        if passed then
+        if count then
+          if found == count then
+            entry.status = 'pass'
+          else
+            entry.status = 'fail'
+            entry.message = string.format('expected %d %s line(s) matching %s, found %d',
+              math.floor(count), level, item.regex, found)
+          end
+        elseif (item.negate and found == 0) or (not item.negate and found > 0) then
           entry.status = 'pass'
         else
           entry.status = 'fail'
