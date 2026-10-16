@@ -34,13 +34,29 @@ end
 --- @param record_level string
 --- @return string
 local function line_level(line, record_level)
-  if line:match('^%(W%) ') or line:match('^WARNING') then
+  if line:match('^%(W%) ') or line:match('^WARNING') or line:match('^%[WARNING%]') then
     return 'WARN'
   end
-  if line:match('^%(E%) ') or line:match('^ERROR') or line:match('^FATAL') then
+  if line:match('^%(E%) ') or line:match('^ERROR') or line:match('^FATAL') or line:match('^%[ERROR%]') then
     return 'ERROR'
   end
   return record_level
+end
+
+--- The markers removed from the start of a message once its level is known.
+local MARKERS = { '^%([WE]%) ', '^%[WARNING%]%s*', '^%[ERROR%]%s*' }
+
+--- A line without its leading marker.
+--- @param line string
+--- @return string
+local function without_marker(line)
+  for _, marker in ipairs(MARKERS) do
+    local stripped, count = line:gsub(marker, '')
+    if count > 0 then
+      return stripped
+    end
+  end
+  return line
 end
 
 --- Turn the text of a json-stream log into log lines.
@@ -49,6 +65,9 @@ end
 --- @return boolean incomplete true when a record could not be read
 function M.parse(text)
   local lines, incomplete = {}, false
+  -- Pandoc writes `[WARNING] ` as a record of its own and the text in the
+  -- next one, so a marker alone on its line raises the line that follows.
+  local pending
   for _, raw in ipairs(util.lines(text or '')) do
     if util.trim(raw) ~= '' then
       local ok, record = pcall(pandoc.json.decode, raw, false)
@@ -56,10 +75,14 @@ function M.parse(text)
         local level = M.normalise_level(record.levelName) or 'INFO'
         for _, line in ipairs(util.lines(strip_ansi(record.msg))) do
           if util.trim(line) ~= '' then
-            lines[#lines + 1] = {
-              level = line_level(line, level),
-              message = (line:gsub('^%([WE]%) ', '')),
-            }
+            local line_lvl = line_level(line, level)
+            local message = without_marker(line)
+            if util.trim(message) == '' then
+              pending = line_lvl
+            else
+              lines[#lines + 1] = { level = pending or line_lvl, message = message }
+              pending = nil
+            end
           end
         end
       else

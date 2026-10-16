@@ -73,9 +73,9 @@ A pattern in the second list is reliable.
 ### Log lines
 
 The runner reads the render log line by line.
-A line that starts with `(W)` or `WARNING` is a warning.
-A line that starts with `(E)`, `ERROR`, or `FATAL` is an error.
-`quarto.log.warning` and `quarto.log.error` write these markers.
+A line that starts with `(W)`, `WARNING`, or `[WARNING]` is a warning.
+A line that starts with `(E)`, `ERROR`, `FATAL`, or `[ERROR]` is an error.
+`quarto.log.warning` and `quarto.log.error` write the `(W)` and `(E)` markers, and Pandoc writes the bracketed ones.
 q2 and quarto-cli do not see these lines as warnings or errors.
 
 ### Keys under `run`

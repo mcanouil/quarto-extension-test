@@ -345,6 +345,19 @@ do
   equal(#lines, 8, 'empty lines between records and inside messages give no log line')
   check(incomplete, 'an incomplete last record is reported')
 
+  -- Pandoc writes its own diagnostics as `[WARNING] ` in one record and the
+  -- text in the next (measured with a missing image in a DOCX render).
+  local pandoc_lines = log.parse(table.concat({
+    '{"msg":"[WARNING] ","level":20,"levelName":"INFO","loggerName":"default"}',
+    '{"msg":"Could not fetch resource x.png\\n  Replacing image with description.\\n","level":20,"levelName":"INFO","loggerName":"default"}',
+    '{"msg":"[ERROR] inline failure","level":20,"levelName":"INFO","loggerName":"default"}',
+  }, '\n'))
+  equal(pandoc_lines[1] and (pandoc_lines[1].level .. ' ' .. pandoc_lines[1].message), 'WARN Could not fetch resource x.png',
+    'a Pandoc [WARNING] marker raises the line that follows it')
+  equal(pandoc_lines[2] and pandoc_lines[2].level, 'INFO', 'only the first line after the marker is raised')
+  equal(pandoc_lines[3] and (pandoc_lines[3].level .. ' ' .. pandoc_lines[3].message), 'ERROR inline failure',
+    'a Pandoc [ERROR] marker on the same line is an error, without its marker')
+
   local none, none_incomplete = log.read(util.join(here, 'tests/_results/no-such.log'))
   check(#none == 0 and none_incomplete == false, 'a missing log file gives no log line and no error')
 
@@ -1411,12 +1424,12 @@ do
   util.write_file(util.join(scratch, 'block.qmd'),
     '---\ntitle: B\nformat:\n  html:\n    output-file: custom.html\n---\n\nBody.\n')
   util.write_file(util.join(scratch, 'plain.qmd'), '---\ntitle: P\n---\n\nBody.\n')
-  equal(render.fallback_output_file(util.join(scratch, 'top.qmd'), 'top'), 'elsewhere',
+  equal(render.fallback_output_file(util.join(scratch, 'top.qmd')), 'elsewhere',
     'a top-level output-file names an unreported format')
-  equal(render.fallback_output_file(util.join(scratch, 'block.qmd'), 'block'), 'block',
+  equal(render.fallback_output_file(util.join(scratch, 'block.qmd')), nil,
     'an output-file inside one format block does not name the others')
-  equal(render.fallback_output_file(util.join(scratch, 'plain.qmd'), 'plain'), 'plain',
-    'with no output-file, the document stem names an unreported format')
+  equal(render.fallback_output_file(util.join(scratch, 'plain.qmd')), nil,
+    'with no top-level output-file, the output name is left to the format suffix')
   util.remove_tree(scratch)
 
   -- A project inspect that fails cannot check the project keys, and says so.

@@ -493,18 +493,18 @@ end
 
 --- The output name to use for a format that `quarto inspect` does not report.
 ---
---- Quarto writes such a format under the document's top-level `output-file`,
---- or under the document's own stem. A name set inside one format block does
---- not apply to the others.
+--- Quarto writes such a format under the document's top-level `output-file`.
+--- A name set inside one format block does not apply to the others. Without
+--- a top-level name, nil leaves `output_candidates` to add the suffix of the
+--- format to the stem, or to report a format it cannot place.
 --- @param path string absolute path of the document
---- @param stem string the file stem of the document
---- @return string
-function M.fallback_output_file(path, stem)
+--- @return string|nil
+function M.fallback_output_file(path)
   local declared = frontmatter.document_output_file(path)
   if declared then
     return (pandoc.path.split_extension(declared))
   end
-  return stem
+  return nil
 end
 
 --- The `render/_config` case, when the tests project sets a key it may not,
@@ -603,7 +603,7 @@ function M.execute(options, documents, descriptors, layer, emit)
       context.layer = layer
       context.output_files = info.output_files
       context.output_dir = info.output_dir
-      context.fallback_output_file = M.fallback_output_file(document.absolute, stem)
+      context.fallback_output_file = M.fallback_output_file(document.absolute)
       for _, target in ipairs(targets) do
         if target.problem then
           emit({
