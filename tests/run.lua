@@ -24,6 +24,7 @@ local report = require('report')
 local conformance = require('conformance')
 local vocabulary = require('vocabulary')
 local log = require('log')
+local cli = require('cli')
 
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
@@ -351,6 +352,37 @@ do
   equal(table.concat(log.messages_at(lines, 'WARN'), '|'),
     "veil: undeclared group x|WARNING (/q/shortcodes.lua:461) Shortcode 'x' not found",
     'the messages at one level keep their order')
+end
+
+io.stdout:write('# cli\n')
+
+do
+  local text = pandoc.json.encode({
+    formats = {
+      typst = { pandoc = { ['output-file'] = 'doc.typ' }, metadata = {} },
+      html = {
+        pandoc = { ['output-file'] = 'doc.html' },
+        metadata = { _quarto = { tests = { run = { ['extension-test'] = { timeout = 5 } } } } },
+      },
+    },
+    project = { config = { project = { ['output-dir'] = 'out' } } },
+  })
+  local info, err = cli.parse_inspect(text)
+  check(info ~= nil, 'an inspect result with formats is read', err)
+  equal(table.concat(info.formats, ','), 'html,typst', 'the formats come back sorted')
+  equal(info.output_files.html, 'doc.html', 'the output file of each format is kept')
+  equal(info.output_dir, 'out', 'the project output directory is kept')
+  equal(info.tests.run['extension-test'].timeout, 5,
+    '`_quarto.tests` is read from the first sorted format')
+
+  local bad, bad_err = cli.parse_inspect('not json')
+  check(bad == nil and bad_err ~= nil, 'an inspect result that is not JSON is an error')
+
+  local command = cli.render_command('/t', '/t/doc.qmd', 'html', '/t/log.json', 30)
+  check(command:find("quarto render '/t/doc.qmd' --to 'html'", 1, true) ~= nil
+    and command:find("--log '/t/log.json' --log-level info --log-format json-stream", 1, true) ~= nil
+    and command:find("cd '/t' && ", 1, true) == 1,
+    'the render command writes a json-stream log at level info', command)
 end
 
 io.stdout:write('# conformance\n')
