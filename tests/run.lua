@@ -1314,6 +1314,25 @@ do
     files and (files.status .. ' ' .. tostring(files.failure and files.failure.message)))
 end
 
+do
+  -- A generated document names its formats in `format`, which is all the
+  -- render layer needs. A leftover `test:` key would be ordinary metadata
+  -- now, and a sign that the generator still writes the old block.
+  local results = run_fixture('clean', '--layer smoke --keep-generated')
+  local generated = util.join(FIXTURES, 'clean', '_t', 'generated')
+  local names = util.list_dir(generated)
+  local found_test_key = false
+  for _, name in ipairs(names) do
+    local text = util.read_file(util.join(generated, name)) or ''
+    if text:find('\ntest:', 1, true) then
+      found_test_key = true
+    end
+  end
+  check(results ~= nil and #names > 0 and not found_test_key, 'generated documents carry no `test:` key',
+    tostring(#names) .. ' generated')
+  util.remove_tree(generated)
+end
+
 io.stdout:write('# determinism\n')
 
 do
