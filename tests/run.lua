@@ -760,6 +760,50 @@ do
   equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
 end
 
+do
+  local check_hook = require('check')
+  -- The space and the quote in the path are the point: both reach a shell.
+  local scratch = util.absolute(util.join(here, "tests/_results/check it's"))
+  util.remove_tree(scratch)
+  util.write_file(util.join(scratch, 'out.html'), 'x')
+  local log_path = util.join(scratch, 'logs', 'case.check.log')
+  local function run_check(command, timeout)
+    return check_hook.run({
+      tests = scratch, command = command, timeout = timeout or 30, log_path = log_path,
+      env = { EXTENSION_TEST_OUTPUT = util.join(scratch, 'out.html'), EXTENSION_TEST_FORMAT = 'html' },
+    })
+  end
+
+  local quoted = run_check([[printf 'ok 1 - %s\n' "it's quoted" | cat]])
+  equal(quoted.entries[1] and quoted.entries[1].expected, "it's quoted",
+    'the command reaches sh unchanged, quotes and pipe included')
+  local env = run_check(
+    '[ -f "$EXTENSION_TEST_OUTPUT" ] && [ "$EXTENSION_TEST_FORMAT" = html ]'
+    .. ' && [ "$(pwd -P)" = "$(cd "$(dirname "$EXTENSION_TEST_OUTPUT")" && pwd -P)" ]')
+  equal(env.status, 'pass', 'the variables and the working directory survive a path with a space and a quote')
+  equal(run_check('cat').status, 'pass', 'a check that reads standard input gets an empty one and does not wait')
+  local split = run_check('echo "ok 1 - out"; echo "not ok 2 - err" >&2')
+  check(split.status == 'pass' and #split.entries == 1 and split.entries[1].id == 'check/1',
+    'standard error stays out of the TAP lines', split.message)
+
+  local failed = run_check('echo "to stdout"; echo "the reason" >&2; exit 4')
+  check(failed.status == 'fail' and failed.message == 'the reason' and failed.log == log_path,
+    'a failing command is graded and names its log', failed.message)
+  local log_text = util.read_file(log_path) or ''
+  check(log_text:find('to stdout', 1, true) ~= nil and log_text:find('the reason', 1, true) ~= nil
+    and log_text:find('exit 4', 1, true) ~= nil,
+    'the check log holds the exit code and both streams', log_text)
+  check(not util.exists(log_path .. '.stdout') and not util.exists(log_path .. '.stderr'),
+    'the stream files are removed once the log is written')
+
+  if util.timeout_command() then
+    equal(run_check('sleep 5', 1).status, 'timeout', 'a check over its time budget is a timeout')
+  else
+    io.stdout:write('skip a check over its time budget: neither timeout nor gtimeout is available\n')
+  end
+  util.remove_tree(scratch)
+end
+
 io.stdout:write('# conformance\n')
 
 -- The licence rule is a rule about names, and the fixtures below can only ask

@@ -156,4 +156,52 @@ function M.grade(code, stdout, stderr, limited, timeout)
   }
 end
 
+--- The shell line that runs a check command.
+---
+--- `util.capture` appends `2>&1` to the whole line, so the redirections sit
+--- inside a brace group. Without it that suffix would come after the
+--- standard error redirection and send standard error into the standard
+--- output file. Standard input is `/dev/null`, so a command that reads it
+--- ends instead of waiting for the runner's input.
+--- @param tests string the tests directory, the working directory of the command
+--- @param command string the `check` value, run through `sh -c`
+--- @param env table<string, string> variables for the command
+--- @param stdout_path string
+--- @param stderr_path string
+--- @param timeout number the time limit in seconds
+--- @return string
+function M.command(tests, command, env, stdout_path, stderr_path, timeout)
+  local assignments = {}
+  for _, name in ipairs(util.sorted_keys(env)) do
+    assignments[#assignments + 1] = name .. '=' .. util.shell_quote(env[name]) .. ' '
+  end
+  return 'cd ' .. util.shell_quote(tests) .. ' && { ' .. table.concat(assignments)
+    .. util.timeout_prefix(timeout) .. 'sh -c ' .. util.shell_quote(command)
+    .. ' < /dev/null > ' .. util.shell_quote(stdout_path)
+    .. ' 2> ' .. util.shell_quote(stderr_path) .. '; }'
+end
+
+--- Run a check command, grade it, and keep its output in a log.
+--- @param spec table {tests, command, env, timeout, log_path}
+--- @return table result the `grade` result plus `log`
+function M.run(spec)
+  local stdout_path, stderr_path = spec.log_path .. '.stdout', spec.log_path .. '.stderr'
+  for _, path in ipairs({ spec.log_path, stdout_path, stderr_path }) do
+    os.remove(path)
+  end
+  pcall(pandoc.system.make_directory, pandoc.path.directory(spec.log_path), true)
+
+  local code = util.capture(M.command(spec.tests, spec.command, spec.env, stdout_path, stderr_path, spec.timeout))
+  local stdout, stderr = util.read_file(stdout_path) or '', util.read_file(stderr_path) or ''
+  local result = M.grade(code, stdout, stderr, util.timeout_command() ~= nil, spec.timeout)
+
+  util.write_file(spec.log_path, table.concat({
+    '$ ' .. spec.command, 'exit ' .. code, '', '# stdout', stdout, '', '# stderr', stderr, '',
+  }, '\n'))
+  os.remove(stdout_path)
+  os.remove(stderr_path)
+  result.log = spec.log_path
+  return result
+end
+
 return M
