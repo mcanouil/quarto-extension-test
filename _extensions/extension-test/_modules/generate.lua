@@ -6,8 +6,10 @@
 --- without writing a single test.
 ---
 --- What a pass means here is narrow and worth stating plainly. The document
---- was generated, it rendered, and it passed the default log rule: no error
---- and no warning was logged, and no shortcode text survived into the output.
+--- was generated, it rendered under `noErrors`: no error was logged, no
+--- promoted warning appeared, and no shortcode text survived into the output.
+--- Other warnings are recorded without failing, because the generated inputs
+--- are ones a careful extension is right to warn about.
 --- Nothing about the content of the output is asserted. Assertions belong in
 --- authored documents, under `_quarto.tests`.
 

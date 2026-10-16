@@ -535,11 +535,15 @@ function M.execute(options, documents, descriptors, layer, emit)
         goto continue
       end
 
+      -- A generated document carries no policy, and the generator makes
+      -- inputs that a careful extension warns about, so the smoke layer
+      -- allows warnings. The promoted warnings still apply.
+      local default_policy = layer == 'smoke' and 'noErrors' or 'noErrorsOrWarnings'
       local targets = spec.formats
       if not spec.has_format_keys then
         targets = {}
         for _, name in ipairs(info.formats) do
-          targets[#targets + 1] = { name = name, policy = 'noErrorsOrWarnings', assertions = {} }
+          targets[#targets + 1] = { name = name, policy = default_policy, assertions = {} }
         end
       end
 

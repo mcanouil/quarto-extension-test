@@ -1345,6 +1345,16 @@ do
   check(allowed ~= nil and allowed.status == 'pass' and allowed.assertions[1].status == 'pass',
     'noErrors allows the warning, and printsMessage finds it',
     allowed and (allowed.status .. ' ' .. tostring(allowed.failure and allowed.failure.message)))
+
+  -- Generated documents carry no policy, and the generator makes inputs a
+  -- careful extension warns about, so the smoke layer renders under
+  -- `noErrors` and keeps the warning in the diagnostics.
+  local smoke = run_fixture('warnings', '--layer smoke')
+  local generated = find_case(smoke, 'smoke/generated/')
+  check(generated ~= nil and generated.status == 'pass'
+    and #((generated.diagnostics or {}).warnings or {}) > 0,
+    'a generated document that logs a warning passes, and the warning is recorded',
+    generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
 end
 
 do
