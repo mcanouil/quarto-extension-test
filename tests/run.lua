@@ -1352,7 +1352,9 @@ do
 
   -- `run.extension-test` in the project file reaches each document only
   -- through the merge that `quarto inspect` does, so the merge is checked.
-  local defaults_dir = util.join(FIXTURES, 'project-defaults', '_t')
+  -- Absolute, because `cli.inspect` changes into the directory first, and
+  -- the suite can be started with a relative path.
+  local defaults_dir = util.absolute(util.join(FIXTURES, 'project-defaults', '_t'))
   local merged = cli.inspect(util.join(defaults_dir, 'document.qmd'), defaults_dir)
   local merged_spec = merged and frontmatter.spec(merged.tests)
   local merged_settings = merged_spec and frontmatter.options(merged_spec.run,
