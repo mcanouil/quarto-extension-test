@@ -550,7 +550,7 @@ end
 --- @param descriptors table `run.extension-test` descriptors
 --- @param emit function(case)
 function M.run(options, descriptors, emit)
-  local project_problem = frontmatter.project_problem(options.tests)
+  local project_problem = frontmatter.project_problem(cli.project_tests(options.tests))
   if project_problem then
     emit({
       id = 'render/config',

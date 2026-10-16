@@ -69,6 +69,27 @@ function M.inspect(document, cwd)
   return M.parse_inspect(output)
 end
 
+--- The `_quarto.tests` block of a project, as Quarto resolves it.
+---
+--- Read from `quarto inspect <dir>`, because the vendored YAML reader drops
+--- a key with no value and Quarto merges that key into every document.
+--- @param dir string project directory
+--- @return any block `config._quarto.tests`, or nil
+--- @return string|nil error
+function M.project_tests(dir)
+  local code, output = util.capture('quarto inspect ' .. util.shell_quote(dir))
+  if code ~= 0 then
+    return nil, 'quarto inspect failed: ' .. util.trim(output)
+  end
+  local ok, parsed = pcall(pandoc.json.decode, output, false)
+  if not ok or type(parsed) ~= 'table' then
+    return nil, 'quarto inspect returned no project'
+  end
+  local config = type(parsed.config) == 'table' and parsed.config or {}
+  local quarto = type(config._quarto) == 'table' and config._quarto or {}
+  return quarto.tests, nil
+end
+
 --- The command line that renders one document to one format.
 --- @param cwd string
 --- @param document string absolute path

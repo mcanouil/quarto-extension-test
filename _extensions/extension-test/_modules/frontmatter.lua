@@ -196,43 +196,35 @@ function M.skip_reason(run, probe)
   return nil
 end
 
---- What `tests/_quarto.yml` sets under `_quarto.tests` that it may not.
+--- What the tests project sets under `_quarto.tests` that it may not.
 ---
 --- Only `_quarto.tests.run.extension-test` is allowed there, because q2 reads
---- the document alone and never sees a project value.
---- @param tests string tests directory
+--- the document alone and never sees a project value. The block is the one
+--- Quarto resolves (`cli.project_tests`), so a key with no value counts.
+--- @param block any `_quarto.tests` of the project
 --- @return string|nil message
-function M.project_problem(tests)
-  for _, file in ipairs({ '_quarto.yml', '_quarto.yaml' }) do
-    local path = util.join(tests, file)
-    if util.exists(path) then
-      local ok, parsed = pcall(schema._parse_yaml_text, util.read_file(path) or '')
-      local quarto = ok and type(parsed) == 'table' and parsed._quarto or nil
-      local block = type(quarto) == 'table' and quarto.tests or nil
-      if type(block) ~= 'table' then
-        return nil
-      end
-      local extra = {}
-      for _, key in ipairs(util.sorted_keys(block)) do
-        if key ~= 'run' then
-          extra[#extra + 1] = '`_quarto.tests.' .. key .. '`'
-        elseif type(block.run) == 'table' then
-          for _, run_key in ipairs(util.sorted_keys(block.run)) do
-            if run_key ~= 'extension-test' then
-              extra[#extra + 1] = '`_quarto.tests.run.' .. run_key .. '`'
-            end
-          end
+function M.project_problem(block)
+  if type(block) ~= 'table' then
+    return nil
+  end
+  local extra = {}
+  for _, key in ipairs(util.sorted_keys(block)) do
+    if key ~= 'run' then
+      extra[#extra + 1] = '`_quarto.tests.' .. key .. '`'
+    elseif type(block.run) == 'table' then
+      for _, run_key in ipairs(util.sorted_keys(block.run)) do
+        if run_key ~= 'extension-test' then
+          extra[#extra + 1] = '`_quarto.tests.run.' .. run_key .. '`'
         end
       end
-      if #extra == 0 then
-        return nil
-      end
-      return string.format(
-        '%s sets %s. Only `_quarto.tests.run.extension-test` can be set there, because q2 reads the document alone.',
-        file, table.concat(extra, ', '))
     end
   end
-  return nil
+  if #extra == 0 then
+    return nil
+  end
+  return string.format(
+    'The tests project sets %s. Only `_quarto.tests.run.extension-test` can be set there, because q2 reads the document alone.',
+    table.concat(extra, ', '))
 end
 
 return M

@@ -448,17 +448,16 @@ do
   check(frontmatter.skip_reason({ requires = 'jupyter' }, probe) ~= nil, 'a missing engine skips')
   equal(frontmatter.skip_reason({}, probe), nil, 'an empty `run` does not skip')
 
-  local scratch = util.join(here, 'tests/_results/project-keys')
-  util.write_file(util.join(scratch, '_quarto.yml'),
-    'project:\n  type: default\n_quarto:\n  tests:\n    run:\n      skip: true\n      extension-test:\n        timeout: 9\n    html:\n      noErrors: true\n')
-  local message = frontmatter.project_problem(scratch)
+  local message = frontmatter.project_problem({
+    run = { skip = true, ['extension-test'] = { timeout = 9 } },
+    html = null,
+  })
   check(message ~= nil and message:find('_quarto.tests.html', 1, true) ~= nil
     and message:find('_quarto.tests.run.skip', 1, true) ~= nil,
-    'a project file that sets more than `run.extension-test` is reported', message)
-  util.write_file(util.join(scratch, '_quarto.yml'),
-    'project:\n  type: default\n_quarto:\n  tests:\n    run:\n      extension-test:\n        timeout: 9\n')
-  equal(frontmatter.project_problem(scratch), nil, 'a project file with only `run.extension-test` is valid')
-  util.remove_tree(scratch)
+    'a project block that sets more than `run.extension-test` is reported, empty keys included', message)
+  equal(frontmatter.project_problem({ run = { ['extension-test'] = { timeout = 9 } } }), nil,
+    'a project block with only `run.extension-test` is valid')
+  equal(frontmatter.project_problem(nil), nil, 'no project block is valid')
 end
 
 io.stdout:write('# assert\n')
@@ -1269,6 +1268,13 @@ do
   local config = find_case(project, 'render/config')
   equal(config and (config.status .. ' ' .. tostring(config.failure and config.failure.reason)) or 'missing',
     'fail project-tests-keys', 'a project file that sets `run.skip` fails `render/config`')
+
+  -- A key with no value is merged into every document by Quarto, but the
+  -- vendored YAML reader drops it, so the guard reads what Quarto resolved.
+  local null_key = run_fixture('project-null-key', '--layer render')
+  local null_config = find_case(null_key, 'render/config')
+  equal(null_config and (null_config.status .. ' ' .. tostring(null_config.failure and null_config.failure.reason))
+    or 'missing', 'fail project-tests-keys', 'a project file with an empty format key fails `render/config`')
 
   if util.timeout_command() then
     local slow = run_fixture('slow', '--layer render')
