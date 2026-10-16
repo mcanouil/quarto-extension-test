@@ -1,8 +1,9 @@
 ---
 title: Unresolved
 format: html
-test:
-  formats: [html]
+_quarto:
+  tests:
+    html:
 ---
 
 This names a shortcode no extension provides, which Quarto reports as a

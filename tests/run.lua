@@ -1217,10 +1217,28 @@ do
 end
 
 do
-  local results = run_fixture('expect-fail')
-  local case = results and find_case(results, 'render/document/')
-  check(case ~= nil and case.status == 'pass',
-    'a document declaring `expect: fail` passes when the render fails')
+  -- quarto-cli exits 0 when the Lua code of an extension fails, so
+  -- `shouldError` passes on an ERROR log line as well as on an exit code.
+  local results = run_fixture('should-error', '--layer render')
+  local lua_error = results and find_case(results, 'render/lua-error/html')
+  check(lua_error ~= nil and lua_error.status == 'pass',
+    'a shortcode that raises error() satisfies shouldError', lua_error and lua_error.status)
+  check(lua_error ~= nil and #lua_error.assertions == 1 and lua_error.assertions[1].status == 'pass',
+    'printsMessage runs under shouldError and finds the error')
+  local missing = results and find_case(results, 'render/missing-bibliography/html')
+  check(missing ~= nil and missing.status == 'pass',
+    'a render that exits with an error code satisfies shouldError', missing and missing.status)
+end
+
+do
+  -- The log rule reads log lines, and the promoted warning still comes first,
+  -- so the reason of an unresolved shortcode does not change.
+  local results = run_fixture('unresolved-shortcode', '--layer render')
+  local case = results and find_case(results, 'render/document/html')
+  check(case ~= nil and case.failure and case.failure.stage == 'assert',
+    'the promoted warning keeps its stage', case and case.failure and case.failure.stage)
+  check(case ~= nil and #((case.diagnostics or {}).warnings or {}) > 0,
+    'the warning line is recorded in the diagnostics')
 end
 
 io.stdout:write('# determinism\n')

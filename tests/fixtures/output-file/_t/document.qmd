@@ -2,8 +2,9 @@
 title: Renamed
 format: html
 output-file: renamed
-test:
-  formats: [html]
+_quarto:
+  tests:
+    html:
 ---
 
 The document sets `output-file`, so the render writes `renamed.html` rather

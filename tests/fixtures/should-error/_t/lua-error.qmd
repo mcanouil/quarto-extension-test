@@ -1,0 +1,16 @@
+---
+title: Lua error
+format: html
+_quarto:
+  tests:
+    html:
+      shouldError: true
+      printsMessage:
+        level: ERROR
+        regex: "this shortcode always fails"
+---
+
+The shortcode raises `error()`.
+quarto-cli logs the error and exits 0, so the case passes on the `ERROR` log line.
+
+{{< boom >}}

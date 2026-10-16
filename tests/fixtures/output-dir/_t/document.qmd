@@ -1,8 +1,9 @@
 ---
 title: Elsewhere
 format: html
-test:
-  formats: [html]
+_quarto:
+  tests:
+    html:
 ---
 
 The project writes to `out` rather than `_output`. The render layer reads the
