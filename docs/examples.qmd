@@ -111,6 +111,26 @@ _quarto:
 ---
 ```
 
+Add `count` to check that the warning appears exactly once, and `warnings: exhaustive` to fail on any warning you did not expect.
+
+```markdown
+---
+title: "Undeclared group, nothing else"
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "undeclared group"
+        count: 1
+---
+```
+
 ## One document for each option value
 
 Write one document for each value of an option that you want to test.
