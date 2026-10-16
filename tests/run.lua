@@ -22,6 +22,7 @@ local values = require('values')
 local emit = require('emit')
 local report = require('report')
 local conformance = require('conformance')
+local vocabulary = require('vocabulary')
 
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
@@ -274,6 +275,38 @@ equal(report.yaml_scalar('ERROR: broke'), '"ERROR: broke"',
   'a TAP diagnostic containing a colon stays a quoted scalar')
 equal(report.yaml_scalar('say "hi"'), '"say \\"hi\\""',
   'a quote inside a TAP diagnostic is escaped')
+
+io.stdout:write('# vocabulary\n')
+
+do
+  local cases = {
+    { 'noErrors', 'executed', false },
+    { 'shouldError', 'executed', false },
+    { 'ensureFileRegexMatches', 'executed', false },
+    { 'ensureTypstFileRegexMatches', 'executed', false },
+    { 'printsMessage', 'executed', false },
+    { 'fileExists', 'executed', false },
+    { 'ensureDocxRegexMatches', 'executed', true },
+    { 'ensureHtmlElements', 'known', false },
+    { 'dom-parity', 'known', false },
+    { 'postRenderCleanup', 'known', true },
+    { 'ensurePptxLayout', 'known', true },
+    { 'ensureLlmsTxtExists', 'known', true },
+    { 'ensureFileRegexMatch', 'unknown', true },
+  }
+  for _, case in ipairs(cases) do
+    local kind = vocabulary.classify(case[1])
+    check(kind.class == case[2] and kind.q2_rejects == case[3],
+      string.format('`%s` is %s, and q2 %s it', case[1], case[2], case[3] and 'rejects' or 'accepts'),
+      kind.class .. ' ' .. tostring(kind.q2_rejects))
+  end
+  check(vocabulary.is_policy('noErrors') and not vocabulary.is_policy('printsMessage'),
+    'only the three log rule keys are policy keys')
+  local keys = vocabulary.known_keys()
+  check(util.contains(keys, 'ensureHtmlElements') and util.contains(keys, 'noErrors')
+    and not util.contains(keys, 'run'),
+    'the list of valid keys holds executed and known keys, and not `run`')
+end
 
 io.stdout:write('# conformance\n')
 
