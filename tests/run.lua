@@ -511,9 +511,10 @@ do
   local descriptors = schema.load_schema(here .. '_extensions/extension-test/test-schema.yml').options
   local settings = frontmatter.options({ ['extension-test'] = { check = 'bash _checks/x.sh' } }, descriptors, 'doc')
   equal(settings.check, 'bash _checks/x.sh', 'check is a runner option')
-  for _, bad in ipairs({ '', 3 }) do
+  for _, case in ipairs({ { '', 'must be at least 1 characters' }, { 3, 'must be of type "string"' } }) do
+    local bad, wording = case[1], case[2]
     local _, problem = frontmatter.options({ ['extension-test'] = { check = bad } }, descriptors, 'doc')
-    check(problem ~= nil and problem:find('check', 1, true) ~= nil,
+    check(problem ~= nil and problem:find('check', 1, true) ~= nil and problem:find(wording, 1, true) ~= nil,
       'check must be a non-empty string: ' .. string.format('%q', tostring(bad)), problem)
   end
 end
