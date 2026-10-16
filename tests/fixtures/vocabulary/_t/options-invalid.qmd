@@ -1,0 +1,12 @@
+---
+title: Invalid options
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: 0
+    html:
+---
+
+{{< present >}}

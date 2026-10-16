@@ -1,0 +1,11 @@
+---
+title: Missing bibliography
+format: html
+bibliography: missing.bib
+_quarto:
+  tests:
+    html:
+      shouldError: true
+---
+
+The bibliography file does not exist, so the render exits with a code that is not 0.

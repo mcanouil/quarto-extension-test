@@ -1,0 +1,14 @@
+---
+title: Typst file that existed before the render
+format: typst
+_quarto:
+  tests:
+    typst:
+      ensureTypstFileRegexMatches:
+        - ["here"]
+---
+
+The test writes a `.typ` file beside this document before the run.
+No `keep-typ` is set, so the runner must not read that file as the one the render kept.
+
+{{< present >}}

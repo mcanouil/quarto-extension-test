@@ -1,0 +1,24 @@
+---
+title: Assertions that pass
+format:
+  html: default
+  typst:
+    keep-typ: true
+  docx: default
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["here", "Assertions that pass"]
+        - ["\\{\\{<", "Backup"]
+    typst:
+      ensureTypstFileRegexMatches:
+        - ["^here$"]
+        - ["Backup"]
+    docx:
+      ensureDocxRegexMatches:
+        - []
+        - ["Backup"]
+---
+
+{{< present >}}

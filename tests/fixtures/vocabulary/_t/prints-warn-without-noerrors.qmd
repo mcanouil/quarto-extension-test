@@ -1,0 +1,12 @@
+---
+title: Expected warning without noErrors
+format: html
+_quarto:
+  tests:
+    html:
+      printsMessage:
+        level: WARN
+        regex: "not found"
+---
+
+{{< absent-shortcode >}}

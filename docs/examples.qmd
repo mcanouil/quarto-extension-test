@@ -1,15 +1,16 @@
 ---
 title: "Examples"
 subtitle: "Common test cases, and a run from start to finish."
-description: "Worked test: blocks for expected failures, format subsets, skips, and project defaults, with the output of a real extension-test run."
+description: "Worked _quarto.tests blocks for expected failures, output checks, skips, and project defaults, with the output of a real extension-test run."
 ---
 
 Each case below is a `.qmd` document under `tests/`, next to `tests/_quarto.yml`.
+The `_quarto.tests` block uses the keys that q2 `quarto call test` reads.
 
 ## A case with nothing to declare
 
-A document with no `test:` block is a complete case.
-It renders to every format `quarto inspect` reports, and passes when the render is clean.
+A document with no `_quarto.tests` block is a complete case.
+It renders to every format `quarto inspect` reports, and passes when the log has no error and no warning.
 
 ```markdown
 ---
@@ -24,16 +25,21 @@ format:
 
 ## A render that should fail
 
-Set `expect: fail` to check that the extension stops a render it should stop.
-The case passes when the render fails, and fails with `unexpected-pass` when it succeeds.
+Set `shouldError` to check that the extension stops a render it should stop.
+The case passes when the render exits with an error code, or when the log has an error line.
+It fails with `unexpected-pass` when the render is clean.
 
 ```markdown
 ---
 title: "Expected failure"
 format: html
-test:
-  formats: [html]
-  expect: fail
+_quarto:
+  tests:
+    html:
+      shouldError: true
+      printsMessage:
+        level: ERROR
+        regex: "unknown icon"
 ---
 
 {{{< boom >}}}
@@ -43,8 +49,8 @@ A timeout never counts as the expected failure.
 
 ## One format only
 
-Name the formats in `formats` when a case applies to some of them.
-Each one must also be declared in the document's own front matter.
+Each format key names a format to render.
+A case that applies to one format names that format only.
 
 ```markdown
 ---
@@ -52,43 +58,125 @@ title: "Typst only"
 format:
   html: default
   typst: default
-test:
-  description: "The Typst output uses the native function."
-  formats: typst
+_quarto:
+  tests:
+    run:
+      extension-test:
+        description: "The Typst output uses the native function."
+    typst:
+---
+```
+
+## Check the output
+
+Each pattern list has two parts: the patterns that must match, and the patterns that must not match.
+Set `keep-typ: true` to check the Typst source of a `typst` render.
+
+```markdown
+---
+title: "Backup removed"
+format:
+  html: default
+  typst:
+    keep-typ: true
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["Always here"]
+        - ["Backup"]
+    typst:
+      ensureTypstFileRegexMatches:
+        - []
+        - ["Backup"]
+---
+```
+
+## Expected warnings
+
+Use `noErrors` with `printsMessage` when the extension warns on purpose.
+`noErrors` allows the warnings, and `printsMessage` checks that the expected one is there.
+
+```markdown
+---
+title: "Undeclared group"
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "undeclared group"
+---
+```
+
+## One document for each option value
+
+Write one document for each value of an option that you want to test.
+Each document sets the value, and has its own checks.
+
+```markdown
+---
+title: "Static: all"
+format:
+  typst:
+    keep-typ: true
+extensions:
+  veil:
+    static: all
+_quarto:
+  tests:
+    typst:
+      ensureTypstFileRegexMatches:
+        - []
+        - ["Backup"]
+---
+```
+
+```markdown
+---
+title: "Static: none"
+format:
+  typst:
+    keep-typ: true
+extensions:
+  veil:
+    static: none
+_quarto:
+  tests:
+    typst:
+      ensureTypstFileRegexMatches:
+        - ["Backup"]
 ---
 ```
 
 ## A case to skip for now
 
-A string in `skip` becomes the message of the skipped case in `results.json`, so the reason stays next to the result.
+A string in `run.skip` becomes the message of the skipped case in `results.json`, so the reason stays next to the result.
 
 ```yaml
-test:
-  skip: "Waits for the fix in the next Quarto release."
-```
-
-## Errors that should not fail
-
-A document that logs an error on purpose can set `strict: false`.
-The error is still recorded on the case, but the case does not fail on it.
-
-```yaml
-test:
-  strict: false
+_quarto:
+  tests:
+    run:
+      skip: "Waits for the fix in the next Quarto release."
 ```
 
 ## Defaults for every case
 
-A `test:` block in `tests/_quarto.yml` applies to every document, and each document overrides it key by key.
+`_quarto.tests.run.extension-test` in `tests/_quarto.yml` applies to every document, and each document overrides it key by key.
+No other key under `_quarto.tests` is allowed there.
 
 ```yaml
 # tests/_quarto.yml
 project:
   type: extension-test
 
-test:
-  formats: [html, typst]
-  timeout: 120
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: 120
 ```
 
 ## A run from start to finish

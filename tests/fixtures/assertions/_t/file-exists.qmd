@@ -1,0 +1,12 @@
+---
+title: Files that exist
+format: html
+_quarto:
+  tests:
+    html:
+      fileExists:
+        outputPath: "file-exists.html"
+        supportPath: "libs"
+---
+
+{{< present >}}

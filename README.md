@@ -33,7 +33,7 @@ quarto pandoc lua tests/_extensions/*/extension-test/run.lua
 
 It exits non-zero when a case fails, writes TAP to standard output, and writes JSON to `tests/_results/results.json`. Pass `--layer` to run one layer, and `--severity lenient` to report a finding rather than fail on it.
 
-Write your own cases as `tests/*.qmd`, each with a `test:` block in its front matter. A repository with none still gets the other two layers.
+Write your own cases as `tests/*.qmd`, each with a `_quarto.tests` block in its front matter, as q2 `quarto call test` reads it. A repository with none still gets the other two layers.
 
 ## Continuous integration
 
@@ -67,7 +67,7 @@ The permission is granted on that job alone. A repository that does not want the
 
 ## Documentation
 
-The full documentation lives at <https://m.canouil.dev/quarto-extension-test/>: the `test:` front matter, what each layer checks, and the result format.
+The full documentation lives at <https://m.canouil.dev/quarto-extension-test/>: the `_quarto.tests` front matter, what each layer checks, and the result format.
 
 ## Licence
 

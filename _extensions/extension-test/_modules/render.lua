@@ -3,12 +3,15 @@
 --- Renders each test document to each of its formats and inspects what the
 --- render leaves behind. Exit code alone is not enough: an extension that
 --- fails to load logs a warning and still exits 0, which is precisely the
---- breakage a Quarto update causes and precisely what every existing check
---- in the ecosystem misses.
+--- breakage a Quarto update causes. The `_quarto.tests` block of a document
+--- chooses the formats, the log rule, and the assertions.
 
 local util = require('util')
 local stage = require('stage')
 local frontmatter = require('frontmatter')
+local cli = require('cli')
+local log = require('log')
+local assertions = require('assert')
 
 local M = {}
 
@@ -16,9 +19,8 @@ local M = {}
 ---
 --- Measured: an extension that is not resolved produces
 --- `WARNING ... Shortcode 'probe' not found` and `Output created`, exit 0.
---- A blanket "warnings never fail" rule would make this layer blind to the
---- one failure it exists to catch. Every other warning is recorded and does
---- not fail, because extensions warn legitimately all the time.
+--- These fail a case under every policy, including `noErrors`, where other
+--- warnings are allowed, because they mean the extension never ran.
 M.PROMOTED_WARNINGS = {
   { pattern = "Shortcode '[^']*' not found", reason = 'shortcode-not-found' },
   { pattern = 'Extension [^%s]* not found', reason = 'extension-not-found' },
@@ -90,80 +92,55 @@ function M.discover(root, tests)
   for _, name in ipairs({ 'example.qmd', 'template.qmd' }) do
     local absolute = util.join(root, name)
     if util.exists(absolute) then
-      return { { relative = name, absolute = absolute, origin = 'demo' } }
+      -- The demo documents the extension rather than testing it, so, as for
+      -- a generated document, warnings are allowed.
+      return { { relative = name, absolute = absolute, origin = 'demo', default_policy = 'noErrors' } }
     end
   end
   return {}
 end
 
---- Formats Quarto reports for a document.
---- @param document string absolute path
---- @param cwd string directory to inspect from
---- @return string[] formats
---- @return string|nil error
---- @return table output_files format to the file name Quarto writes for it
---- @return string|nil output_dir the project output directory Quarto resolved
-function M.formats(document, cwd)
-  local command = string.format('cd %s && quarto inspect %s',
-    util.shell_quote(cwd), util.shell_quote(document))
-  local code, output = util.capture(command)
-  if code ~= 0 then
-    return {}, 'quarto inspect failed: ' .. util.trim(output), {}, nil
-  end
-  local ok, parsed = pcall(pandoc.json.decode, output, false)
-  if not ok or type(parsed) ~= 'table' or type(parsed.formats) ~= 'table' then
-    return {}, 'quarto inspect returned no formats', {}, nil
-  end
-
-  -- Quarto resolves `output-file` here, so the name it reports is the file the
-  -- render will write. Asking it is the only way to know: the name can come
-  -- from the document, from a project profile, or from a format default.
-  local output_files = {}
-  for name, entry in pairs(parsed.formats) do
-    if type(entry) == 'table' and type(entry.pandoc) == 'table' then
-      local file = entry.pandoc['output-file']
-      if type(file) == 'string' and file ~= '' then
-        output_files[name] = file
-      end
-    end
-  end
-  -- A project can name any output directory, and a repository that names one
-  -- other than `_output` would otherwise have every render read as writing
-  -- nothing. Quarto resolves it here, so it is read rather than assumed.
-  local output_dir
-  local project = type(parsed.project) == 'table' and parsed.project or nil
-  local config = project and type(project.config) == 'table' and project.config or nil
-  local settings = config and type(config.project) == 'table' and config.project or nil
-  if settings and type(settings['output-dir']) == 'string' and settings['output-dir'] ~= '' then
-    output_dir = settings['output-dir']
-  end
-
-  return util.sorted_keys(parsed.formats), nil, output_files, output_dir
-end
-
---- Scan a render log for errors and promoted warnings.
---- @param log_path string
---- @return string[] errors, string[] warnings, table|nil promoted
-function M.scan_log(log_path)
-  local errors, warnings = {}, {}
-  local promoted = nil
-  local text = util.read_file(log_path)
-  if not text then
-    return errors, warnings, promoted
-  end
-  for _, line in ipairs(util.lines(text)) do
-    if line:match('^ERROR') or line:match('ERROR:') then
-      errors[#errors + 1] = util.trim(line)
-    elseif line:match('WARNING') or line:match('^warning') then
-      warnings[#warnings + 1] = util.trim(line)
+--- The first promoted warning among the log lines.
+--- @param lines table[] from `log.read`
+--- @return table|nil {reason, message}
+function M.promoted(lines)
+  for _, line in ipairs(lines) do
+    if line.level == 'WARN' then
       for _, rule in ipairs(M.PROMOTED_WARNINGS) do
-        if line:match(rule.pattern) and not promoted then
-          promoted = { reason = rule.reason, message = util.trim(line) }
+        if line.message:match(rule.pattern) then
+          return { reason = rule.reason, message = line.message }
         end
       end
     end
   end
-  return errors, warnings, promoted
+  return nil
+end
+
+--- Why the log fails the rule of a format, if it does.
+---
+--- Only what Quarto logged is judged. A note the runner adds to the case,
+--- such as the one for an incomplete log record, is never passed in here.
+--- @param policy string `noErrorsOrWarnings` or `noErrors`
+--- @param errors string[] messages of the log lines at ERROR
+--- @param warnings string[] messages of the log lines at WARN
+--- @return string|nil reason
+--- @return string|nil message
+function M.log_failure(policy, errors, warnings)
+  if #errors > 0 then
+    return 'error-logged', errors[1]
+  end
+  if policy == 'noErrorsOrWarnings' and #warnings > 0 then
+    return 'warning-logged', warnings[1]
+  end
+  return nil, nil
+end
+
+--- Where quarto-cli writes a kept `.typ` file: beside the input, named after
+--- it, also when `output-file` or `output-dir` is set (measured).
+--- @param document table
+--- @return string
+function M.kept_typ_path(document)
+  return (document.absolute:gsub('%.qmd$', '.typ'))
 end
 
 --- The most informative line of a failed render.
@@ -244,120 +221,179 @@ function M.has_unexpanded(path)
 end
 
 --- Render one document to one format and judge the result.
---- @param context table {tests, log_dir, settings, document}
---- @param format string
+---
+--- The checks run in a fixed order, and the first one that fails gives the
+--- reason of the case. Under `shouldError`, only the timeout check, the
+--- `shouldError` check, and the `printsMessage` entries apply.
+--- @param context table {tests, log_dir, settings, document, layer, output_files, output_dir, fallback_output_file}
+--- @param target table a format entry from `frontmatter.spec`
 --- @return table case
-local function render_one(context, format)
+local function render_and_grade(context, target, typ)
   local document = context.document
   local settings = context.settings
   local layer = context.layer or 'render'
+  local format = target.name
   local id = string.format('%s/%s/%s', layer, document.relative:gsub('%.qmd$', ''), format)
   -- The slug is lossy, so `a/b/html` and `a-b/html` would share a file.
   -- The sequence keeps every case's log distinct.
   context.sequence = (context.sequence or 0) + 1
   local slug = string.format('%03d-%s', context.sequence, id:gsub('[^%w]+', '-'))
   local log_path = util.join(context.log_dir, slug .. '.log')
+  os.remove(log_path)
 
-  local command = string.format(
-    'cd %s && %squarto render %s --to %s --log %s --log-level info',
-    util.shell_quote(context.tests), util.timeout_prefix(settings.timeout),
-    util.shell_quote(document.absolute), util.shell_quote(format),
-    util.shell_quote(log_path))
-
+  local output_file = context.output_files[format] or context.fallback_output_file
   -- A previous format wrote into the same directory. Every candidate is
   -- removed rather than the first one that exists, because a stale copy left
   -- in any of them would let a render that wrote nothing be read as a pass.
-  local stale = M.output_candidates(context.tests, document, format,
-    context.output_files and context.output_files[format], context.output_dir)
-  for _, path in ipairs(stale or {}) do
+  for _, path in ipairs(M.output_candidates(context.tests, document, format, output_file,
+    context.output_dir) or {}) do
     os.remove(path)
   end
+  local output_is_typ = type(output_file) == 'string' and output_file:match('%.typ$') ~= nil
+  -- A `.typ` file that is already there is not the render's to remove: it
+  -- may be hand-written. Only one the render kept is removed, after grading.
+  local typ_path = M.kept_typ_path(document)
+  local typ_preexisting = false
+  local base = format:match('([^%-]+)$') or format
+  local is_typst = base == 'typst' or output_is_typ
+  if base == 'typst' and not output_is_typ then
+    typ_preexisting = util.exists(typ_path)
+    typ.path, typ.remove = typ_path, not typ_preexisting
+  end
 
-  local code, output = util.capture(command)
-  local errors, warnings, promoted = M.scan_log(log_path)
+  local code, output = util.capture(cli.render_command(context.tests, document.absolute, format,
+    log_path, settings.timeout))
+  local lines, incomplete, log_missing = log.read(log_path)
+  local errors, logged_warnings = log.messages_at(lines, 'ERROR'), log.messages_at(lines, 'WARN')
+  -- The diagnostics hold the logged warnings and the notes of the runner.
+  -- The log rule reads `logged_warnings` alone.
+  local warnings = table.move(logged_warnings, 1, #logged_warnings, 1, {})
+  if incomplete then
+    warnings[#warnings + 1] = 'a log record could not be read and was ignored'
+  end
 
   local case = {
     id = id,
     layer = layer,
-    target = {
-      kind = document.origin,
-      document = document.relative,
-      format = format,
-    },
+    target = { kind = document.origin, document = document.relative, format = format },
     diagnostics = { errors = errors, warnings = warnings },
+    assertions = {},
   }
 
   local function fail(stage_name, reason, message)
     case.status = 'fail'
     case.failure = { stage = stage_name, reason = reason, message = message, log = log_path }
+    return case
   end
 
-  local expects_failure = settings.expect == 'fail'
+  local function grade_assertions(ctx, log_only)
+    local entries, notes = assertions.evaluate(target.assertions, ctx, log_only)
+    case.assertions = entries
+    for _, note in ipairs(notes) do
+      warnings[#warnings + 1] = note
+    end
+    -- The summary and the TAP read the case warnings, so an assertion that
+    -- did not run, or that q2 rejects, is named there too.
+    for _, entry in ipairs(entries) do
+      if entry.status == 'skip' then
+        warnings[#warnings + 1] = string.format('%s did not run: %s', entry.id, tostring(entry.message))
+      end
+      for _, warning in ipairs(entry.warnings or {}) do
+        if not util.contains(warnings, warning) then
+          warnings[#warnings + 1] = warning
+        end
+      end
+    end
+    local message = assertions.failure(entries)
+    if message then
+      return fail('assert', 'assertion-failed', message)
+    end
+    case.status = 'pass'
+    return case
+  end
 
   -- A timeout is the harness giving up, not the failure the document
-  -- declares, so `expect: fail` does not turn a stall into a pass.
+  -- declares, so `shouldError` does not turn a stall into a pass.
   if code == 124 then
-    fail('render', 'timeout', string.format('the render exceeded %s seconds', tostring(settings.timeout)))
+    return fail('render', 'timeout', string.format('the render exceeded %s seconds', tostring(settings.timeout)))
+  end
+
+  -- With no log, the log rule cannot be judged, and an empty log would read
+  -- as a clean one. That is a gap in this run, so the case is a skip. A
+  -- render that exits with an error code is still judged on its exit code.
+  if log_missing and code == 0 then
+    case.status = 'skip'
+    case.failure = {
+      stage = 'log', reason = 'log-missing',
+      message = 'Quarto wrote no log to ' .. log_path .. ', so the log rule cannot be checked',
+    }
     return case
+  end
+
+  if target.policy == 'shouldError' then
+    if code == 0 and #errors == 0 then
+      return fail('log', 'unexpected-pass',
+        'the case declares `shouldError` but the render exited 0 and logged no error')
+    end
+    return grade_assertions({ lines = lines }, true)
   end
 
   if code ~= 0 then
-    if expects_failure then
-      case.status = 'pass'
-      return case
-    end
-    fail('render', 'exit ' .. tostring(code), M.first_error(output, errors))
-    return case
+    return fail('render', 'exit ' .. tostring(code), M.first_error(output, errors))
   end
+
 
   -- The render succeeded. Everything below is the difference between
   -- "Quarto exited 0" and "the extension actually did something".
+  local promoted = M.promoted(lines)
   if promoted then
-    if expects_failure then
-      case.status = 'pass'
-      return case
-    end
-    fail('assert', promoted.reason, promoted.message)
-    return case
+    return fail('assert', promoted.reason, promoted.message)
   end
 
-  if settings.strict ~= false and #errors > 0 then
-    if expects_failure then
-      case.status = 'pass'
-      return case
-    end
-    fail('log', 'error-logged', errors[1])
-    return case
+  local log_reason, log_message = M.log_failure(target.policy, errors, logged_warnings)
+  if log_reason then
+    return fail('log', log_reason, log_message)
   end
 
-  local output_path, missing = M.output_path(context.tests, document, format,
-    context.output_files and context.output_files[format], context.output_dir)
+  local output_path, missing = M.output_path(context.tests, document, format, output_file, context.output_dir)
   if not output_path then
     case.status, case.failure = M.grade_missing(missing, format, log_path)
     return case
   end
   if M.has_unexpanded(output_path) then
-    if expects_failure then
-      case.status = 'pass'
-      return case
-    end
-    fail('assert', 'shortcode-not-expanded',
+    return fail('assert', 'shortcode-not-expanded',
       'the output still holds shortcode text, so the shortcode did not expand')
-    return case
   end
 
-  if expects_failure then
-    case.status = 'fail'
-    case.failure = {
-      stage = 'assert',
-      reason = 'unexpected-pass',
-      message = 'the case declares `expect: fail` but the render succeeded',
-      log = log_path,
-    }
-    return case
-  end
+  local prefix = context.tests .. '/'
+  local output_label = output_path:sub(1, #prefix) == prefix and output_path:sub(#prefix + 1) or output_path
+  local ctx = {
+    lines = lines,
+    output_path = output_path,
+    output_label = output_label,
+    output_dir = pandoc.path.directory(output_path),
+    support_dir = pandoc.path.split_extension(output_path) .. '_files',
+    -- Only a Typst render keeps a `.typ` file, so another format has none to
+    -- read, whatever sits beside the document.
+    typ_path = is_typst and (output_is_typ and output_path or typ_path) or nil,
+    format = format,
+    typ_preexisting = typ_preexisting,
+    typ_label = output_is_typ and output_label or pandoc.path.filename(typ_path),
+  }
+  return grade_assertions(ctx, false)
+end
 
-  case.status = 'pass'
+--- Render one document to one format, judge it, and remove the `.typ` file
+--- the render kept for an assertion, whatever the outcome.
+--- @param context table
+--- @param target table
+--- @return table case
+local function render_one(context, target)
+  local typ = {}
+  local case = render_and_grade(context, target, typ)
+  if typ.remove then
+    os.remove(typ.path)
+  end
   return case
 end
 
@@ -469,93 +505,136 @@ function M.output_candidates(tests, document, format, output_file, output_dir)
   return candidates, nil
 end
 
+--- The output name to use for a format that `quarto inspect` does not report.
+---
+--- Quarto writes such a format under the document's top-level `output-file`.
+--- A name set inside one format block does not apply to the others. Without
+--- a top-level name, nil leaves `output_candidates` to add the suffix of the
+--- format to the stem, or to report a format it cannot place.
+--- @param path string absolute path of the document
+--- @return string|nil
+function M.fallback_output_file(path)
+  local declared = frontmatter.document_output_file(path)
+  if declared then
+    return (pandoc.path.split_extension(declared))
+  end
+  return nil
+end
+
+--- The `render/_config` case, when the tests project sets a key it may not,
+--- or when it cannot be inspected to find out. The leading underscore keeps
+--- the id apart from a document, because `discover` skips such names.
+--- @param tests string tests directory
+--- @return table|nil case
+function M.project_check(tests)
+  local block, err = cli.project_tests(tests)
+  if err then
+    return {
+      id = 'render/_config',
+      layer = 'render',
+      status = 'skip',
+      failure = { stage = 'discover', reason = 'project-inspect-failed', message = err },
+    }
+  end
+  local problem = frontmatter.project_problem(block)
+  if problem then
+    return {
+      id = 'render/_config',
+      layer = 'render',
+      status = 'fail',
+      failure = { stage = 'discover', reason = 'project-tests-keys', message = problem },
+    }
+  end
+  return nil
+end
+
 --- Render a list of documents and judge each result.
 ---
 --- Staging is the caller's responsibility, so the smoke layer can generate
 --- documents into an already-staged project rather than staging twice.
 --- @param options table
 --- @param documents table[]
---- @param descriptors table `test:` descriptors
+--- @param descriptors table `run.extension-test` descriptors
 --- @param layer string which layer the cases belong to
 --- @param emit function(case)
 function M.execute(options, documents, descriptors, layer, emit)
   local log_dir = util.join(options.tests, '_results', 'logs')
   -- Quarto creates the parent of `--log` itself, but a run whose log cannot be
-  -- written loses the promoted-warning check silently, so it is not left to
-  -- undocumented behaviour.
+  -- written loses the log rule silently, so it is not left to undocumented
+  -- behaviour.
   pcall(pandoc.system.make_directory, log_dir, true)
-  local defaults = frontmatter.project_defaults(options.tests)
   local context = { tests = options.tests, log_dir = log_dir }
 
   for _, document in ipairs(documents) do
-    local settings, warnings = frontmatter.read(document.absolute, descriptors, defaults)
     local base_id = layer .. '/' .. document.relative:gsub('%.qmd$', '')
-
-    if settings.skip and settings.skip ~= false then
+    local stem = pandoc.path.filename(document.relative):gsub('%.qmd$', '')
+    local function emit_document(status, stage_name, reason, message, warnings)
       emit({
         id = base_id,
         layer = layer,
-        status = 'skip',
+        status = status,
         target = { document = document.relative },
-        diagnostics = { errors = {}, warnings = warnings },
-        failure = {
-          stage = 'discover',
-          reason = 'skipped',
-          message = type(settings.skip) == 'string' and settings.skip or 'the document declares `skip`',
-        },
+        diagnostics = { errors = {}, warnings = warnings or {} },
+        failure = { stage = stage_name, reason = reason, message = message },
       })
+    end
+
+    local info, inspect_err = cli.inspect(document.absolute, options.tests)
+    if not info then
+      emit_document('fail', 'inspect', 'inspect-failed', inspect_err)
       goto continue
     end
 
     do
-      local available, inspect_err, output_files, output_dir =
-        M.formats(document.absolute, options.tests)
-      if inspect_err then
-        emit({
-          id = base_id,
-          layer = layer,
-          status = 'fail',
-          target = { document = document.relative },
-          diagnostics = { errors = {}, warnings = warnings },
-          failure = { stage = 'inspect', reason = 'inspect-failed', message = inspect_err },
-        })
+      local spec, problem = frontmatter.spec(info.tests)
+      if problem then
+        emit_document('fail', 'discover', 'front-matter-invalid', problem)
+        goto continue
+      end
+      local run_warnings = frontmatter.unknown_run_keys(spec.run)
+      local reason = frontmatter.skip_reason(spec.run)
+      if reason then
+        emit_document('skip', 'discover', 'skipped', reason, run_warnings)
+        goto continue
+      end
+      local settings, options_err = frontmatter.options(spec.run, descriptors, stem)
+      if options_err then
+        emit_document('fail', 'inspect', 'options-invalid', options_err, run_warnings)
         goto continue
       end
 
-      local targets = available
-      if settings.formats then
+      local default_policy = document.default_policy or 'noErrorsOrWarnings'
+      local targets = spec.formats
+      if not spec.has_format_keys then
         targets = {}
-        for _, wanted in ipairs(settings.formats) do
-          if util.contains(available, wanted) then
-            targets[#targets + 1] = wanted
-          else
-            emit({
-              id = base_id .. '/' .. wanted,
-              layer = layer,
-              status = 'fail',
-              target = { document = document.relative, format = wanted },
-              diagnostics = { errors = {}, warnings = warnings },
-              failure = {
-                stage = 'inspect',
-                reason = 'format-not-available',
-                message = string.format('the document declares `%s`, which Quarto does not report for it', wanted),
-              },
-            })
-          end
+        for _, name in ipairs(info.formats) do
+          targets[#targets + 1] = { name = name, policy = default_policy, assertions = {} }
         end
       end
 
-      for _, format in ipairs(targets) do
-        context.settings = settings
-        context.document = document
-        context.layer = layer
-        context.output_files = output_files
-        context.output_dir = output_dir
-        local case = render_one(context, format)
-        for _, warning in ipairs(warnings) do
-          table.insert(case.diagnostics.warnings, warning)
+      context.document = document
+      context.settings = settings
+      context.layer = layer
+      context.output_files = info.output_files
+      context.output_dir = info.output_dir
+      context.fallback_output_file = M.fallback_output_file(document.absolute)
+      for _, target in ipairs(targets) do
+        if target.problem then
+          emit({
+            id = base_id .. '/' .. target.name,
+            layer = layer,
+            status = 'fail',
+            target = { kind = document.origin, document = document.relative, format = target.name },
+            diagnostics = { errors = {}, warnings = run_warnings },
+            failure = { stage = 'discover', reason = target.problem.reason, message = target.problem.message },
+          })
+        else
+          local case = render_one(context, target)
+          for _, warning in ipairs(run_warnings) do
+            table.insert(case.diagnostics.warnings, warning)
+          end
+          emit(case)
         end
-        emit(case)
       end
     end
 
@@ -565,7 +644,7 @@ end
 
 --- Run the render layer.
 --- @param options table
---- @param descriptors table `test:` descriptors
+--- @param descriptors table `run.extension-test` descriptors
 --- @param emit function(case)
 function M.run(options, descriptors, emit)
   local documents = M.discover(options.root, options.tests)
@@ -620,6 +699,12 @@ function M.run(options, descriptors, emit)
       failure = { stage = 'stage', reason = 'no-project-file', message = missing },
     })
     return
+  end
+
+  -- Inspected after staging, so the project is in the state the renders see.
+  local config_case = M.project_check(options.tests)
+  if config_case then
+    emit(config_case)
   end
 
   local ok, err = pcall(M.execute, options, documents, descriptors, 'render', emit)

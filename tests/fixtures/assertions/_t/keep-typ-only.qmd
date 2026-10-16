@@ -1,0 +1,11 @@
+---
+title: Kept Typst file without an assertion
+format:
+  typst:
+    keep-typ: true
+_quarto:
+  tests:
+    typst:
+---
+
+{{< present >}}

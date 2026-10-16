@@ -1,0 +1,13 @@
+---
+title: Warning allowed
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "^warns: on purpose$"
+---
+
+{{< warns >}}

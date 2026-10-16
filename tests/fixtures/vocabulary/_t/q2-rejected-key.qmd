@@ -1,0 +1,11 @@
+---
+title: A key q2 rejects
+format: html
+_quarto:
+  tests:
+    html:
+      postRenderCleanup:
+        - "${input_stem}.html"
+---
+
+{{< present >}}

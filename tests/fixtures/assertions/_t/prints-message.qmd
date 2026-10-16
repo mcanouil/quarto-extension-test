@@ -1,0 +1,16 @@
+---
+title: Expected message
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      printsMessage:
+        - level: INFO
+          regex: "Output created"
+        - level: ERROR
+          regex: "never written"
+          negate: true
+---
+
+{{< present >}}

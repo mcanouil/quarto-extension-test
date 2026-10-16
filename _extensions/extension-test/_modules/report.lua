@@ -49,8 +49,8 @@ function M.add(results, case)
   assert(case.layer, 'a case needs a layer')
   assert(case.status, 'a case needs a status')
   case.diagnostics = case.diagnostics or { warnings = {}, errors = {} }
-  -- Present and empty in v1 so v2 can fill it without a schema change
-  -- downstream in publish-results.sh, build-index.sh, or the renderer.
+  -- One entry for each check a render ran. Defaulted here for the cases that
+  -- never reached the assertions, so every reader can rely on the field.
   case.assertions = case.assertions or {}
   results.cases[#results.cases + 1] = case
 end

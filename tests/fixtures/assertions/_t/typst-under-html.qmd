@@ -1,0 +1,11 @@
+---
+title: Typst assertion under HTML
+format: html
+_quarto:
+  tests:
+    html:
+      ensureTypstFileRegexMatches:
+        - ["here"]
+---
+
+{{< present >}}

@@ -55,15 +55,17 @@ quarto pandoc lua tests/_extensions/*/extension-test/run.lua
 That is enough to start.
 With no test document, the render layer falls back to `example.qmd` or `template.qmd` at the repository root, and the other two layers need nothing at all.
 
-To add a case of your own, write a `tests/*.qmd` document and describe it in a `test:` block:
+To add a case of your own, write a `tests/*.qmd` document and describe it in a `_quarto.tests` block, the block that q2 `quarto call test` reads:
 
 ```markdown
 ---
 title: "Greeting shortcode"
 format: html
-test:
-  description: "The shortcode renders in HTML."
-  formats: [html]
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["Hello, world"]
 ---
 
 {{{< greeting world >}}}
@@ -75,13 +77,13 @@ It exits 1 when any case fails.
 ## Where it works
 
 It tests any extension type that a document can use: shortcodes, filters, formats, and RevealJS plugins.
-Each document renders to every format `quarto inspect` reports for it, unless its `test:` block names fewer.
+Each document renders to every format `quarto inspect` reports for it, unless its `_quarto.tests` block names fewer.
 Project type extensions are checked by the conformance layer, but the smoke layer does not generate documents for them.
 It needs Quarto 1.6 or later, and runs wherever `quarto` is on the `PATH`.
 
 ## Links
 
-- [Reference](reference.qmd) for the `test:` front matter, the command line, each layer, and the result format.
+- [Reference](reference.qmd) for the `_quarto.tests` front matter, the command line, each layer, and the result format.
 - [Examples](examples.qmd) for common test cases and a continuous integration setup.
 - [Changelog](changelog.qmd) for what each release changed.
 - [Source and issues](https://github.com/mcanouil/quarto-extension-test) on GitHub.

@@ -1,0 +1,9 @@
+---
+title: Project defaults
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+{{< present >}}

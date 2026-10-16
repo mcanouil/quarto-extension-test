@@ -1,54 +1,119 @@
 ---
 title: "Reference"
-subtitle: "The `test:` front matter, the command line, and what each layer checks."
-description: "Every test: key, runner option, layer check, and result field of the extension-test framework, with its default."
+subtitle: "The `_quarto.tests` front matter, the command line, and what each layer checks."
+description: "Every _quarto.tests key, runner option, layer check, and result field of the extension-test framework, with its default."
 ---
 
-## The `test:` front matter
+## The `_quarto.tests` front matter
 
 A test document is any `.qmd` file under `tests/`.
 A file or directory whose name starts with an underscore is skipped, and so are `generated/` and `.quarto/`.
-Its `test:` block describes the case.
-Every key is optional, so a document with no `test:` block renders to every format `quarto inspect` reports for it, strictly, expecting success.
+Its `_quarto.tests` block describes the case, with the keys that q2 `quarto call test` reads.
+Every key other than `run` names a format to render.
+A document with no format key renders to every format that `quarto inspect` reports for it, under the default log rule.
 
 ```yaml
 ---
-title: "Unknown icon"
+title: "Backup removed"
 format:
   html: default
-  typst: default
-test:
-  name: "Unknown icon"
-  description: "An unknown icon name stops the render."
-  formats: [html, typst]
-  expect: fail
-  timeout: 120
+  typst:
+    keep-typ: true
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: 120
+    html:
+      ensureFileRegexMatches:
+        - ["Always here"]
+        - ["Backup"]
+    typst:
+      ensureTypstFileRegexMatches:
+        - []
+        - ["Backup"]
 ---
 ```
 
-| Key | Type | Default | Description |
+### Keys under a format
+
+| Key | Effect |
+| --- | --- |
+| `noErrors` | The case fails on a log line at `ERROR`. |
+| `noErrorsOrWarnings` | The case fails on a log line at `ERROR` or `WARN`. This is the default. |
+| `shouldError` | The case passes when the render exits with an error code, or when the log has a line at `ERROR`. |
+| `ensureFileRegexMatches` | Matches the output file against `[[patterns that must match], [patterns that must not match]]`. |
+| `ensureTypstFileRegexMatches` | Matches the kept `.typ` file in the same way. Set `keep-typ: true` on the `typst` format. A `.typ` file that is already beside the document before the render fails the assertion. |
+| `ensureDocxRegexMatches` | Matches `word/document.xml` of a DOCX output in the same way. q2 does not know this key. |
+| `printsMessage` | Looks for a log line: `{level, regex, negate}`, or a list of these. |
+| `fileExists` | Looks for `outputPath` beside the output, and for `supportPath` in `<output name>_files`. |
+
+: The keys that the runner executes. {.striped .hover tbl-colwidths="[30,70]"}
+
+A key applies when it is present, whatever its value.
+A format with more than one of `noErrors`, `noErrorsOrWarnings`, and `shouldError` fails with `policy-conflict`.
+A key that q2 or quarto-cli knows and the runner does not execute gives a `skip` entry, for example `ensureHtmlElements`.
+The case warnings name every assertion that did not run, and every key that q2 rejects.
+Any other key fails the format with `unknown-assertion`.
+
+A `printsMessage` entry at `WARN` needs `noErrors`, as in q2.
+Without it, the default rule fails the case on the warning that the entry expects.
+
+### Patterns
+
+Patterns are regular expressions.
+Escape a literal dot or brace, for example `"1\\.0"` or `"\\{\\{<"`.
+In `ensureFileRegexMatches` and `ensureTypstFileRegexMatches`, a pattern with `^` or `$` matches one line of the file.
+In `ensureDocxRegexMatches`, a pattern matches the whole `word/document.xml`, so `^` and `$` anchor the start and the end of that file.
+The runner does not translate some patterns, for example `x{2}` and `a*?`, and reports them as a `skip` entry.
+
+A pattern in the first list of `ensureDocxRegexMatches` can fail on text that the document contains, because Word can split a text across several XML elements.
+A pattern in the second list is reliable.
+
+### Log lines
+
+The runner reads the render log line by line.
+A line that starts with `(W)`, `WARNING`, or `[WARNING]` is a warning.
+A line that starts with `(E)`, `ERROR`, `FATAL`, or `[ERROR]` is an error.
+`quarto.log.warning` and `quarto.log.error` write the `(W)` and `(E)` markers, and Pandoc writes the bracketed ones.
+q2 and quarto-cli do not see these lines as warnings or errors.
+
+### Keys under `run`
+
+| Key | Effect |
+| --- | --- |
+| `skip` | Skips the document. A string is the reason. |
+| `os`, `not_os` | Runs the document only on, or never on, `darwin`, `linux`, or `windows`. |
+| `ci` | With `false`, skips the document on continuous integration. Other values have no effect, as in q2. |
+| `requires_js` | Skips the document, because the runner does not execute JavaScript. |
+| `requires` | Skips the document when `Rscript` (`knitr`) or `jupyter` (`jupyter`) is not on the `PATH`. |
+| `extension-test` | Holds the options of this runner. |
+
+: The keys under `_quarto.tests.run`. {.striped .hover tbl-colwidths="[24,76]"}
+
+| Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `schema` | integer | `1` | The `test:` vocabulary version the document is written against. |
+| `timeout` | integer | `300` | Seconds for each render. It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
 | `name` | string | The file stem | A human name for the case. |
 | `description` | string | `""` | What the case covers. |
-| `formats` | string or array of strings | Every format `quarto inspect` reports | The formats to render. |
-| `skip` | boolean or string | `false` | Skip the case. A string is reported as the reason. |
-| `expect` | `pass` or `fail` | `pass` | Whether the render should succeed. With `fail`, the case passes when the render fails. |
-| `strict` | boolean | `true` | Fail on an error in the render log. With `false`, the error is recorded but the case does not fail on it. |
-| `timeout` | integer | `300` | Seconds allowed for each format. It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
 
-: The `test:` keys. {.striped .hover tbl-colwidths="[14,20,20,46]"}
+: The options under `_quarto.tests.run.extension-test`. {.striped .hover tbl-colwidths="[14,14,20,52]"}
 
-A `test:` block in `tests/_quarto.yml` sets defaults for every document, and each document overrides them key by key.
+A value that does not validate fails the document with `options-invalid`.
+Any other key under `run` is ignored, as q2 ignores it, and the case warnings name it.
+`tests/_quarto.yml` can set `_quarto.tests.run.extension-test` for every document, and each document overrides it key by key.
+Any other key under `_quarto.tests` in `tests/_quarto.yml` fails `render/_config` with `project-tests-keys`, because q2 reads the document alone.
+If `quarto inspect` cannot read the tests project, `render/_config` is a skip with `project-inspect-failed`.
 
-The vocabulary only ever grows.
-A key this version does not know is reported as a warning and ignored.
-A value that does not validate is reported as a warning too, never as a failure, so an older runner still tests a newer document.
+### Differences from q2
 
-::: {.callout-note}
-A format named in `formats` that `quarto inspect` does not report for the document fails the case with `format-not-available`.
-Declare the format in the document's front matter as well.
-:::
+- The runner sees `(W)` and `(E)` lines as warnings and errors.
+- The promoted warnings and the unexpanded shortcode check also apply under `noErrors`.
+- `shouldError` also passes on a log line at `ERROR`, because quarto-cli exits 0 when the Lua code of an extension fails.
+- The runner executes `ensureDocxRegexMatches`, and its second list is specific to the runner.
+- A `printsMessage` pattern matches one log line.
+- The runner reads the kept `.typ` file beside the input, named after it.
+- A document without format keys renders here, and q2 skips it.
 
 ## Command line
 
@@ -104,16 +169,20 @@ A schema with no `$schema` key is read as v2 and gets a warning asking you to de
 
 The render layer stages a copy of each extension into the tests project, then renders each test document to each of its formats.
 When `tests/` holds no document, it renders `example.qmd` or `template.qmd` from the repository root instead.
+That demo document renders under `noErrors`, because it documents the extension rather than testing it.
 
-A render passes only when all of these hold:
+The runner does these checks in this order, and the first check that fails gives the reason of the case:
 
-- Quarto exits 0 within the timeout.
-- The log reports no shortcode, extension, or filter that was not found.
-- The log holds no error, unless `strict` is `false`.
-- The output file exists.
-- The output holds no shortcode text outside code, which would mean a shortcode did not expand.
+1. Quarto finishes within the timeout.
+2. Quarto exits 0.
+3. The log reports no shortcode, extension, or filter that was not found.
+4. The log rule of the format passes: `noErrorsOrWarnings`, or `noErrors`.
+5. The output file exists.
+6. The output holds no shortcode text outside code, which would mean a shortcode did not expand.
+7. Every assertion of the format passes.
 
-Any other warning in the log is recorded on the case and does not fail it.
+Under `shouldError`, the runner does only the timeout check, the `shouldError` check, and the `printsMessage` entries.
+When a render exits 0 but writes no log, the case is a skip with `log-missing`, because the log rule cannot be checked.
 
 ### Smoke
 
@@ -124,8 +193,11 @@ Every generated value is validated against the descriptor it came from before it
 A descriptor that no candidate value satisfies is reported as a skip, and so is the cap set by `--max-generated`.
 A smoke failure is therefore the extension's fault, not the generator's.
 
-A pass here means the document rendered cleanly.
-It asserts nothing about the content of the output.
+A generated document renders under `noErrors`.
+The generator makes inputs, such as placeholder file names, that a careful extension warns about.
+These warnings are recorded on the case and do not fail it.
+A shortcode, extension, or filter that was not found still fails the case.
+A pass here asserts nothing about the content of the output.
 
 ## Results
 
@@ -148,7 +220,7 @@ Two runs can be compared case by case.
 | `status` | `fail` when any case failed, `pass` when any passed, and `skip` when every case was skipped. |
 | `summary` | Counts of all cases, by status. |
 | `layers` | The same counts and status for each layer. |
-| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions`, empty for now, and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
+| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions` with one entry for each check (`id`, `kind`, `expected`, `status`, `message`, `warnings`), and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
 
 : Top-level fields of `results.json`. {.striped .hover tbl-colwidths="[20,80]"}
 

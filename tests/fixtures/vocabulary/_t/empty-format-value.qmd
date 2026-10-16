@@ -1,0 +1,9 @@
+---
+title: Empty format value
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+{{< present >}}
