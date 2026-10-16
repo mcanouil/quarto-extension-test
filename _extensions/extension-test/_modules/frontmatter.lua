@@ -152,6 +152,29 @@ function M.current_os()
   return 'unknown'
 end
 
+--- The real environment, read once per run.
+local environment_probe
+
+--- The probe of the real environment, with each command looked up once.
+--- @return table {ci, os, has_command}
+local function real_probe()
+  if not environment_probe then
+    local environment = pandoc.system.environment()
+    local found = {}
+    environment_probe = {
+      ci = environment.CI ~= nil or environment.GITHUB_ACTIONS ~= nil,
+      os = M.current_os(),
+      has_command = function(name)
+        if found[name] == nil then
+          found[name] = (util.capture('command -v ' .. util.shell_quote(name))) == 0
+        end
+        return found[name]
+      end,
+    }
+  end
+  return environment_probe
+end
+
 --- Why a document is skipped, from `_quarto.tests.run`.
 ---
 --- The checks and their order are those of q2 `RunConfig::should_skip`.
@@ -159,16 +182,7 @@ end
 --- @param probe table|nil {ci, os, has_command}; the real environment when nil
 --- @return string|nil reason
 function M.skip_reason(run, probe)
-  if not probe then
-    local environment = pandoc.system.environment()
-    probe = {
-      ci = environment.CI ~= nil or environment.GITHUB_ACTIONS ~= nil,
-      os = M.current_os(),
-      has_command = function(name)
-        return (util.capture('command -v ' .. util.shell_quote(name))) == 0
-      end,
-    }
-  end
+  probe = probe or real_probe()
   if run.skip == true then
     return 'skip: true'
   end

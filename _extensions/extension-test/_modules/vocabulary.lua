@@ -10,13 +10,10 @@ local M = {}
 
 --- The keys that choose the log rule. A key applies when it is present,
 --- whatever its value, as in q2.
-M.POLICY = { 'noErrors', 'noErrorsOrWarnings', 'shouldError' }
+local POLICY = { noErrors = true, noErrorsOrWarnings = true, shouldError = true }
 
 --- Keys this runner executes, mapped to whether `q2 call test` rejects them.
 local EXECUTED = {
-  noErrors = false,
-  noErrorsOrWarnings = false,
-  shouldError = false,
   ensureFileRegexMatches = false,
   ensureTypstFileRegexMatches = false,
   printsMessage = false,
@@ -62,6 +59,9 @@ local KNOWN = {
 --- @param key string
 --- @return table {class = 'executed'|'known'|'unknown', q2_rejects = boolean}
 function M.classify(key)
+  if POLICY[key] then
+    return { class = 'executed', q2_rejects = false }
+  end
   if EXECUTED[key] ~= nil then
     return { class = 'executed', q2_rejects = EXECUTED[key] }
   end
@@ -75,15 +75,17 @@ end
 --- @param key string
 --- @return boolean
 function M.is_policy(key)
-  return util.contains(M.POLICY, key)
+  return POLICY[key] == true
 end
 
 --- Every key the tables know, sorted, for the message of an unknown key.
 --- @return string[]
 function M.known_keys()
-  local keys = util.sorted_keys(EXECUTED)
-  for _, key in ipairs(util.sorted_keys(KNOWN)) do
-    keys[#keys + 1] = key
+  local keys = {}
+  for _, map in ipairs({ POLICY, EXECUTED, KNOWN }) do
+    for _, key in ipairs(util.sorted_keys(map)) do
+      keys[#keys + 1] = key
+    end
   end
   table.sort(keys)
   return keys

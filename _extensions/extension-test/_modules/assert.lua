@@ -31,9 +31,14 @@ local function anchored(branch)
   return branch:sub(1, 1) == '^' or (branch:sub(-1) == '$' and branch:sub(-2, -2) ~= '%')
 end
 
+--- One failed entry that stands for the whole assertion.
+local function fail_entry(kind, message)
+  return { { id = kind, kind = kind, status = 'fail', message = message } }
+end
+
 --- One invalid entry for an assertion with the wrong shape.
 local function invalid(kind, message)
-  return { { id = kind, kind = kind, status = 'fail', message = 'assertion-invalid: ' .. message } }
+  return fail_entry(kind, 'assertion-invalid: ' .. message)
 end
 
 --- Whether compiled branches match a text.
@@ -103,7 +108,7 @@ local function typst_regex(value, ctx)
   local kind = 'ensureTypstFileRegexMatches'
   local text = util.read_file(ctx.typ_path)
   if not text then
-    return { { id = kind, kind = kind, status = 'fail', message = 'set keep-typ: true' } }
+    return fail_entry(kind, 'set keep-typ: true')
   end
   if not ctx.output_is_typ then
     os.remove(ctx.typ_path)
@@ -121,14 +126,14 @@ local function docx_regex(value, ctx)
       for _, entry in ipairs(archive.entries) do
         if entry.path == 'word/document.xml' then
           xml = entry:contents()
+          break
         end
       end
     end
   end
   local entries
   if not xml then
-    entries = { { id = kind, kind = kind, status = 'fail',
-      message = 'no word/document.xml in ' .. tostring(ctx.output_label) } }
+    entries = fail_entry(kind, 'no word/document.xml in ' .. tostring(ctx.output_label))
   else
     entries = M.pattern_pair(kind, value, xml, false, ctx.output_label)
   end

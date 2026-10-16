@@ -55,16 +55,30 @@ function M.parse_inspect(text)
   return { formats = formats, output_files = output_files, output_dir = output_dir, tests = tests }, nil
 end
 
+--- Run `quarto inspect` on a document or a project directory.
+--- @param target string
+--- @param cwd string|nil directory to run it from
+--- @return string|nil output, string|nil error
+local function run_inspect(target, cwd)
+  local command = 'quarto inspect ' .. util.shell_quote(target)
+  if cwd then
+    command = 'cd ' .. util.shell_quote(cwd) .. ' && ' .. command
+  end
+  local code, output = util.capture(command)
+  if code ~= 0 then
+    return nil, 'quarto inspect failed: ' .. util.trim(output)
+  end
+  return output, nil
+end
+
 --- Inspect one document.
 --- @param document string absolute path
 --- @param cwd string directory to inspect from
 --- @return table|nil info, string|nil error
 function M.inspect(document, cwd)
-  local command = string.format('cd %s && quarto inspect %s',
-    util.shell_quote(cwd), util.shell_quote(document))
-  local code, output = util.capture(command)
-  if code ~= 0 then
-    return nil, 'quarto inspect failed: ' .. util.trim(output)
+  local output, err = run_inspect(document, cwd)
+  if not output then
+    return nil, err
   end
   return M.parse_inspect(output)
 end
@@ -77,9 +91,9 @@ end
 --- @return any block `config._quarto.tests`, or nil
 --- @return string|nil error
 function M.project_tests(dir)
-  local code, output = util.capture('quarto inspect ' .. util.shell_quote(dir))
-  if code ~= 0 then
-    return nil, 'quarto inspect failed: ' .. util.trim(output)
+  local output, err = run_inspect(dir)
+  if not output then
+    return nil, err
   end
   local ok, parsed = pcall(pandoc.json.decode, output, false)
   if not ok or type(parsed) ~= 'table' then

@@ -253,6 +253,7 @@ local function render_one(context, target)
   for _, item in ipairs(target.assertions) do
     if item.key == 'ensureTypstFileRegexMatches' and not output_is_typ then
       os.remove(typ_path)
+      break
     end
   end
 
@@ -262,10 +263,7 @@ local function render_one(context, target)
   local errors, logged_warnings = log.messages_at(lines, 'ERROR'), log.messages_at(lines, 'WARN')
   -- The diagnostics hold the logged warnings and the notes of the runner.
   -- The log rule reads `logged_warnings` alone.
-  local warnings = {}
-  for _, message in ipairs(logged_warnings) do
-    warnings[#warnings + 1] = message
-  end
+  local warnings = table.move(logged_warnings, 1, #logged_warnings, 1, {})
   if incomplete then
     warnings[#warnings + 1] = 'a log record could not be read and was ignored'
   end
@@ -284,6 +282,20 @@ local function render_one(context, target)
     return case
   end
 
+  local function grade_assertions(ctx, log_only)
+    local entries, notes = assertions.evaluate(target.assertions, ctx, log_only)
+    case.assertions = entries
+    for _, note in ipairs(notes) do
+      warnings[#warnings + 1] = note
+    end
+    local message = assertions.failure(entries)
+    if message then
+      return fail('assert', 'assertion-failed', message)
+    end
+    case.status = 'pass'
+    return case
+  end
+
   -- A timeout is the harness giving up, not the failure the document
   -- declares, so `shouldError` does not turn a stall into a pass.
   if code == 124 then
@@ -295,17 +307,7 @@ local function render_one(context, target)
       return fail('log', 'unexpected-pass',
         'the case declares `shouldError` but the render exited 0 and logged no error')
     end
-    local entries, notes = assertions.evaluate(target.assertions, { lines = lines }, true)
-    case.assertions = entries
-    for _, note in ipairs(notes) do
-      warnings[#warnings + 1] = note
-    end
-    local message = assertions.failure(entries)
-    if message then
-      return fail('assert', 'assertion-failed', message)
-    end
-    case.status = 'pass'
-    return case
+    return grade_assertions({ lines = lines }, true)
   end
 
   if code ~= 0 then
@@ -341,23 +343,12 @@ local function render_one(context, target)
     output_path = output_path,
     output_label = output_label,
     output_dir = pandoc.path.directory(output_path),
-    support_dir = output_path:gsub('%.[^./]+$', '') .. '_files',
+    support_dir = pandoc.path.split_extension(output_path) .. '_files',
     typ_path = output_is_typ and output_path or typ_path,
     typ_label = output_is_typ and output_label or pandoc.path.filename(typ_path),
     output_is_typ = output_is_typ,
   }
-  local entries, notes = assertions.evaluate(target.assertions, ctx, false)
-  case.assertions = entries
-  for _, note in ipairs(notes) do
-    warnings[#warnings + 1] = note
-  end
-  local message = assertions.failure(entries)
-  if message then
-    return fail('assert', 'assertion-failed', message)
-  end
-
-  case.status = 'pass'
-  return case
+  return grade_assertions(ctx, false)
 end
 
 --- Grade a render whose output could not be found.
@@ -479,7 +470,7 @@ local function fallback_output_file(output_files)
   if not first then
     return nil
   end
-  return (output_files[first]:gsub('%.[^./]+$', ''))
+  return (pandoc.path.split_extension(output_files[first]))
 end
 
 --- Render a list of documents and judge each result.
@@ -535,10 +526,7 @@ function M.execute(options, documents, descriptors, layer, emit)
         goto continue
       end
 
-      -- A generated document carries no policy, and the generator makes
-      -- inputs that a careful extension warns about, so the smoke layer
-      -- allows warnings. The promoted warnings still apply.
-      local default_policy = layer == 'smoke' and 'noErrors' or 'noErrorsOrWarnings'
+      local default_policy = document.default_policy or 'noErrorsOrWarnings'
       local targets = spec.formats
       if not spec.has_format_keys then
         targets = {}

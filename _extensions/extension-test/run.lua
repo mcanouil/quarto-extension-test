@@ -316,6 +316,10 @@ local function run_smoke(options, extensions, descriptors, emit)
         relative = relative,
         absolute = util.join(options.tests, relative),
         origin = 'generated',
+        -- A generated document carries no policy, and the generator makes
+        -- inputs that a careful extension warns about, so warnings are
+        -- allowed. The promoted warnings still apply.
+        default_policy = 'noErrors',
       }
     end
     render.execute(options, documents, descriptors, 'smoke', emit)
