@@ -1,116 +1,238 @@
---- Extension Test - Reading the `test:` block from a document.
+--- Extension Test - Reading the `_quarto.tests` block of a document.
 ---
---- The vocabulary is additive only. The catalogue sweep runs one pinned
---- framework version against repositories that pinned an older one, so a key
---- this version does not recognise is reported as a warning and ignored,
---- never as a failure.
+--- The block comes from `quarto inspect` (`cli.inspect`), which keeps a format
+--- key with no value. Every key other than `run` names a format. A format in
+--- `tests/_quarto.yml` is refused by `project_problem`, so the merged block
+--- that `quarto inspect` reports is the block of the document.
 
 local util = require('util')
 local schema = require('schema')
+local vocabulary = require('vocabulary')
 
 local M = {}
 
---- Defaults applied when a document declares nothing.
-M.DEFAULTS = {
-  schema = 1,
-  expect = 'pass',
-  strict = true,
-  timeout = 300,
-  skip = false,
-}
+--- The options of the runner when a document declares none.
+M.DEFAULTS = { timeout = 300, description = '' }
 
---- Extract the YAML front matter of a document.
----
---- Only a block opened by `---` on the first non-empty line counts, which is
---- what Quarto itself accepts.
---- @param text string
---- @return string|nil yaml
-local function front_matter_text(text)
-  local body = text:gsub('^\239\187\191', '')
-  local block = body:match('^%-%-%-\r?\n(.-)\r?\n%-%-%-%s*\r?\n')
-    or body:match('^%-%-%-\r?\n(.-)\r?\n%.%.%.%s*\r?\n')
-  return block
+--- Commands that show an engine runtime is present.
+local ENGINE_COMMANDS = { knitr = 'Rscript', jupyter = 'jupyter' }
+
+--- Whether a decoded value is absent.
+local function is_null(value)
+  return value == nil or value == pandoc.json.null
 end
 
---- Read and validate a document's `test:` block.
---- @param path string document path
---- @param descriptors table descriptors from test-schema.yml
---- @param defaults table|nil project-level defaults from tests/_quarto.yml
---- @return table settings
---- @return string[] warnings
-function M.read(path, descriptors, defaults)
-  local warnings = {}
-  local text, read_err = util.read_file(path)
-  if not text then
-    return M.DEFAULTS, { tostring(read_err) }
+--- Whether a decoded value is a mapping. An empty table counts as one.
+local function is_map(value)
+  if type(value) ~= 'table' then
+    return false
   end
-
-  local block = front_matter_text(text)
-  local declared = {}
-  if block then
-    local ok, parsed = pcall(schema._parse_yaml_text, block)
-    if ok and type(parsed) == 'table' and type(parsed.test) == 'table' then
-      declared = parsed.test
-    elseif ok and type(parsed) == 'table' and parsed.test ~= nil then
-      warnings[#warnings + 1] = 'the `test:` key is not a mapping and was ignored'
+  for key in pairs(value) do
+    if type(key) ~= 'string' then
+      return false
     end
   end
-
-  -- Project-level defaults lose to the document, key by key.
-  local merged = {}
-  for key, value in pairs(defaults or {}) do
-    merged[key] = value
-  end
-  for key, value in pairs(declared) do
-    merged[key] = value
-  end
-
-  local _, errors, validation_warnings, coerced =
-    schema.validate(merged, descriptors, { unknown = 'warn' })
-  -- Reported, not fatal: a `test:` block this version cannot read must not
-  -- stop the catalogue sweep from testing the extension at all. Sorted so a
-  -- document with several problems reports them in the same order every run.
-  for _, message in ipairs(util.sorted_messages(errors)) do
-    warnings[#warnings + 1] = message
-  end
-  for _, message in ipairs(util.sorted_messages(validation_warnings)) do
-    warnings[#warnings + 1] = message
-  end
-
-  local settings = {}
-  for key, value in pairs(M.DEFAULTS) do
-    settings[key] = value
-  end
-  for key, value in pairs(coerced or merged) do
-    settings[key] = value
-  end
-
-  if type(settings.formats) == 'string' then
-    settings.formats = { settings.formats }
-  end
-  settings.name = settings.name or pandoc.path.filename(path):gsub('%.qmd$', '')
-
-  return settings, warnings
+  return true
 end
 
---- Read project-level `test:` defaults from a tests project file.
---- @param tests string tests directory
---- @return table defaults
-function M.project_defaults(tests)
-  for _, name in ipairs({ '_quarto.yml', '_quarto.yaml' }) do
-    local path = util.join(tests, name)
-    if util.exists(path) then
-      local text = util.read_file(path)
-      if text then
-        local ok, parsed = pcall(schema._parse_yaml_text, text)
-        if ok and type(parsed) == 'table' and type(parsed.test) == 'table' then
-          return parsed.test
-        end
-      end
-      return {}
-    end
+--- A string or a list of strings, as a list.
+local function as_list(value)
+  if type(value) == 'string' then
+    return { value }
+  end
+  if type(value) == 'table' then
+    return value
   end
   return {}
+end
+
+--- Read one format entry.
+--- @param name string
+--- @param value table
+--- @return table entry
+local function format_entry(name, value)
+  local entry = { name = name, assertions = {} }
+  local policies = {}
+  for _, key in ipairs(util.sorted_keys(value)) do
+    local kind = vocabulary.classify(key)
+    if kind.class == 'unknown' then
+      entry.problem = entry.problem or {
+        reason = 'unknown-assertion',
+        message = string.format('unknown key `%s` under `_quarto.tests.%s`; the valid keys are %s',
+          key, name, table.concat(vocabulary.known_keys(), ', ')),
+      }
+    elseif vocabulary.is_policy(key) then
+      policies[#policies + 1] = key
+    else
+      entry.assertions[#entry.assertions + 1] = {
+        key = key, value = value[key], class = kind.class, q2_rejects = kind.q2_rejects,
+      }
+    end
+  end
+  if #policies > 1 then
+    entry.problem = entry.problem or {
+      reason = 'policy-conflict',
+      message = string.format('`_quarto.tests.%s` sets more than one of %s',
+        name, table.concat(policies, ', ')),
+    }
+  end
+  entry.policy = policies[1] or 'noErrorsOrWarnings'
+  return entry
+end
+
+--- Turn a `_quarto.tests` block into a test specification.
+--- @param tests any the block as `quarto inspect` reports it
+--- @return table spec {run, has_format_keys, formats}
+--- @return string|nil problem why the block cannot be read
+function M.spec(tests)
+  local spec = { run = {}, has_format_keys = false, formats = {} }
+  if is_null(tests) then
+    return spec, nil
+  end
+  if not is_map(tests) then
+    return spec, '`_quarto.tests` must be a mapping'
+  end
+  if not is_null(tests.run) then
+    if not is_map(tests.run) then
+      return spec, '`_quarto.tests.run` must be a mapping'
+    end
+    spec.run = tests.run
+  end
+  for _, name in ipairs(util.sorted_keys(tests)) do
+    if name ~= 'run' then
+      local value = tests[name]
+      if is_null(value) then
+        value = {}
+      end
+      if not is_map(value) then
+        return spec, string.format('`_quarto.tests.%s` must be a mapping', name)
+      end
+      spec.has_format_keys = true
+      spec.formats[#spec.formats + 1] = format_entry(name, value)
+    end
+  end
+  return spec, nil
+end
+
+--- Validate the options of the runner.
+--- @param run table `_quarto.tests.run`
+--- @param descriptors table the options of `test-schema.yml`
+--- @param stem string the file stem of the document
+--- @return table settings {timeout, name, description}
+--- @return string|nil problem
+function M.options(run, descriptors, stem)
+  local settings = { timeout = M.DEFAULTS.timeout, description = M.DEFAULTS.description, name = stem }
+  local declared = (run or {})['extension-test']
+  if is_null(declared) then
+    return settings, nil
+  end
+  if not is_map(declared) then
+    return settings, '`_quarto.tests.run.extension-test` must be a mapping'
+  end
+  local _, errors, _, coerced = schema.validate(declared, descriptors, { unknown = 'error' })
+  if errors and #errors > 0 then
+    return settings, table.concat(util.sorted_messages(errors), ' ')
+  end
+  for key, value in pairs(coerced or declared) do
+    settings[key] = value
+  end
+  return settings, nil
+end
+
+--- The operating system, with the names q2 uses.
+--- @return string `darwin`, `linux`, `windows`, or `unknown`
+function M.current_os()
+  local name = pandoc.system.os
+  if name == 'darwin' or name == 'linux' then
+    return name
+  end
+  if name == 'mingw32' or name == 'windows' then
+    return 'windows'
+  end
+  return 'unknown'
+end
+
+--- Why a document is skipped, from `_quarto.tests.run`.
+---
+--- The checks and their order are those of q2 `RunConfig::should_skip`.
+--- @param run table
+--- @param probe table|nil {ci, os, has_command}; the real environment when nil
+--- @return string|nil reason
+function M.skip_reason(run, probe)
+  if not probe then
+    local environment = pandoc.system.environment()
+    probe = {
+      ci = environment.CI ~= nil or environment.GITHUB_ACTIONS ~= nil,
+      os = M.current_os(),
+      has_command = function(name)
+        return (util.capture('command -v ' .. util.shell_quote(name))) == 0
+      end,
+    }
+  end
+  if run.skip == true then
+    return 'skip: true'
+  end
+  if type(run.skip) == 'string' then
+    return run.skip
+  end
+  if run.ci == false and probe.ci then
+    return 'tests.run.ci is false'
+  end
+  if not is_null(run.os) and not util.contains(as_list(run.os), probe.os) then
+    return 'tests.run.os does not include ' .. probe.os
+  end
+  if not is_null(run.not_os) and util.contains(as_list(run.not_os), probe.os) then
+    return 'tests.run.not_os includes ' .. probe.os
+  end
+  if run.requires_js == true then
+    return 'tests.run.requires_js: true (this runner does not execute JavaScript)'
+  end
+  for _, engine in ipairs(as_list(run.requires)) do
+    local command = ENGINE_COMMANDS[engine]
+    if not command or not probe.has_command(command) then
+      return string.format('tests.run.requires names `%s`, whose runtime is not available', tostring(engine))
+    end
+  end
+  return nil
+end
+
+--- What `tests/_quarto.yml` sets under `_quarto.tests` that it may not.
+---
+--- Only `_quarto.tests.run.extension-test` is allowed there, because q2 reads
+--- the document alone and never sees a project value.
+--- @param tests string tests directory
+--- @return string|nil message
+function M.project_problem(tests)
+  for _, file in ipairs({ '_quarto.yml', '_quarto.yaml' }) do
+    local path = util.join(tests, file)
+    if util.exists(path) then
+      local ok, parsed = pcall(schema._parse_yaml_text, util.read_file(path) or '')
+      local quarto = ok and type(parsed) == 'table' and parsed._quarto or nil
+      local block = type(quarto) == 'table' and quarto.tests or nil
+      if type(block) ~= 'table' then
+        return nil
+      end
+      local extra = {}
+      for _, key in ipairs(util.sorted_keys(block)) do
+        if key ~= 'run' then
+          extra[#extra + 1] = '`_quarto.tests.' .. key .. '`'
+        elseif type(block.run) == 'table' then
+          for _, run_key in ipairs(util.sorted_keys(block.run)) do
+            if run_key ~= 'extension-test' then
+              extra[#extra + 1] = '`_quarto.tests.run.' .. run_key .. '`'
+            end
+          end
+        end
+      end
+      if #extra == 0 then
+        return nil
+      end
+      return string.format(
+        '%s sets %s. Only `_quarto.tests.run.extension-test` can be set there, because q2 reads the document alone.',
+        file, table.concat(extra, ', '))
+    end
+  end
+  return nil
 end
 
 return M

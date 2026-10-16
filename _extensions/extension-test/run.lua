@@ -199,7 +199,7 @@ local function quarto_environment()
   return { version = version, channel = channel }
 end
 
---- Read the `test:` descriptors the framework ships.
+--- Read the `_quarto.tests.run.extension-test` descriptors the framework ships.
 --- @param options table
 --- @return table descriptors
 local function load_test_descriptors(options)
@@ -207,7 +207,7 @@ local function load_test_descriptors(options)
   if loaded then
     return loaded.options
   end
-  io.stderr:write('warning: cannot read the `test:` descriptors: ' .. tostring(load_err) .. '\n')
+  io.stderr:write('warning: cannot read the `run.extension-test` descriptors: ' .. tostring(load_err) .. '\n')
   return {}
 end
 

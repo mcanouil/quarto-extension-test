@@ -25,6 +25,7 @@ local conformance = require('conformance')
 local vocabulary = require('vocabulary')
 local log = require('log')
 local cli = require('cli')
+local frontmatter = require('frontmatter')
 
 local RUNNER = here .. '_extensions/extension-test/run.lua'
 local FIXTURES = here .. 'tests/fixtures'
@@ -383,6 +384,80 @@ do
     and command:find("--log '/t/log.json' --log-level info --log-format json-stream", 1, true) ~= nil
     and command:find("cd '/t' && ", 1, true) == 1,
     'the render command writes a json-stream log at level info', command)
+end
+
+io.stdout:write('# frontmatter\n')
+
+do
+  local null = pandoc.json.null
+  local spec, problem = frontmatter.spec({
+    run = { skip = false, ['extension-test'] = { timeout = 5 } },
+    html = { noErrors = true, ensureFileRegexMatches = { { 'a' } }, ensureHtmlElements = { { 'p' } } },
+    revealjs = null,
+    typst = { noErrors = true, shouldError = true },
+    docx = { ensureFileRegexMatch = { { 'a' } } },
+  })
+  check(problem == nil and spec.has_format_keys, 'a valid block with format keys is read', problem)
+  local names = {}
+  for _, entry in ipairs(spec.formats) do
+    names[#names + 1] = entry.name
+  end
+  equal(table.concat(names, ','), 'docx,html,revealjs,typst', 'format entries come in sorted order')
+  local docx, html, revealjs, typst = spec.formats[1], spec.formats[2], spec.formats[3], spec.formats[4]
+  equal(html.policy, 'noErrors', 'a policy key chooses the log rule')
+  equal(#html.assertions, 2, 'executed and known keys become assertions, policy keys do not')
+  equal(html.assertions[2].class, 'known', 'a known key keeps its class')
+  equal(revealjs.policy, 'noErrorsOrWarnings', 'an empty format value renders under the default rule')
+  check(revealjs.problem == nil, 'an empty format value is valid')
+  equal(typst.problem and typst.problem.reason, 'policy-conflict', 'two policy keys conflict')
+  equal(docx.problem and docx.problem.reason, 'unknown-assertion', 'an unknown key is reported')
+  check(docx.problem and docx.problem.message:find('ensureFileRegexMatches', 1, true) ~= nil,
+    'the unknown key message lists the valid keys')
+
+  local empty = frontmatter.spec(nil)
+  check(not empty.has_format_keys and #empty.formats == 0, 'no block gives no format keys')
+  local _, list_problem = frontmatter.spec({ 'html' })
+  check(list_problem ~= nil, 'a block that is a list is invalid')
+  local _, scalar_problem = frontmatter.spec('html')
+  check(scalar_problem ~= nil, 'a block that is a scalar is invalid')
+  local _, format_problem = frontmatter.spec({ html = { 'noErrors' } })
+  check(format_problem ~= nil, 'a format value that is a list is invalid')
+
+  local descriptors = schema.load_schema(here .. '_extensions/extension-test/test-schema.yml').options
+  local settings, options_problem = frontmatter.options({ ['extension-test'] = { timeout = 5 } }, descriptors, 'doc')
+  check(options_problem == nil and settings.timeout == 5 and settings.name == 'doc',
+    'valid options are read, and the name defaults to the stem', options_problem)
+  local defaults = frontmatter.options({}, descriptors, 'doc')
+  equal(defaults.timeout, 300, 'the timeout defaults to 300 seconds')
+  local _, bad_value = frontmatter.options({ ['extension-test'] = { timeout = 0 } }, descriptors, 'doc')
+  check(bad_value ~= nil and bad_value:find('timeout', 1, true) ~= nil, 'a timeout below 1 is invalid', bad_value)
+  local _, bad_key = frontmatter.options({ ['extension-test'] = { strict = true } }, descriptors, 'doc')
+  check(bad_key ~= nil and bad_key:find('strict', 1, true) ~= nil, 'a removed option is invalid', bad_key)
+
+  local probe = { ci = true, os = 'linux', has_command = function(name) return name == 'Rscript' end }
+  equal(frontmatter.skip_reason({ skip = 'later' }, probe), 'later', 'a skip string is the reason')
+  equal(frontmatter.skip_reason({ skip = true }, probe), 'skip: true', 'a skip flag gives a reason')
+  equal(frontmatter.skip_reason({ ci = false }, probe), 'tests.run.ci is false', '`ci: false` skips on CI')
+  equal(frontmatter.skip_reason({ os = { 'darwin' } }, probe), 'tests.run.os does not include linux',
+    '`os` skips another system')
+  equal(frontmatter.skip_reason({ not_os = 'linux' }, probe), 'tests.run.not_os includes linux',
+    '`not_os` skips the named system')
+  check(frontmatter.skip_reason({ requires_js = true }, probe) ~= nil, '`requires_js` skips the document')
+  equal(frontmatter.skip_reason({ requires = { 'knitr' } }, probe), nil, 'an available engine does not skip')
+  check(frontmatter.skip_reason({ requires = 'jupyter' }, probe) ~= nil, 'a missing engine skips')
+  equal(frontmatter.skip_reason({}, probe), nil, 'an empty `run` does not skip')
+
+  local scratch = util.join(here, 'tests/_results/project-keys')
+  util.write_file(util.join(scratch, '_quarto.yml'),
+    'project:\n  type: default\n_quarto:\n  tests:\n    run:\n      skip: true\n      extension-test:\n        timeout: 9\n    html:\n      noErrors: true\n')
+  local message = frontmatter.project_problem(scratch)
+  check(message ~= nil and message:find('_quarto.tests.html', 1, true) ~= nil
+    and message:find('_quarto.tests.run.skip', 1, true) ~= nil,
+    'a project file that sets more than `run.extension-test` is reported', message)
+  util.write_file(util.join(scratch, '_quarto.yml'),
+    'project:\n  type: default\n_quarto:\n  tests:\n    run:\n      extension-test:\n        timeout: 9\n')
+  equal(frontmatter.project_problem(scratch), nil, 'a project file with only `run.extension-test` is valid')
+  util.remove_tree(scratch)
 end
 
 io.stdout:write('# conformance\n')
