@@ -253,6 +253,7 @@ local function render_and_grade(context, target, typ)
   local typ_path = M.kept_typ_path(document)
   local typ_preexisting = false
   local base = format:match('([^%-]+)$') or format
+  local is_typst = base == 'typst' or output_is_typ
   if base == 'typst' and not output_is_typ then
     typ_preexisting = util.exists(typ_path)
     typ.path, typ.remove = typ_path, not typ_preexisting
@@ -357,7 +358,10 @@ local function render_and_grade(context, target, typ)
     output_label = output_label,
     output_dir = pandoc.path.directory(output_path),
     support_dir = pandoc.path.split_extension(output_path) .. '_files',
-    typ_path = output_is_typ and output_path or typ_path,
+    -- Only a Typst render keeps a `.typ` file, so another format has none to
+    -- read, whatever sits beside the document.
+    typ_path = is_typst and (output_is_typ and output_path or typ_path) or nil,
+    format = format,
     typ_preexisting = typ_preexisting,
     typ_label = output_is_typ and output_label or pandoc.path.filename(typ_path),
     output_is_typ = output_is_typ,
@@ -489,22 +493,18 @@ end
 
 --- The output name to use for a format that `quarto inspect` does not report.
 ---
---- When every reported format shares one stem, it is the document's
---- `output-file`, or its own stem. A name set inside one format block says
---- nothing about the others, so formats that disagree give the document stem.
---- @param output_files table
+--- Quarto writes such a format under the document's top-level `output-file`,
+--- or under the document's own stem. A name set inside one format block does
+--- not apply to the others.
+--- @param path string absolute path of the document
 --- @param stem string the file stem of the document
 --- @return string
-function M.fallback_output_file(output_files, stem)
-  local shared
-  for _, format in ipairs(util.sorted_keys(output_files)) do
-    local candidate = pandoc.path.split_extension(output_files[format])
-    if shared and candidate ~= shared then
-      return stem
-    end
-    shared = candidate
+function M.fallback_output_file(path, stem)
+  local declared = frontmatter.document_output_file(path)
+  if declared then
+    return (pandoc.path.split_extension(declared))
   end
-  return shared or stem
+  return stem
 end
 
 --- The `render/_config` case, when the tests project sets a key it may not,
@@ -554,12 +554,13 @@ function M.execute(options, documents, descriptors, layer, emit)
   for _, document in ipairs(documents) do
     local base_id = layer .. '/' .. document.relative:gsub('%.qmd$', '')
     local stem = pandoc.path.filename(document.relative):gsub('%.qmd$', '')
-    local function emit_document(status, stage_name, reason, message)
+    local function emit_document(status, stage_name, reason, message, warnings)
       emit({
         id = base_id,
         layer = layer,
         status = status,
         target = { document = document.relative },
+        diagnostics = { errors = {}, warnings = warnings or {} },
         failure = { stage = stage_name, reason = reason, message = message },
       })
     end
@@ -576,14 +577,15 @@ function M.execute(options, documents, descriptors, layer, emit)
         emit_document('fail', 'discover', 'front-matter-invalid', problem)
         goto continue
       end
+      local run_warnings = frontmatter.unknown_run_keys(spec.run)
       local reason = frontmatter.skip_reason(spec.run)
       if reason then
-        emit_document('skip', 'discover', 'skipped', reason)
+        emit_document('skip', 'discover', 'skipped', reason, run_warnings)
         goto continue
       end
       local settings, options_err = frontmatter.options(spec.run, descriptors, stem)
       if options_err then
-        emit_document('fail', 'inspect', 'options-invalid', options_err)
+        emit_document('fail', 'inspect', 'options-invalid', options_err, run_warnings)
         goto continue
       end
 
@@ -601,7 +603,7 @@ function M.execute(options, documents, descriptors, layer, emit)
       context.layer = layer
       context.output_files = info.output_files
       context.output_dir = info.output_dir
-      context.fallback_output_file = M.fallback_output_file(info.output_files, stem)
+      context.fallback_output_file = M.fallback_output_file(document.absolute, stem)
       for _, target in ipairs(targets) do
         if target.problem then
           emit({
@@ -613,7 +615,7 @@ function M.execute(options, documents, descriptors, layer, emit)
           })
         else
           local case = render_one(context, target)
-          for _, warning in ipairs(frontmatter.unknown_run_keys(spec.run)) do
+          for _, warning in ipairs(run_warnings) do
             table.insert(case.diagnostics.warnings, warning)
           end
           emit(case)

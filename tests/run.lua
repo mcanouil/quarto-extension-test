@@ -1298,6 +1298,10 @@ do
     and table.concat((unknown_run.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
     'an unknown key under run is named in the case warnings, as q2 ignores it',
     unknown_run and unknown_run.status)
+  local unknown_skipped = find_case(results, 'render/run-unknown-key-skipped')
+  check(unknown_skipped ~= nil and unknown_skipped.status == 'skip'
+    and table.concat((unknown_skipped.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
+    'a skipped document still names its unknown run keys', unknown_skipped and unknown_skipped.status)
   equal(reason('render/options-invalid'), 'fail options-invalid', 'an invalid timeout fails the document')
   equal(reason('render/no-format-keys/html'), 'pass nil', 'a document with no format keys renders every format')
   equal(reason('render/empty-format-value/html'), 'pass nil', 'an empty format value renders under the default rule')
@@ -1346,8 +1350,10 @@ do
   -- Quarto itself writes and removes `<stem>.typ` during a Typst render, so
   -- the file is created here, before the run, rather than committed.
   util.write_file(util.join(FIXTURES, 'assertions', '_t', 'handwritten.typ'), 'here\n')
+  util.write_file(util.join(FIXTURES, 'assertions', '_t', 'typst-under-html.typ'), 'here\n')
   local results = run_fixture('assertions', '--layer render')
   os.remove(util.join(FIXTURES, 'assertions', '_t', 'handwritten.typ'))
+  os.remove(util.join(FIXTURES, 'assertions', '_t', 'typst-under-html.typ'))
   for _, format in ipairs({ 'html', 'typst', 'docx' }) do
     local pass = find_case(results, 'render/assert-pass/' .. format)
     check(pass ~= nil and pass.status == 'pass',
@@ -1366,6 +1372,11 @@ do
     'no kept Typst file stays behind')
   check(not util.exists(util.join(FIXTURES, 'assertions', '_t', 'keep-typ-only.typ')),
     'a kept Typst file is removed even when no assertion reads it')
+  local under_html = find_case(results, 'render/typst-under-html/html')
+  check(under_html ~= nil and under_html.status == 'fail'
+    and under_html.assertions[1].message:find('typst', 1, true) ~= nil,
+    'a Typst assertion under another format fails rather than reading a .typ file it did not make',
+    under_html and (under_html.status .. ' ' .. tostring(under_html.failure and under_html.failure.message)))
   local html_fail = find_case(results, 'render/assert-fail/html')
   check(html_fail ~= nil and html_fail.failure.message:find('2 of 2 assertions failed', 1, true) ~= nil,
     'every assertion is evaluated, and the message gives the count',
@@ -1391,14 +1402,22 @@ end
 
 do
   -- A format that `quarto inspect` does not report is written under the
-  -- document's `output-file` only when every reported format agrees on it.
-  -- A name set inside one format block says nothing about the others.
+  -- document's top-level `output-file`, never under a name set inside one
+  -- format block. `quarto inspect` reports both the same way, so the
+  -- document's own front matter is read.
   local render = require('render')
-  equal(render.fallback_output_file({ html = 'elsewhere.html', typst = 'elsewhere.pdf' }, 'doc'), 'elsewhere',
-    'a stem that every reported format shares is the fallback')
-  equal(render.fallback_output_file({ html = 'custom.html', typst = 'doc.pdf' }, 'doc'), 'doc',
-    'formats that disagree fall back to the document stem')
-  equal(render.fallback_output_file({}, 'doc'), 'doc', 'no reported format falls back to the document stem')
+  local scratch = util.join(here, 'tests/_results/output-file')
+  util.write_file(util.join(scratch, 'top.qmd'), '---\ntitle: T\noutput-file: elsewhere\nformat: html\n---\n\nBody.\n')
+  util.write_file(util.join(scratch, 'block.qmd'),
+    '---\ntitle: B\nformat:\n  html:\n    output-file: custom.html\n---\n\nBody.\n')
+  util.write_file(util.join(scratch, 'plain.qmd'), '---\ntitle: P\n---\n\nBody.\n')
+  equal(render.fallback_output_file(util.join(scratch, 'top.qmd'), 'top'), 'elsewhere',
+    'a top-level output-file names an unreported format')
+  equal(render.fallback_output_file(util.join(scratch, 'block.qmd'), 'block'), 'block',
+    'an output-file inside one format block does not name the others')
+  equal(render.fallback_output_file(util.join(scratch, 'plain.qmd'), 'plain'), 'plain',
+    'with no output-file, the document stem names an unreported format')
+  util.remove_tree(scratch)
 
   -- A project inspect that fails cannot check the project keys, and says so.
   local config_case = render.project_check(util.join(here, 'tests/_results/no-such-project'))

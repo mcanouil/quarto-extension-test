@@ -1,0 +1,12 @@
+---
+title: Unknown run key on a skipped document
+format: html
+_quarto:
+  tests:
+    run:
+      skip: "on purpose"
+      not-os: [linux]
+    html:
+---
+
+{{< present >}}

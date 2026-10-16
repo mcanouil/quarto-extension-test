@@ -164,6 +164,9 @@ end
 
 local function typst_regex(value, ctx)
   local kind = 'ensureTypstFileRegexMatches'
+  if not ctx.typ_path then
+    return fail_entry(kind, string.format('needs a `typst` format, not `%s`', tostring(ctx.format)))
+  end
   if ctx.typ_preexisting then
     return fail_entry(kind, string.format(
       '%s already existed before the render, so it cannot show what the render kept; move it, and set keep-typ: true',
