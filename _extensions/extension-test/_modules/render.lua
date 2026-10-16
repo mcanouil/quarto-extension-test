@@ -227,7 +227,7 @@ end
 --- @param context table {tests, log_dir, settings, document, layer, output_files, output_dir, fallback_output_file}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case
-local function render_one(context, target)
+local function render_and_grade(context, target, typ)
   local document = context.document
   local settings = context.settings
   local layer = context.layer or 'render'
@@ -249,10 +249,14 @@ local function render_one(context, target)
     os.remove(path)
   end
   local output_is_typ = type(output_file) == 'string' and output_file:match('%.typ$') ~= nil
+  -- A `.typ` file that is already there is not the render's to remove: it
+  -- may be hand-written. Only one the render kept is removed, after grading.
   local typ_path = M.kept_typ_path(document)
+  local typ_preexisting = false
   for _, item in ipairs(target.assertions) do
     if item.key == 'ensureTypstFileRegexMatches' and not output_is_typ then
-      os.remove(typ_path)
+      typ_preexisting = util.exists(typ_path)
+      typ.path, typ.remove = typ_path, not typ_preexisting
       break
     end
   end
@@ -287,6 +291,18 @@ local function render_one(context, target)
     case.assertions = entries
     for _, note in ipairs(notes) do
       warnings[#warnings + 1] = note
+    end
+    -- The summary and the TAP read the case warnings, so an assertion that
+    -- did not run, or that q2 rejects, is named there too.
+    for _, entry in ipairs(entries) do
+      if entry.status == 'skip' then
+        warnings[#warnings + 1] = string.format('%s did not run: %s', entry.id, tostring(entry.message))
+      end
+      for _, warning in ipairs(entry.warnings or {}) do
+        if not util.contains(warnings, warning) then
+          warnings[#warnings + 1] = warning
+        end
+      end
     end
     local message = assertions.failure(entries)
     if message then
@@ -345,10 +361,25 @@ local function render_one(context, target)
     output_dir = pandoc.path.directory(output_path),
     support_dir = pandoc.path.split_extension(output_path) .. '_files',
     typ_path = output_is_typ and output_path or typ_path,
+    typ_preexisting = typ_preexisting,
     typ_label = output_is_typ and output_label or pandoc.path.filename(typ_path),
     output_is_typ = output_is_typ,
   }
   return grade_assertions(ctx, false)
+end
+
+--- Render one document to one format, judge it, and remove the `.typ` file
+--- the render kept for an assertion, whatever the outcome.
+--- @param context table
+--- @param target table
+--- @return table case
+local function render_one(context, target)
+  local typ = {}
+  local case = render_and_grade(context, target, typ)
+  if typ.remove then
+    os.remove(typ.path)
+  end
+  return case
 end
 
 --- Grade a render whose output could not be found.

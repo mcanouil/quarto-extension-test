@@ -43,7 +43,7 @@ _quarto:
 | `noErrorsOrWarnings` | The case fails on a log line at `ERROR` or `WARN`. This is the default. |
 | `shouldError` | The case passes when the render exits with an error code, or when the log has a line at `ERROR`. |
 | `ensureFileRegexMatches` | Matches the output file against `[[patterns that must match], [patterns that must not match]]`. |
-| `ensureTypstFileRegexMatches` | Matches the kept `.typ` file in the same way. Set `keep-typ: true` on the `typst` format. |
+| `ensureTypstFileRegexMatches` | Matches the kept `.typ` file in the same way. Set `keep-typ: true` on the `typst` format. A `.typ` file that is already beside the document before the render fails the assertion. |
 | `ensureDocxRegexMatches` | Matches `word/document.xml` of a DOCX output in the same way. q2 does not know this key. |
 | `printsMessage` | Looks for a log line: `{level, regex, negate}`, or a list of these. |
 | `fileExists` | Looks for `outputPath` beside the output, and for `supportPath` in `<output name>_files`. |
@@ -53,6 +53,7 @@ _quarto:
 A key applies when it is present, whatever its value.
 A format with more than one of `noErrors`, `noErrorsOrWarnings`, and `shouldError` fails with `policy-conflict`.
 A key that q2 or quarto-cli knows and the runner does not execute gives a `skip` entry, for example `ensureHtmlElements`.
+The case warnings name every assertion that did not run, and every key that q2 rejects.
 Any other key fails the format with `unknown-assertion`.
 
 A `printsMessage` entry at `WARN` needs `noErrors`, as in q2.
@@ -215,7 +216,7 @@ Two runs can be compared case by case.
 | `status` | `fail` when any case failed, `pass` when any passed, and `skip` when every case was skipped. |
 | `summary` | Counts of all cases, by status. |
 | `layers` | The same counts and status for each layer. |
-| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions` with one entry for each check (`id`, `kind`, `expected`, `status`, `message`), and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
+| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions` with one entry for each check (`id`, `kind`, `expected`, `status`, `message`, `warnings`), and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
 
 : Top-level fields of `results.json`. {.striped .hover tbl-colwidths="[20,80]"}
 

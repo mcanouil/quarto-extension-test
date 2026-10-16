@@ -204,7 +204,10 @@ function M.skip_reason(run, probe)
   end
   for _, engine in ipairs(as_list(run.requires)) do
     local command = ENGINE_COMMANDS[engine]
-    if not command or not probe.has_command(command) then
+    if not command then
+      return string.format('tests.run.requires names `%s`, an engine this runner does not know', tostring(engine))
+    end
+    if not probe.has_command(command) then
       return string.format('tests.run.requires names `%s`, whose runtime is not available', tostring(engine))
     end
   end

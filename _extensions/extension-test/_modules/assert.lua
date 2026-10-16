@@ -159,12 +159,14 @@ end
 
 local function typst_regex(value, ctx)
   local kind = 'ensureTypstFileRegexMatches'
+  if ctx.typ_preexisting then
+    return fail_entry(kind, string.format(
+      '%s already existed before the render, so it cannot show what the render kept; move it, and set keep-typ: true',
+      tostring(ctx.typ_label)))
+  end
   local text = util.read_file(ctx.typ_path)
   if not text then
     return fail_entry(kind, 'set keep-typ: true')
-  end
-  if not ctx.output_is_typ then
-    os.remove(ctx.typ_path)
   end
   return M.pattern_pair(kind, value, text, true, ctx.typ_label)
 end

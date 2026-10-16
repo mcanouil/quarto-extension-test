@@ -451,6 +451,9 @@ do
   check(frontmatter.skip_reason({ requires_js = true }, probe) ~= nil, '`requires_js` skips the document')
   equal(frontmatter.skip_reason({ requires = { 'knitr' } }, probe), nil, 'an available engine does not skip')
   check(frontmatter.skip_reason({ requires = 'jupyter' }, probe) ~= nil, 'a missing engine skips')
+  local unknown_engine = frontmatter.skip_reason({ requires = 'julia' }, probe)
+  check(unknown_engine ~= nil and unknown_engine:find('does not know', 1, true) ~= nil,
+    'an engine the runner does not know is named as such, not as a missing runtime', unknown_engine)
   equal(frontmatter.skip_reason({}, probe), nil, 'an empty `run` does not skip')
 
   local message = frontmatter.project_problem({
@@ -542,7 +545,14 @@ do
     { key = 'ensureTypstFileRegexMatches', class = 'executed', value = { { '^here$' }, { 'Backup' } } },
   }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ', output_is_typ = false }, false)
   check(typst[1].status == 'pass' and typst[2].status == 'pass', 'the kept Typst file is read')
-  check(not util.exists(util.join(scratch, 'doc.typ')), 'the kept Typst file is removed after the read')
+  check(util.exists(util.join(scratch, 'doc.typ')),
+    'the assertion leaves the kept Typst file in place; the render layer removes it')
+  local preexisting = assertions.evaluate({
+    { key = 'ensureTypstFileRegexMatches', class = 'executed', value = { { 'here' } } },
+  }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ', typ_preexisting = true }, false)
+  check(preexisting[1].status == 'fail' and preexisting[1].message:find('already existed', 1, true) ~= nil,
+    'a Typst file that existed before the render is not read')
+  os.remove(util.join(scratch, 'doc.typ'))
   local no_typ = assertions.evaluate({
     { key = 'ensureTypstFileRegexMatches', class = 'executed', value = { { 'here' } } },
   }, { lines = {}, typ_path = util.join(scratch, 'doc.typ'), typ_label = 'doc.typ' }, false)
@@ -1264,6 +1274,9 @@ do
   local known = find_case(results, 'render/known-not-executed/html')
   check(known ~= nil and known.status == 'pass' and known.assertions[1].status == 'skip',
     'a known key the runner does not execute is a skip entry, and the case passes')
+  check(known ~= nil and table.concat((known.diagnostics or {}).warnings or {}, '|')
+    :find('ensureHtmlElements', 1, true) ~= nil,
+    'an assertion that did not run is named in the case warnings')
   local rejected = find_case(results, 'render/q2-rejected-key/html')
   check(rejected ~= nil and rejected.assertions[1].warnings ~= nil,
     'a key q2 rejects carries a warning')
@@ -1302,7 +1315,12 @@ do
 end
 
 do
+  -- A `.typ` file already beside a document is not what the render kept.
+  -- Quarto itself writes and removes `<stem>.typ` during a Typst render, so
+  -- the file is created here, before the run, rather than committed.
+  util.write_file(util.join(FIXTURES, 'assertions', '_t', 'handwritten.typ'), 'here\n')
   local results = run_fixture('assertions', '--layer render')
+  os.remove(util.join(FIXTURES, 'assertions', '_t', 'handwritten.typ'))
   for _, format in ipairs({ 'html', 'typst', 'docx' }) do
     local pass = find_case(results, 'render/assert-pass/' .. format)
     check(pass ~= nil and pass.status == 'pass',
@@ -1327,6 +1345,15 @@ do
   check(printed ~= nil and printed.status == 'pass' and #printed.assertions == 2,
     'printsMessage finds an INFO line and the absence of an ERROR line',
     printed and (printed.status .. ' ' .. tostring(printed.failure and printed.failure.message)))
+  local handwritten = find_case(results, 'render/handwritten/typst')
+  check(handwritten ~= nil and handwritten.status == 'fail'
+    and handwritten.assertions[1].message:find('already existed', 1, true) ~= nil,
+    'a .typ file that existed before the render is not read as the kept file',
+    handwritten and (handwritten.status .. ' ' .. tostring(handwritten.failure and handwritten.failure.message)))
+  local known_case = find_case(results, 'render/assert-pass/docx')
+  check(known_case ~= nil and table.concat((known_case.diagnostics or {}).warnings or {}, '|')
+    :find('q2 call test fails a document with ensureDocxRegexMatches', 1, true) ~= nil,
+    'the q2 warning of an assertion entry reaches the case diagnostics')
   local files = find_case(results, 'render/file-exists/html')
   check(files ~= nil and files.status == 'pass',
     'fileExists finds the output and its support directory',
