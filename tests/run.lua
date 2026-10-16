@@ -571,6 +571,21 @@ do
       'an invalid count is assertion-invalid: ' .. tostring(bad.count) .. (bad.negate and ' with negate' or ''),
       entry.message)
   end
+  local expected = {
+    { key = 'printsMessage', class = 'executed', value = {
+      { level = 'warning', regex = '^veil: undeclared group' },
+      { level = 'WARN', regex = 'deprecated', negate = true },
+      { level = 'ERROR', regex = 'boom' },
+    } },
+    { key = 'ensureFileRegexMatches', class = 'executed', value = { { 'x' } } },
+  }
+  local unexpected = assertions.unexpected_warnings(expected, {
+    'veil: undeclared group x', 'option deprecated', 'boom', 'something else',
+  })
+  equal(table.concat(unexpected, '|'), 'option deprecated|boom|something else',
+    'only warnings matched by an expected, non-negated WARN pattern are expected')
+  equal(#assertions.unexpected_warnings({}, { 'any' }), 1, 'with no expected pattern, every warning is unexpected')
+  equal(#assertions.unexpected_warnings(expected, {}), 0, 'no warning gives nothing unexpected')
 
   local skipped, notes = assertions.evaluate({
     { key = 'ensureFileRegexMatches', class = 'executed', value = { { 'x' } } },

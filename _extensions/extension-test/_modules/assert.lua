@@ -360,4 +360,44 @@ function M.failure(entries)
     first.id, expected, first.message or 'failed', failed, #entries)
 end
 
+--- The logged warnings that no expected `printsMessage` entry matches.
+---
+--- Under `warnings: exhaustive`, each warning must be expected. An entry
+--- expects a warning when its level is WARN and it is not negated. A regex
+--- the translator refuses expects nothing, so the warning stays unexpected.
+--- @param assertions table[] the assertions of one format entry
+--- @param warnings string[] messages of the log lines at WARN
+--- @return string[] the unexpected messages, in log order
+function M.unexpected_warnings(assertions, warnings)
+  local patterns = {}
+  for _, item in ipairs(assertions) do
+    if item.key == 'printsMessage' and type(item.value) == 'table' then
+      local list = item.value.level ~= nil and { item.value } or item.value
+      for _, entry in ipairs(list) do
+        if type(entry) == 'table' and log.normalise_level(entry.level) == 'WARN'
+          and entry.negate ~= true and type(entry.regex) == 'string' then
+          local branches = schema._compile_pattern(entry.regex)
+          if branches then
+            patterns[#patterns + 1] = branches
+          end
+        end
+      end
+    end
+  end
+  local unexpected = {}
+  for _, message in ipairs(warnings) do
+    local matched = false
+    for _, branches in ipairs(patterns) do
+      if M.matches(message, branches, false) then
+        matched = true
+        break
+      end
+    end
+    if not matched then
+      unexpected[#unexpected + 1] = message
+    end
+  end
+  return unexpected
+end
+
 return M
