@@ -75,7 +75,7 @@ end
 --- runner knows nothing about.
 --- @param root string
 --- @param tests string
---- @return table[] documents {relative, absolute, origin}
+--- @return table[] documents {relative, absolute, origin, default_policy, ignores_exhaustive}
 function M.discover(root, tests)
   local documents = {}
   for _, relative in ipairs(collect(tests)) do
@@ -93,8 +93,12 @@ function M.discover(root, tests)
     local absolute = util.join(root, name)
     if util.exists(absolute) then
       -- The demo documents the extension rather than testing it, so, as for
-      -- a generated document, warnings are allowed.
-      return { { relative = name, absolute = absolute, origin = 'demo', default_policy = 'noErrors' } }
+      -- a generated document, warnings are allowed and `exhaustive` does not
+      -- apply.
+      return { {
+        relative = name, absolute = absolute, origin = 'demo',
+        default_policy = 'noErrors', ignores_exhaustive = true,
+      } }
     end
   end
   return {}

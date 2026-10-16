@@ -1580,6 +1580,9 @@ do
     and #((demo_case.diagnostics or {}).warnings or {}) > 0,
     'a demo document that logs a warning passes, and the warning is recorded',
     demo_case and (demo_case.status .. ' ' .. tostring(demo_case.failure and demo_case.failure.reason)))
+  local demo_exhaustive = run_fixture('demo-exhaustive', '--layer render')
+  equal(outcome(demo_exhaustive, 'render/example/html'), 'pass nil',
+    'a demo document ignores warnings: exhaustive')
 
   -- Generated documents carry no policy, and the generator makes inputs a
   -- careful extension warns about, so the smoke layer renders under
