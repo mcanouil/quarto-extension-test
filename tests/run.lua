@@ -604,6 +604,17 @@ do
     and unusable[2]:find('invalid', 1, true) ~= nil,
     'a refused pattern and an invalid entry are named as expecting nothing',
     table.concat(unusable or {}, ' | '))
+  for _, value in ipairs({
+    { regex = 'warns' },
+    { level = 'WARN', regex = 'warns', count = 0 },
+  }) do
+    local missed, notes = assertions.unexpected_warnings(
+      { { key = 'printsMessage', class = 'executed', value = value } }, { 'warns' })
+    check(#missed == 1 and #notes == 1 and notes[1]:find('invalid', 1, true) ~= nil,
+      'an entry that printsMessage rejects expects nothing, and is named: '
+        .. (value.level and 'count 0' or 'a mapping without level'),
+      table.concat(notes, ' | '))
+  end
 
   local skipped, notes = assertions.evaluate({
     { key = 'ensureFileRegexMatches', class = 'executed', value = { { 'x' } } },
