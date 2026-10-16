@@ -246,7 +246,7 @@ local function prints_message(value, ctx)
           else
             entry.status = 'fail'
             entry.message = string.format('expected %d %s line(s) matching %s, found %d',
-              math.floor(count), level, item.regex, found)
+              count, level, item.regex, found)
           end
         elseif (item.negate and found == 0) or (not item.negate and found > 0) then
           entry.status = 'pass'
@@ -365,6 +365,8 @@ end
 --- Under `warnings: exhaustive`, each warning must be expected. An entry
 --- expects a warning when its level is WARN and it is not negated. A regex
 --- the translator refuses expects nothing, so the warning stays unexpected.
+--- An entry that `prints_message` finds invalid still expects its warning,
+--- so the case reports `assertion-invalid` and not `unexpected-warning`.
 --- @param assertions table[] the assertions of one format entry
 --- @param warnings string[] messages of the log lines at WARN
 --- @return string[] the unexpected messages, in log order

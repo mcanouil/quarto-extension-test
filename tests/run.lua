@@ -213,6 +213,12 @@ local function find_case(results, suffix)
   return nil
 end
 
+--- The status and the failure reason of a case, or `missing`.
+local function outcome(results, suffix)
+  local case = find_case(results, suffix)
+  return case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)) or 'missing'
+end
+
 io.stdout:write('# values\n')
 
 do
@@ -1341,12 +1347,8 @@ end
 
 do
   local results = run_fixture('vocabulary', '--layer render')
-  local function reason(suffix)
-    local case = find_case(results, suffix)
-    return case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)) or 'missing'
-  end
-  equal(reason('render/unknown-assertion/html'), 'fail unknown-assertion', 'an unknown key fails its format')
-  equal(reason('render/policy-conflict/html'), 'fail policy-conflict', 'two policy keys fail their format')
+  equal(outcome(results, 'render/unknown-assertion/html'), 'fail unknown-assertion', 'an unknown key fails its format')
+  equal(outcome(results, 'render/policy-conflict/html'), 'fail policy-conflict', 'two policy keys fail their format')
   local known = find_case(results, 'render/known-not-executed/html')
   check(known ~= nil and known.status == 'pass' and known.assertions[1].status == 'skip',
     'a known key the runner does not execute is a skip entry, and the case passes')
@@ -1356,7 +1358,7 @@ do
   local rejected = find_case(results, 'render/q2-rejected-key/html')
   check(rejected ~= nil and rejected.assertions[1].warnings ~= nil,
     'a key q2 rejects carries a warning')
-  equal(reason('render/run-skip-os'), 'skip skipped', '`not_os` skips the document')
+  equal(outcome(results, 'render/run-skip-os'), 'skip skipped', '`not_os` skips the document')
   local unknown_run = find_case(results, 'render/run-unknown-key/html')
   check(unknown_run ~= nil and unknown_run.status == 'pass'
     and table.concat((unknown_run.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
@@ -1370,12 +1372,12 @@ do
   check(unknown_skipped ~= nil and unknown_skipped.status == 'skip'
     and table.concat((unknown_skipped.diagnostics or {}).warnings or {}, '|'):find('not-os', 1, true) ~= nil,
     'a skipped document still names its unknown run keys', unknown_skipped and unknown_skipped.status)
-  equal(reason('render/options-invalid'), 'fail options-invalid', 'an invalid timeout fails the document')
-  equal(reason('render/no-format-keys/html'), 'pass nil', 'a document with no format keys renders every format')
-  equal(reason('render/empty-format-value/html'), 'pass nil', 'an empty format value renders under the default rule')
-  equal(reason('render/format-not-in-front-matter/docx'), 'pass nil',
+  equal(outcome(results, 'render/options-invalid'), 'fail options-invalid', 'an invalid timeout fails the document')
+  equal(outcome(results, 'render/no-format-keys/html'), 'pass nil', 'a document with no format keys renders every format')
+  equal(outcome(results, 'render/empty-format-value/html'), 'pass nil', 'an empty format value renders under the default rule')
+  equal(outcome(results, 'render/format-not-in-front-matter/docx'), 'pass nil',
     'a format key that the format key does not name renders with --to, and its output is found')
-  equal(reason('render/prints-warn-without-noerrors/html'), 'fail shortcode-not-found',
+  equal(outcome(results, 'render/prints-warn-without-noerrors/html'), 'fail shortcode-not-found',
     'an expected warning without noErrors still fails, here on the promoted warning first')
   check(duplicate_id(results) == nil, 'no two cases of the vocabulary fixture share an id')
 
@@ -1522,29 +1524,24 @@ do
   check(allowed ~= nil and allowed.status == 'pass' and allowed.assertions[1].status == 'pass',
     'noErrors allows the warning, and printsMessage finds it',
     allowed and (allowed.status .. ' ' .. tostring(allowed.failure and allowed.failure.message)))
-  local function outcome(suffix)
-    local case = find_case(results, suffix)
-    return case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)) or 'missing'
-  end
-  equal(outcome('render/count-matched/html'), 'pass nil', 'count 1 matches the one warning')
-  equal(outcome('render/count-mismatch/html'), 'fail assertion-failed', 'count 2 fails on one warning')
-  equal(outcome('render/missing-warning/html'), 'fail assertion-failed', 'an expected warning that is absent fails')
-  equal(outcome('render/exhaustive-ok/html'), 'pass nil', 'exhaustive passes when every warning is expected')
-  equal(outcome('render/exhaustive-unexpected/html'), 'fail unexpected-warning',
+  equal(outcome(results, 'render/count-matched/html'), 'pass nil', 'count 1 matches the one warning')
+  equal(outcome(results, 'render/count-mismatch/html'), 'fail assertion-failed', 'count 2 fails on one warning')
+  equal(outcome(results, 'render/missing-warning/html'), 'fail assertion-failed', 'an expected warning that is absent fails')
+  equal(outcome(results, 'render/exhaustive-unexpected/html'), 'fail unexpected-warning',
     'exhaustive fails on a warning no entry expects')
   local stray = find_case(results, 'render/exhaustive-unexpected/html')
   check(stray ~= nil and stray.failure ~= nil and stray.failure.stage == 'log'
     and stray.failure.message == 'warns: on purpose',
     'the unexpected warning is the message of the failure', stray and stray.failure and stray.failure.message)
-  equal(outcome('render/exhaustive-without-noerrors'), 'fail options-invalid',
+  equal(outcome(results, 'render/exhaustive-without-noerrors'), 'fail options-invalid',
     'exhaustive without a noErrors format is invalid')
   local invalid = find_case(results, 'render/exhaustive-without-noerrors')
   check(invalid ~= nil and invalid.failure ~= nil and invalid.failure.message:find('noErrors', 1, true) ~= nil,
     'the options-invalid message names noErrors', invalid and invalid.failure and invalid.failure.message)
-  equal(outcome('render/exhaustive-mixed/html'), 'pass nil', 'exhaustive holds the expected warning on html')
-  equal(outcome('render/exhaustive-mixed/gfm'), 'fail unexpected-warning',
+  equal(outcome(results, 'render/exhaustive-mixed/html'), 'pass nil', 'exhaustive holds the expected warning on html')
+  equal(outcome(results, 'render/exhaustive-mixed/gfm'), 'fail unexpected-warning',
     'exhaustive applies to every noErrors format of the document')
-  equal(outcome('render/exhaustive-mixed/commonmark'), 'fail warning-logged',
+  equal(outcome(results, 'render/exhaustive-mixed/commonmark'), 'fail warning-logged',
     'a format under the default rule ignores exhaustive')
 
   -- The demo document is documentation, not a test, so it allows warnings
@@ -1568,11 +1565,11 @@ do
 
   -- A project default of `warnings: exhaustive` holds the authored
   -- documents, and the generated documents keep the smoke rule.
-  local exhaustive = run_fixture('exhaustive-default')
-  local stray = find_case(exhaustive, 'render/stray/html')
-  check(stray ~= nil and stray.status == 'fail' and stray.failure.reason == 'unexpected-warning',
+  local exhaustive = run_fixture('exhaustive-default', '--layer render --layer smoke')
+  local authored = find_case(exhaustive, 'render/stray/html')
+  check(authored ~= nil and authored.status == 'fail' and authored.failure.reason == 'unexpected-warning',
     'a project default of exhaustive applies to an authored document',
-    stray and (stray.status .. ' ' .. tostring(stray.failure and stray.failure.reason)))
+    authored and (authored.status .. ' ' .. tostring(authored.failure and authored.failure.reason)))
   local smoke_exhaustive = find_case(exhaustive, 'smoke/generated/')
   check(smoke_exhaustive ~= nil and smoke_exhaustive.status == 'pass',
     'a project default of exhaustive does not apply to a generated document',

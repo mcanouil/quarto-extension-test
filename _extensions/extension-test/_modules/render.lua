@@ -611,14 +611,13 @@ function M.execute(options, documents, descriptors, layer, emit)
         emit_document('fail', 'inspect', 'options-invalid', options_err, run_warnings)
         goto continue
       end
-      -- A generated document cannot set `noErrors` or expect a warning, so
-      -- it keeps the smoke rule under a project default of `exhaustive`.
-      local exhaustive = settings.warnings == 'exhaustive' and document.origin ~= 'generated'
+      local exhaustive = settings.warnings == 'exhaustive' and not document.ignores_exhaustive
       if exhaustive then
         local has_no_errors = false
         for _, entry in ipairs(spec.formats) do
           if entry.policy == 'noErrors' then
             has_no_errors = true
+            break
           end
         end
         if not has_no_errors then

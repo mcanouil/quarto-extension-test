@@ -320,6 +320,9 @@ local function run_smoke(options, extensions, descriptors, emit)
         -- inputs that a careful extension warns about, so warnings are
         -- allowed. The promoted warnings still apply.
         default_policy = 'noErrors',
+        -- It cannot expect a warning either, so a project default of
+        -- `warnings: exhaustive` does not apply.
+        ignores_exhaustive = true,
       }
     end
     render.execute(options, documents, descriptors, 'smoke', emit)
