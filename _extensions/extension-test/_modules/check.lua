@@ -1,0 +1,159 @@
+--- Extension Test - The check hook.
+---
+--- A `check` command is repository code and has the same trust as the Lua
+--- filters of the extension. The runner reads TAP from its standard output
+--- only, so a `not ok` line on standard error is never a test result.
+
+local util = require('util')
+
+local M = {}
+
+--- The directive of a TAP line: a `#` followed by `skip` or `todo` in any case.
+--- @param text string the line after its number and dash
+--- @return string description, string|nil directive, string reason
+local function split_directive(text)
+  local from = 1
+  while true do
+    local at = text:find('#', from, true)
+    if not at then
+      return util.trim(text), nil, ''
+    end
+    local word, rest = text:sub(at + 1):match('^%s*(%a+)(.*)$')
+    local name = word and word:upper()
+    if (name == 'SKIP' or name == 'TODO') and (rest == '' or rest:match('^%s')) then
+      return util.trim(text:sub(1, at - 1)), name, util.trim(rest)
+    end
+    from = at + 1
+  end
+end
+
+--- Read one top-level TAP line.
+--- @param line string
+--- @return table|nil record {ok, description, directive, reason}
+local function parse_line(line)
+  local ok, rest = true, line:match('^ok$') and '' or line:match('^ok (.*)$')
+  if not rest then
+    ok, rest = false, line:match('^not ok$') and '' or line:match('^not ok (.*)$')
+  end
+  if not rest then
+    return nil
+  end
+  rest = rest:gsub('^%s*%d+', ''):gsub('^%s*%-', '')
+  local description, directive, reason = split_directive(rest)
+  return { ok = ok, description = description, directive = directive, reason = reason }
+end
+
+--- The top-level TAP lines of a text, in order.
+---
+--- Plan lines, comments, indented subtest lines, and other text are not TAP
+--- lines, and neither is a line such as `okay` that only starts with `ok`.
+--- @param text string
+--- @return table[] records {ok, description, directive, reason}
+function M.parse_tap(text)
+  local records = {}
+  for _, line in ipairs(util.lines(text)) do
+    local record = parse_line(line)
+    if record then
+      records[#records + 1] = record
+    end
+  end
+  return records
+end
+
+--- The entry that one TAP line gives.
+--- @param record table
+--- @param position integer
+--- @return table entry
+local function tap_entry(record, position)
+  local entry = { id = 'check/' .. position, kind = 'check' }
+  if record.description ~= '' then
+    entry.expected = record.description
+  end
+  if record.directive == 'SKIP' then
+    entry.status, entry.message = 'skip', util.trim('SKIP ' .. record.reason)
+  elseif not record.ok and record.directive == 'TODO' then
+    entry.status, entry.message = 'skip', util.trim('TODO ' .. record.reason)
+  elseif record.ok then
+    entry.status = 'pass'
+  else
+    entry.status, entry.message = 'fail', 'not ok'
+  end
+  return entry
+end
+
+--- The last non-empty line of a text, or nil.
+--- @param text string
+--- @return string|nil
+local function last_line(text)
+  local lines = util.lines(text)
+  for index = #lines, 1, -1 do
+    local line = util.trim(lines[index])
+    if line ~= '' then
+      return line
+    end
+  end
+  return nil
+end
+
+--- Grade a finished check command.
+--- @param code integer exit code of the command
+--- @param stdout string
+--- @param stderr string
+--- @param limited boolean true when a time limit was applied
+--- @param timeout number the time limit in seconds
+--- @return table result {status, entries, message}
+function M.grade(code, stdout, stderr, limited, timeout)
+  if limited and code == 124 then
+    local message = 'the check exceeded ' .. timeout .. ' seconds'
+    return {
+      status = 'timeout',
+      message = message,
+      entries = { { id = 'check', kind = 'check', expected = 'exit 0', status = 'fail', message = message } },
+    }
+  end
+  if code == 77 then
+    return {
+      status = 'skip',
+      entries = {
+        {
+          id = 'check',
+          kind = 'check',
+          expected = 'exit 0',
+          status = 'skip',
+          message = 'exit 77: the check does not apply to this case',
+        },
+      },
+    }
+  end
+
+  local entries, failed_message = {}, nil
+  for position, record in ipairs(M.parse_tap(stdout)) do
+    local entry = tap_entry(record, position)
+    entries[#entries + 1] = entry
+    if entry.status == 'fail' and not failed_message then
+      failed_message = record.description ~= '' and record.description or ('not ok on TAP line ' .. position)
+    end
+  end
+  if #entries == 0 then
+    local entry = { id = 'check', kind = 'check', expected = 'exit 0', status = 'pass' }
+    if code ~= 0 then
+      entry.status, entry.message = 'fail', 'exit ' .. code
+    end
+    entries[1] = entry
+  end
+
+  local failed = code ~= 0
+  for _, entry in ipairs(entries) do
+    failed = failed or entry.status == 'fail'
+  end
+  if not failed then
+    return { status = 'pass', entries = entries }
+  end
+  return {
+    status = 'fail',
+    entries = entries,
+    message = failed_message or last_line(stderr) or ('the check exited ' .. code),
+  }
+end
+
+return M

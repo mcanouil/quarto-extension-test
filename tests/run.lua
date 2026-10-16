@@ -688,6 +688,78 @@ do
   util.remove_tree(scratch)
 end
 
+io.stdout:write('# check\n')
+
+do
+  local check_hook = require('check')
+  local tap = check_hook.parse_tap(table.concat({
+    'TAP version 13', '1..5',
+    'ok 1 - renders',
+    'not ok 2 - slide count',
+    'ok 3 - title # SKIP no title here',
+    'not ok 4 - toast # todo later',
+    'ok',
+    '    not ok 1 - a subtest line',
+    'okay, not TAP',
+    '# a comment',
+  }, '\n'))
+  equal(#tap, 5, 'only top-level ok and not ok lines are TAP lines')
+  equal(tap[1].description, 'renders', 'the description drops the number and the dash')
+  equal(tap[2].ok, false, 'not ok is a failed line')
+  equal(tap[3].directive, 'SKIP', 'a SKIP directive is read')
+  equal(tap[3].description, 'title', 'the directive is not part of the description')
+  equal(tap[3].reason, 'no title here', 'the reason follows the directive')
+  equal(tap[4].directive, 'TODO', 'a directive is read in any case')
+  equal(tap[5].ok and tap[5].description, '', 'a bare ok has an empty description')
+
+  local function grade(code, stdout, stderr, limited)
+    return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30)
+  end
+  local function summary(result)
+    local parts = {}
+    for _, entry in ipairs(result.entries) do
+      parts[#parts + 1] = entry.id .. ' ' .. entry.status
+    end
+    return table.concat(parts, '|')
+  end
+
+  local passing = grade(0, 'ok 1 - renders\nok 2 - title # SKIP no title\nnot ok 3 - toast # TODO later\n')
+  equal(passing.status, 'pass', 'TAP with only ok, SKIP, and TODO lines passes')
+  equal(summary(passing), 'check/1 pass|check/2 skip|check/3 skip', 'each TAP line is a check entry')
+  equal(passing.entries[1].kind .. ' ' .. passing.entries[1].expected, 'check renders',
+    'a TAP entry has kind check and the description as expected')
+  equal(passing.entries[3].message, 'TODO later', 'a not ok TODO line is a skip that gives its reason')
+
+  local not_ok = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nnot ok 3 - toast\n')
+  check(not_ok.status == 'fail' and not_ok.message == 'slide count',
+    'a not ok line fails the check with exit 0, and the first one is the message', not_ok.message)
+  equal(grade(0, 'not ok 7\n').message, 'not ok on TAP line 1', 'a not ok line with no description is named by position')
+
+  local exit_fail = grade(3, '', 'first\nbrowser missing\n\n')
+  check(exit_fail.status == 'fail' and exit_fail.message == 'browser missing',
+    'a failing exit gives the last line of standard error', exit_fail.message)
+  equal(summary(exit_fail) .. ' ' .. tostring(exit_fail.entries[1].message), 'check fail exit 3',
+    'with no TAP line, one check entry records the exit code')
+  equal(grade(1, '', '').message, 'the check exited 1', 'a silent failure names the exit code')
+  local tap_then_exit = grade(2, 'ok 1 - fine\n', 'crashed after\n')
+  check(tap_then_exit.status == 'fail' and tap_then_exit.message == 'crashed after' and #tap_then_exit.entries == 1,
+    'a failing exit fails the check even when every TAP line passed', tap_then_exit.message)
+
+  local plain = grade(0, 'Running 3 tests\n3 passed\n', '')
+  equal(plain.status .. ' ' .. summary(plain), 'pass check pass', 'output that is not TAP gives one check entry')
+  local on_stderr = grade(0, '', 'not ok 1 - on stderr\n')
+  equal(on_stderr.status .. ' ' .. summary(on_stderr), 'pass check pass', 'a not ok line on standard error is not TAP')
+
+  local skipped = grade(77, 'not ok 1 - ignored\n', '')
+  equal(skipped.status .. ' ' .. summary(skipped), 'skip check skip', 'exit 77 is one skip entry, and the TAP lines are ignored')
+
+  local stalled = grade(124, 'ok 1 - partial\n', '', true)
+  check(stalled.status == 'timeout' and stalled.message == 'the check exceeded 30 seconds'
+    and summary(stalled) == 'check fail',
+    'exit 124 under a time limit is a timeout', stalled.message)
+  equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
+end
+
 io.stdout:write('# conformance\n')
 
 -- The licence rule is a rule about names, and the fixtures below can only ask
