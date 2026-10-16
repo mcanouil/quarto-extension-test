@@ -1321,6 +1321,22 @@ do
 end
 
 do
+  -- The default rule fails on a warning from `quarto.log.warning`, which
+  -- quarto-cli writes as an INFO record with a `(W)` marker. `noErrors`
+  -- allows it, and `printsMessage` finds it without the marker.
+  local results = run_fixture('warnings', '--layer render')
+  local default = find_case(results, 'render/default-rule/html')
+  check(default ~= nil and default.status == 'fail' and default.failure.reason == 'warning-logged'
+    and default.failure.stage == 'log',
+    'the default rule fails on a warning from quarto.log.warning',
+    default and (default.status .. ' ' .. tostring(default.failure and default.failure.reason)))
+  local allowed = find_case(results, 'render/warning-allowed/html')
+  check(allowed ~= nil and allowed.status == 'pass' and allowed.assertions[1].status == 'pass',
+    'noErrors allows the warning, and printsMessage finds it',
+    allowed and (allowed.status .. ' ' .. tostring(allowed.failure and allowed.failure.message)))
+end
+
+do
   -- A generated document names its formats in `format`, which is all the
   -- render layer needs. A leftover `test:` key would be ordinary metadata
   -- now, and a sign that the generator still writes the old block.

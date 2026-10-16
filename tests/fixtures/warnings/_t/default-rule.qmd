@@ -1,0 +1,9 @@
+---
+title: Default rule
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+{{< warns >}}
