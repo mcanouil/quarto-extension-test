@@ -24,3 +24,9 @@ options:
     type: string
     default: ""
     description: "What the case covers."
+
+  warnings:
+    type: string
+    enum: [default, exhaustive]
+    default: default
+    description: "With `exhaustive`, each warning in a `noErrors` format must match an expected `printsMessage` entry."

@@ -1,0 +1,12 @@
+---
+title: Exhaustive without noErrors
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+---
+
+{{< warns >}}

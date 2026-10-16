@@ -1,0 +1,16 @@
+---
+title: Exhaustive, every warning expected
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "^warns: on purpose$"
+---
+
+{{< warns >}}

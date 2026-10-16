@@ -355,6 +355,15 @@ local function render_and_grade(context, target, typ)
     return fail('log', log_reason, log_message)
   end
 
+  -- Under `exhaustive`, a `noErrors` format allows only the warnings that a
+  -- `printsMessage` entry expects.
+  if settings.warnings == 'exhaustive' and target.policy == 'noErrors' then
+    local unexpected = assertions.unexpected_warnings(target.assertions, logged_warnings)
+    if #unexpected > 0 then
+      return fail('log', 'unexpected-warning', unexpected[1])
+    end
+  end
+
   local output_path, missing = M.output_path(context.tests, document, format, output_file, context.output_dir)
   if not output_path then
     case.status, case.failure = M.grade_missing(missing, format, log_path)
@@ -601,6 +610,20 @@ function M.execute(options, documents, descriptors, layer, emit)
       if options_err then
         emit_document('fail', 'inspect', 'options-invalid', options_err, run_warnings)
         goto continue
+      end
+      if settings.warnings == 'exhaustive' then
+        local has_no_errors = false
+        for _, entry in ipairs(spec.formats) do
+          if entry.policy == 'noErrors' then
+            has_no_errors = true
+          end
+        end
+        if not has_no_errors then
+          emit_document('fail', 'inspect', 'options-invalid',
+            '`warnings: exhaustive` needs `noErrors` on at least one format, because q2 allows an expected warning only there',
+            run_warnings)
+          goto continue
+        end
       end
 
       local default_policy = document.default_policy or 'noErrorsOrWarnings'

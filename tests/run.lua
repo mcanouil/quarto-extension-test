@@ -1522,6 +1522,30 @@ do
   check(allowed ~= nil and allowed.status == 'pass' and allowed.assertions[1].status == 'pass',
     'noErrors allows the warning, and printsMessage finds it',
     allowed and (allowed.status .. ' ' .. tostring(allowed.failure and allowed.failure.message)))
+  local function outcome(suffix)
+    local case = find_case(results, suffix)
+    return case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)) or 'missing'
+  end
+  equal(outcome('render/count-matched/html'), 'pass nil', 'count 1 matches the one warning')
+  equal(outcome('render/count-mismatch/html'), 'fail assertion-failed', 'count 2 fails on one warning')
+  equal(outcome('render/missing-warning/html'), 'fail assertion-failed', 'an expected warning that is absent fails')
+  equal(outcome('render/exhaustive-ok/html'), 'pass nil', 'exhaustive passes when every warning is expected')
+  equal(outcome('render/exhaustive-unexpected/html'), 'fail unexpected-warning',
+    'exhaustive fails on a warning no entry expects')
+  local stray = find_case(results, 'render/exhaustive-unexpected/html')
+  check(stray ~= nil and stray.failure ~= nil and stray.failure.stage == 'log'
+    and stray.failure.message == 'warns: on purpose',
+    'the unexpected warning is the message of the failure', stray and stray.failure and stray.failure.message)
+  equal(outcome('render/exhaustive-without-noerrors'), 'fail options-invalid',
+    'exhaustive without a noErrors format is invalid')
+  local invalid = find_case(results, 'render/exhaustive-without-noerrors')
+  check(invalid ~= nil and invalid.failure ~= nil and invalid.failure.message:find('noErrors', 1, true) ~= nil,
+    'the options-invalid message names noErrors', invalid and invalid.failure and invalid.failure.message)
+  equal(outcome('render/exhaustive-mixed/html'), 'pass nil', 'exhaustive holds the expected warning on html')
+  equal(outcome('render/exhaustive-mixed/gfm'), 'fail unexpected-warning',
+    'exhaustive applies to every noErrors format of the document')
+  equal(outcome('render/exhaustive-mixed/commonmark'), 'fail warning-logged',
+    'a format under the default rule ignores exhaustive')
 
   -- The demo document is documentation, not a test, so it allows warnings
   -- as the generated smoke documents do.
