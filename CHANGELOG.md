@@ -6,6 +6,7 @@
 - feat: Fail the render of a test document on a logged warning by default. Use `noErrors` to allow warnings. Generated smoke documents and the demo `example.qmd` still allow warnings.
 - feat: Check the content of an output with `ensureFileRegexMatches`, `ensureTypstFileRegexMatches`, `ensureDocxRegexMatches`, `printsMessage`, and `fileExists`.
 - feat: Check how many times a message appears with `count` in `printsMessage`, and reject warnings a document does not expect with `warnings: exhaustive`.
+- feat: Run a check command of your own after the assertions of each format pass, with `check` under `run.extension-test`. The reusable workflow can set up Node.js and Playwright for it with `node-version` and `playwright-browsers`.
 
 ## 0.1.2 (2026-09-23)
 

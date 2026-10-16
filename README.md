@@ -51,6 +51,16 @@ jobs:
 
 Pass `quarto-channels` to test more than one channel, for example `'["release", "pre-release"]'`.
 
+If a `check` command needs Node.js or a browser, set `node-version` and `playwright-browsers`.
+The workflow then installs both before the tests run.
+
+```yaml
+    uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
+    with:
+      node-version: "22"
+      playwright-browsers: "chromium"
+```
+
 To have a failing run open or update one issue in your repository, add a second job and grant it `issues: write` there:
 
 ```yaml

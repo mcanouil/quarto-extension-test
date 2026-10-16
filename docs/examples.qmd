@@ -92,6 +92,49 @@ _quarto:
 ---
 ```
 
+## Check in a browser
+
+A `check` command runs after the assertions of a format pass.
+This document runs a Playwright test on a `revealjs` render.
+
+```markdown
+---
+title: "Slides"
+format:
+  revealjs: default
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: npx playwright test slides.spec.ts
+---
+```
+
+Playwright prints no TAP by default, so the exit code decides the result.
+
+A default in `tests/_quarto.yml` applies to every format.
+Make the script exit 77 for a format that it does not cover.
+
+```yaml
+# tests/_quarto.yml
+project:
+  type: extension-test
+
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: sh _checks/browser.sh
+```
+
+```sh
+# tests/_checks/browser.sh
+if [ "$EXTENSION_TEST_FORMAT" != "revealjs" ]; then
+  exit 77
+fi
+npx playwright test slides.spec.ts
+```
+
 ## Expected warnings
 
 Use `noErrors` with `printsMessage` when the extension warns on purpose.
