@@ -1321,6 +1321,17 @@ do
 end
 
 do
+  -- The log rule judges what Quarto logged, never a note the runner adds,
+  -- such as the one for an incomplete log record.
+  local render = require('render')
+  equal(render.log_failure('noErrorsOrWarnings', {}, {}), nil, 'a clean log passes the default rule')
+  equal(select(1, render.log_failure('noErrorsOrWarnings', {}, { 'w' })), 'warning-logged',
+    'a logged warning fails the default rule')
+  equal(render.log_failure('noErrors', {}, { 'w' }), nil, 'noErrors allows a logged warning')
+  equal(select(1, render.log_failure('noErrors', { 'e' }, {})), 'error-logged', 'noErrors fails on a logged error')
+end
+
+do
   -- The default rule fails on a warning from `quarto.log.warning`, which
   -- quarto-cli writes as an INFO record with a `(W)` marker. `noErrors`
   -- allows it, and `printsMessage` finds it without the marker.

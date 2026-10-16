@@ -115,6 +115,25 @@ function M.promoted(lines)
   return nil
 end
 
+--- Why the log fails the rule of a format, if it does.
+---
+--- Only what Quarto logged is judged. A note the runner adds to the case,
+--- such as the one for an incomplete log record, is never passed in here.
+--- @param policy string `noErrorsOrWarnings` or `noErrors`
+--- @param errors string[] messages of the log lines at ERROR
+--- @param warnings string[] messages of the log lines at WARN
+--- @return string|nil reason
+--- @return string|nil message
+function M.log_failure(policy, errors, warnings)
+  if #errors > 0 then
+    return 'error-logged', errors[1]
+  end
+  if policy == 'noErrorsOrWarnings' and #warnings > 0 then
+    return 'warning-logged', warnings[1]
+  end
+  return nil, nil
+end
+
 --- Where quarto-cli writes a kept `.typ` file: beside the input, named after
 --- it, also when `output-file` or `output-dir` is set (measured).
 --- @param document table
@@ -240,9 +259,15 @@ local function render_one(context, target)
   local code, output = util.capture(cli.render_command(context.tests, document.absolute, format,
     log_path, settings.timeout))
   local lines, incomplete = log.read(log_path)
-  local errors, warnings = log.messages_at(lines, 'ERROR'), log.messages_at(lines, 'WARN')
+  local errors, logged_warnings = log.messages_at(lines, 'ERROR'), log.messages_at(lines, 'WARN')
+  -- The diagnostics hold the logged warnings and the notes of the runner.
+  -- The log rule reads `logged_warnings` alone.
+  local warnings = {}
+  for _, message in ipairs(logged_warnings) do
+    warnings[#warnings + 1] = message
+  end
   if incomplete then
-    warnings[#warnings + 1] = 'the last log record was incomplete and was ignored'
+    warnings[#warnings + 1] = 'a log record could not be read and was ignored'
   end
 
   local case = {
@@ -294,11 +319,9 @@ local function render_one(context, target)
     return fail('assert', promoted.reason, promoted.message)
   end
 
-  if #errors > 0 then
-    return fail('log', 'error-logged', errors[1])
-  end
-  if target.policy == 'noErrorsOrWarnings' and #warnings > 0 then
-    return fail('log', 'warning-logged', warnings[1])
+  local log_reason, log_message = M.log_failure(target.policy, errors, logged_warnings)
+  if log_reason then
+    return fail('log', log_reason, log_message)
   end
 
   local output_path, missing = M.output_path(context.tests, document, format, output_file, context.output_dir)
