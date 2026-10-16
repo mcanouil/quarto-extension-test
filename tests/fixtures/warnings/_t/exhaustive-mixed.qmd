@@ -1,0 +1,22 @@
+---
+title: Exhaustive on one format only
+format:
+  html: default
+  gfm: default
+  commonmark: default
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "^warns: on purpose$"
+    gfm:
+      noErrors: true
+    commonmark:
+---
+
+{{< warns >}}

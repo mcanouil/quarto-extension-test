@@ -75,7 +75,7 @@ end
 --- runner knows nothing about.
 --- @param root string
 --- @param tests string
---- @return table[] documents {relative, absolute, origin}
+--- @return table[] documents {relative, absolute, origin, default_policy, ignores_exhaustive}
 function M.discover(root, tests)
   local documents = {}
   for _, relative in ipairs(collect(tests)) do
@@ -93,8 +93,12 @@ function M.discover(root, tests)
     local absolute = util.join(root, name)
     if util.exists(absolute) then
       -- The demo documents the extension rather than testing it, so, as for
-      -- a generated document, warnings are allowed.
-      return { { relative = name, absolute = absolute, origin = 'demo', default_policy = 'noErrors' } }
+      -- a generated document, warnings are allowed and `exhaustive` does not
+      -- apply.
+      return { {
+        relative = name, absolute = absolute, origin = 'demo',
+        default_policy = 'noErrors', ignores_exhaustive = true,
+      } }
     end
   end
   return {}
@@ -225,7 +229,7 @@ end
 --- The checks run in a fixed order, and the first one that fails gives the
 --- reason of the case. Under `shouldError`, only the timeout check, the
 --- `shouldError` check, and the `printsMessage` entries apply.
---- @param context table {tests, log_dir, settings, document, layer, output_files, output_dir, fallback_output_file}
+--- @param context table {tests, log_dir, settings, exhaustive, document, layer, output_files, output_dir, fallback_output_file}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case
 local function render_and_grade(context, target, typ)
@@ -353,6 +357,19 @@ local function render_and_grade(context, target, typ)
   local log_reason, log_message = M.log_failure(target.policy, errors, logged_warnings)
   if log_reason then
     return fail('log', log_reason, log_message)
+  end
+
+  -- Under `exhaustive`, a `noErrors` format allows only the warnings that a
+  -- `printsMessage` entry expects.
+  if context.exhaustive and target.policy == 'noErrors' then
+    local unexpected, unusable = assertions.unexpected_warnings(target.assertions, logged_warnings)
+    if #unexpected > 0 then
+      local message = unexpected[1]
+      if #unusable > 0 then
+        message = string.format('%s (%s)', message, table.concat(unusable, '; '))
+      end
+      return fail('log', 'unexpected-warning', message)
+    end
   end
 
   local output_path, missing = M.output_path(context.tests, document, format, output_file, context.output_dir)
@@ -602,6 +619,22 @@ function M.execute(options, documents, descriptors, layer, emit)
         emit_document('fail', 'inspect', 'options-invalid', options_err, run_warnings)
         goto continue
       end
+      local exhaustive = settings.warnings == 'exhaustive' and not document.ignores_exhaustive
+      if exhaustive then
+        local has_no_errors = false
+        for _, entry in ipairs(spec.formats) do
+          if entry.policy == 'noErrors' then
+            has_no_errors = true
+            break
+          end
+        end
+        if not has_no_errors then
+          emit_document('fail', 'inspect', 'options-invalid',
+            '`warnings: exhaustive` needs `noErrors` on at least one format, because q2 allows an expected warning only there',
+            run_warnings)
+          goto continue
+        end
+      end
 
       local default_policy = document.default_policy or 'noErrorsOrWarnings'
       local targets = spec.formats
@@ -614,6 +647,7 @@ function M.execute(options, documents, descriptors, layer, emit)
 
       context.document = document
       context.settings = settings
+      context.exhaustive = exhaustive
       context.layer = layer
       context.output_files = info.output_files
       context.output_dir = info.output_dir

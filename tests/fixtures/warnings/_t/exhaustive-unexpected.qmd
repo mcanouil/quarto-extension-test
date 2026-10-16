@@ -1,0 +1,16 @@
+---
+title: Exhaustive, a stray warning
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "something else"
+---
+
+{{< warns >}}

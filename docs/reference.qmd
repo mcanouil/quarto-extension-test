@@ -45,7 +45,7 @@ _quarto:
 | `ensureFileRegexMatches` | Matches the output file against `[[patterns that must match], [patterns that must not match]]`. |
 | `ensureTypstFileRegexMatches` | Matches the kept `.typ` file in the same way. Set `keep-typ: true` on the `typst` format. A `.typ` file that is already beside the document before the render fails the assertion. |
 | `ensureDocxRegexMatches` | Matches `word/document.xml` of a DOCX output in the same way. q2 does not know this key. |
-| `printsMessage` | Looks for a log line: `{level, regex, negate}`, or a list of these. |
+| `printsMessage` | Looks for a log line: `{level, regex, negate, count}`, or a list of these. With `count`, exactly that many lines must match. |
 | `fileExists` | Looks for `outputPath` beside the output, and for `supportPath` in `<output name>_files`. |
 
 : The keys that the runner executes. {.striped .hover tbl-colwidths="[30,70]"}
@@ -96,6 +96,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 | `timeout` | integer | `300` | Seconds for each render. It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
 | `name` | string | The file stem | A human name for the case. |
 | `description` | string | `""` | What the case covers. |
+| `warnings` | `default` or `exhaustive` | `default` | With `exhaustive`, each warning in a `noErrors` format must match a `printsMessage` entry at `WARN` that is not negated. A document with `exhaustive` and no `noErrors` format fails with `options-invalid`. |
 
 : The options under `_quarto.tests.run.extension-test`. {.striped .hover tbl-colwidths="[14,14,20,52]"}
 
@@ -112,6 +113,8 @@ If `quarto inspect` cannot read the tests project, `render/_config` is a skip wi
 - `shouldError` also passes on a log line at `ERROR`, because quarto-cli exits 0 when the Lua code of an extension fails.
 - The runner executes `ensureDocxRegexMatches`, and its second list is specific to the runner.
 - A `printsMessage` pattern matches one log line.
+- `printsMessage` reads `count`, and q2 ignores it and checks for at least one line.
+- `warnings: exhaustive` is specific to the runner, and q2 applies `noErrors` alone.
 - The runner reads the kept `.typ` file beside the input, named after it.
 - A document without format keys renders here, and q2 skips it.
 
@@ -170,6 +173,7 @@ A schema with no `$schema` key is read as v2 and gets a warning asking you to de
 The render layer stages a copy of each extension into the tests project, then renders each test document to each of its formats.
 When `tests/` holds no document, it renders `example.qmd` or `template.qmd` from the repository root instead.
 That demo document renders under `noErrors`, because it documents the extension rather than testing it.
+It also ignores `warnings: exhaustive`.
 
 The runner does these checks in this order, and the first check that fails gives the reason of the case:
 
@@ -177,6 +181,7 @@ The runner does these checks in this order, and the first check that fails gives
 2. Quarto exits 0.
 3. The log reports no shortcode, extension, or filter that was not found.
 4. The log rule of the format passes: `noErrorsOrWarnings`, or `noErrors`.
+   Under `warnings: exhaustive`, a `noErrors` format fails with `unexpected-warning` on the first warning that no `printsMessage` entry expects.
 5. The output file exists.
 6. The output holds no shortcode text outside code, which would mean a shortcode did not expand.
 7. Every assertion of the format passes.
@@ -196,6 +201,7 @@ A smoke failure is therefore the extension's fault, not the generator's.
 A generated document renders under `noErrors`.
 The generator makes inputs, such as placeholder file names, that a careful extension warns about.
 These warnings are recorded on the case and do not fail it.
+A project default of `warnings: exhaustive` does not apply to a generated document.
 A shortcode, extension, or filter that was not found still fails the case.
 A pass here asserts nothing about the content of the output.
 

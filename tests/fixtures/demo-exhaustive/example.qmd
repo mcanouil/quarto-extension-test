@@ -1,0 +1,13 @@
+---
+title: Demo
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+---
+
+The demo of an extension that sets `warnings: exhaustive`, which it ignores.
+
+{{< warns >}}

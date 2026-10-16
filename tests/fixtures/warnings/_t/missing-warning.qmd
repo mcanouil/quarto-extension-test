@@ -1,0 +1,13 @@
+---
+title: Missing warning
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "never written"
+---
+
+{{< warns >}}

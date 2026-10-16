@@ -206,23 +206,48 @@ local function docx_regex(value, ctx)
   return entries
 end
 
+--- The entries of a `printsMessage` value: one mapping, or a list of them.
+--- @return table[]|nil the entries, or nil when the value has neither shape
+local function message_list(value)
+  if type(value) == 'table' and value.level ~= nil then
+    return { value }
+  end
+  if type(value) ~= 'table' or #value == 0 then
+    return nil
+  end
+  return value
+end
+
+--- The level of a valid `printsMessage` entry.
+--- @return string|nil the normalised level, or nil when the entry is invalid
+local function message_level(item)
+  if type(item) ~= 'table' then
+    return nil
+  end
+  local level = log.normalise_level(item.level)
+  local count = item.count
+  local count_valid = count == nil
+    or (type(count) == 'number' and count >= 1 and count == math.floor(count) and not item.negate)
+  if not level or type(item.regex) ~= 'string'
+    or (item.negate ~= nil and type(item.negate) ~= 'boolean') or not count_valid then
+    return nil
+  end
+  return level
+end
+
 local function prints_message(value, ctx)
   local kind = 'printsMessage'
-  local list = value
-  if type(value) == 'table' and value.level ~= nil then
-    list = { value }
-  end
-  if type(list) ~= 'table' or #list == 0 then
-    return invalid(kind, 'expects {level, regex, negate} or a list of them')
+  local list = message_list(value)
+  if not list then
+    return invalid(kind, 'expects {level, regex, negate, count} or a list of them')
   end
   local entries = {}
   for index, item in ipairs(list) do
     local entry = { id = string.format('%s/%d', kind, index), kind = kind }
-    local level = type(item) == 'table' and log.normalise_level(item.level) or nil
-    if not level or type(item.regex) ~= 'string'
-      or (item.negate ~= nil and type(item.negate) ~= 'boolean') then
+    local level = message_level(item)
+    if not level then
       entry.status = 'fail'
-      entry.message = 'assertion-invalid: expects {level: DEBUG, INFO, WARN, or ERROR, regex: a string, negate: a boolean}'
+      entry.message = 'assertion-invalid: expects {level: DEBUG, INFO, WARN, or ERROR, regex: a string, negate: a boolean, count: a whole number of 1 or more, not with negate}'
     else
       entry.expected = level .. ' ' .. item.regex
       local branches, reason = schema._compile_pattern(item.regex)
@@ -237,8 +262,15 @@ local function prints_message(value, ctx)
             found = found + 1
           end
         end
-        local passed = (item.negate and found == 0) or (not item.negate and found > 0)
-        if passed then
+        if item.count then
+          if found == item.count then
+            entry.status = 'pass'
+          else
+            entry.status = 'fail'
+            entry.message = string.format('expected %d %s line(s) matching %s, found %d',
+              item.count, level, item.regex, found)
+          end
+        elseif (item.negate and found == 0) or (not item.negate and found > 0) then
           entry.status = 'pass'
         else
           entry.status = 'fail'
@@ -348,6 +380,54 @@ function M.failure(entries)
   local expected = first.expected and (' "' .. first.expected .. '"') or ''
   return string.format('%s%s %s (%d of %d assertions failed)',
     first.id, expected, first.message or 'failed', failed, #entries)
+end
+
+--- The logged warnings that no expected `printsMessage` entry matches.
+---
+--- Under `warnings: exhaustive`, each warning must be expected. An entry
+--- expects a warning when its level is WARN and it is not negated. An entry
+--- that `prints_message` finds invalid, or with a regex the translator
+--- refuses, expects nothing. Such entries are returned as notes, so that the
+--- failure can name them.
+--- @param assertions table[] the assertions of one format entry
+--- @param warnings string[] messages of the log lines at WARN
+--- @return string[] the unexpected messages, in log order
+--- @return string[] notes on the non-negated entries that expect nothing
+function M.unexpected_warnings(assertions, warnings)
+  local patterns, unusable = {}, {}
+  for _, item in ipairs(assertions) do
+    if item.key == 'printsMessage' then
+      -- A value of neither shape is one invalid entry.
+      for _, entry in ipairs(message_list(item.value) or { false }) do
+        local level = message_level(entry)
+        if not level then
+          unusable[#unusable + 1] = 'an invalid printsMessage entry expects nothing'
+        elseif level == 'WARN' and not entry.negate then
+          local branches, reason = schema._compile_pattern(entry.regex)
+          if branches then
+            patterns[#patterns + 1] = branches
+          else
+            unusable[#unusable + 1] = string.format('`%s` expects nothing: pattern-unsupported: %s',
+              entry.regex, tostring(reason))
+          end
+        end
+      end
+    end
+  end
+  local unexpected = {}
+  for _, message in ipairs(warnings) do
+    local matched = false
+    for _, branches in ipairs(patterns) do
+      if M.matches(message, branches, false) then
+        matched = true
+        break
+      end
+    end
+    if not matched then
+      unexpected[#unexpected + 1] = message
+    end
+  end
+  return unexpected, unusable
 end
 
 return M

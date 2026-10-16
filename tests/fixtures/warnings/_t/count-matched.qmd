@@ -1,0 +1,14 @@
+---
+title: Count matched
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "^warns: on purpose$"
+        count: 1
+---
+
+{{< warns >}}
