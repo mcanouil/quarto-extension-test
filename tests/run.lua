@@ -592,6 +592,18 @@ do
     'only warnings matched by an expected, non-negated WARN pattern are expected')
   equal(#assertions.unexpected_warnings({}, { 'any' }), 1, 'with no expected pattern, every warning is unexpected')
   equal(#assertions.unexpected_warnings(expected, {}), 0, 'no warning gives nothing unexpected')
+  local _, unusable = assertions.unexpected_warnings({
+    { key = 'printsMessage', class = 'executed', value = {
+      { level = 'WARN', regex = 'x{2}' },
+      { regex = 'warns' },
+      { level = 'ERROR', regex = 'boom' },
+      { level = 'WARN', regex = 'y', negate = true },
+    } },
+  }, { 'warns' })
+  check(#unusable == 2 and unusable[1]:find('pattern-unsupported', 1, true) ~= nil
+    and unusable[2]:find('invalid', 1, true) ~= nil,
+    'a refused pattern and an invalid entry are named as expecting nothing',
+    table.concat(unusable or {}, ' | '))
 
   local skipped, notes = assertions.evaluate({
     { key = 'ensureFileRegexMatches', class = 'executed', value = { { 'x' } } },
@@ -1529,6 +1541,11 @@ do
   equal(outcome(results, 'render/missing-warning/html'), 'fail assertion-failed', 'an expected warning that is absent fails')
   equal(outcome(results, 'render/exhaustive-unexpected/html'), 'fail unexpected-warning',
     'exhaustive fails on a warning no entry expects')
+  local refused = find_case(results, 'render/exhaustive-refused/html')
+  check(refused ~= nil and refused.failure ~= nil and refused.failure.reason == 'unexpected-warning'
+    and refused.failure.message:find('pattern-unsupported', 1, true) ~= nil,
+    'an unexpected warning names the entry whose pattern the runner refuses',
+    refused and refused.failure and refused.failure.message)
   local stray = find_case(results, 'render/exhaustive-unexpected/html')
   check(stray ~= nil and stray.failure ~= nil and stray.failure.stage == 'log'
     and stray.failure.message == 'warns: on purpose',

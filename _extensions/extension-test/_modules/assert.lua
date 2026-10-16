@@ -363,24 +363,32 @@ end
 --- The logged warnings that no expected `printsMessage` entry matches.
 ---
 --- Under `warnings: exhaustive`, each warning must be expected. An entry
---- expects a warning when its level is WARN and it is not negated. A regex
---- the translator refuses expects nothing, so the warning stays unexpected.
---- An entry that `prints_message` finds invalid still expects its warning,
---- so the case reports `assertion-invalid` and not `unexpected-warning`.
+--- expects a warning when its level is WARN and it is not negated. An entry
+--- without a usable level or regex, or with a regex the translator refuses,
+--- expects nothing. Such entries are returned as notes, so that the failure
+--- can name them.
 --- @param assertions table[] the assertions of one format entry
 --- @param warnings string[] messages of the log lines at WARN
 --- @return string[] the unexpected messages, in log order
+--- @return string[] notes on the non-negated entries that expect nothing
 function M.unexpected_warnings(assertions, warnings)
-  local patterns = {}
+  local patterns, unusable = {}, {}
   for _, item in ipairs(assertions) do
     if item.key == 'printsMessage' and type(item.value) == 'table' then
       local list = item.value.level ~= nil and { item.value } or item.value
       for _, entry in ipairs(list) do
-        if type(entry) == 'table' and log.normalise_level(entry.level) == 'WARN'
-          and entry.negate ~= true and type(entry.regex) == 'string' then
-          local branches = schema._compile_pattern(entry.regex)
-          if branches then
-            patterns[#patterns + 1] = branches
+        if type(entry) == 'table' and entry.negate ~= true then
+          local level = log.normalise_level(entry.level)
+          if not level or type(entry.regex) ~= 'string' then
+            unusable[#unusable + 1] = 'an invalid printsMessage entry expects nothing'
+          elseif level == 'WARN' then
+            local branches, reason = schema._compile_pattern(entry.regex)
+            if branches then
+              patterns[#patterns + 1] = branches
+            else
+              unusable[#unusable + 1] = string.format('`%s` expects nothing: pattern-unsupported: %s',
+                entry.regex, tostring(reason))
+            end
           end
         end
       end
@@ -399,7 +407,7 @@ function M.unexpected_warnings(assertions, warnings)
       unexpected[#unexpected + 1] = message
     end
   end
-  return unexpected
+  return unexpected, unusable
 end
 
 return M

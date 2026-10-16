@@ -358,9 +358,13 @@ local function render_and_grade(context, target, typ)
   -- Under `exhaustive`, a `noErrors` format allows only the warnings that a
   -- `printsMessage` entry expects.
   if context.exhaustive and target.policy == 'noErrors' then
-    local unexpected = assertions.unexpected_warnings(target.assertions, logged_warnings)
+    local unexpected, unusable = assertions.unexpected_warnings(target.assertions, logged_warnings)
     if #unexpected > 0 then
-      return fail('log', 'unexpected-warning', unexpected[1])
+      local message = unexpected[1]
+      if #unusable > 0 then
+        message = string.format('%s (%s)', message, table.concat(unusable, '; '))
+      end
+      return fail('log', 'unexpected-warning', message)
     end
   end
 

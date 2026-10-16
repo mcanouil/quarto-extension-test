@@ -1,0 +1,16 @@
+---
+title: Exhaustive, a refused pattern
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+      noErrors: true
+      printsMessage:
+        level: WARN
+        regex: "on purpose{1}"
+---
+
+{{< warns >}}
