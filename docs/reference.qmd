@@ -100,6 +100,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 A value that does not validate fails the document with `options-invalid`.
 `tests/_quarto.yml` can set `_quarto.tests.run.extension-test` for every document, and each document overrides it key by key.
 Any other key under `_quarto.tests` in `tests/_quarto.yml` fails `render/config` with `project-tests-keys`, because q2 reads the document alone.
+If `quarto inspect` cannot read the tests project, `render/config` is a skip with `project-inspect-failed`.
 
 ### Differences from q2
 

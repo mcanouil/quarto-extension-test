@@ -461,16 +461,48 @@ end
 
 --- The output name to use for a format that `quarto inspect` does not report.
 ---
---- The stem of any reported name is the document's `output-file` when it sets
---- one, and its own stem when it does not.
+--- When every reported format shares one stem, it is the document's
+--- `output-file`, or its own stem. A name set inside one format block says
+--- nothing about the others, so formats that disagree give the document stem.
 --- @param output_files table
---- @return string|nil
-local function fallback_output_file(output_files)
-  local first = util.sorted_keys(output_files)[1]
-  if not first then
-    return nil
+--- @param stem string the file stem of the document
+--- @return string
+function M.fallback_output_file(output_files, stem)
+  local shared
+  for _, format in ipairs(util.sorted_keys(output_files)) do
+    local candidate = pandoc.path.split_extension(output_files[format])
+    if shared and candidate ~= shared then
+      return stem
+    end
+    shared = candidate
   end
-  return (pandoc.path.split_extension(output_files[first]))
+  return shared or stem
+end
+
+--- The `render/config` case, when the tests project sets a key it may not,
+--- or when it cannot be inspected to find out.
+--- @param tests string tests directory
+--- @return table|nil case
+function M.project_check(tests)
+  local block, err = cli.project_tests(tests)
+  if err then
+    return {
+      id = 'render/config',
+      layer = 'render',
+      status = 'skip',
+      failure = { stage = 'discover', reason = 'project-inspect-failed', message = err },
+    }
+  end
+  local problem = frontmatter.project_problem(block)
+  if problem then
+    return {
+      id = 'render/config',
+      layer = 'render',
+      status = 'fail',
+      failure = { stage = 'discover', reason = 'project-tests-keys', message = problem },
+    }
+  end
+  return nil
 end
 
 --- Render a list of documents and judge each result.
@@ -540,7 +572,7 @@ function M.execute(options, documents, descriptors, layer, emit)
       context.layer = layer
       context.output_files = info.output_files
       context.output_dir = info.output_dir
-      context.fallback_output_file = fallback_output_file(info.output_files)
+      context.fallback_output_file = M.fallback_output_file(info.output_files, stem)
       for _, target in ipairs(targets) do
         if target.problem then
           emit({
@@ -565,16 +597,6 @@ end
 --- @param descriptors table `run.extension-test` descriptors
 --- @param emit function(case)
 function M.run(options, descriptors, emit)
-  local project_problem = frontmatter.project_problem(cli.project_tests(options.tests))
-  if project_problem then
-    emit({
-      id = 'render/config',
-      layer = 'render',
-      status = 'fail',
-      failure = { stage = 'discover', reason = 'project-tests-keys', message = project_problem },
-    })
-  end
-
   local documents = M.discover(options.root, options.tests)
   if #documents == 0 then
     emit({
@@ -627,6 +649,12 @@ function M.run(options, descriptors, emit)
       failure = { stage = 'stage', reason = 'no-project-file', message = missing },
     })
     return
+  end
+
+  -- Inspected after staging, so the project is in the state the renders see.
+  local config_case = M.project_check(options.tests)
+  if config_case then
+    emit(config_case)
   end
 
   local ok, err = pcall(M.execute, options, documents, descriptors, 'render', emit)

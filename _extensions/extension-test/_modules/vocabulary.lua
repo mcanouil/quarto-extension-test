@@ -8,6 +8,9 @@ local util = require('util')
 
 local M = {}
 
+--- The q2 commit of `crates/quarto-test/src/spec.rs` that the tables match.
+M.Q2_COMMIT = 'e7d4eab'
+
 --- The keys that choose the log rule. A key applies when it is present,
 --- whatever its value, as in q2.
 local POLICY = { noErrors = true, noErrorsOrWarnings = true, shouldError = true }

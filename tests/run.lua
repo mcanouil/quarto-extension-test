@@ -414,6 +414,8 @@ do
   equal(docx.problem and docx.problem.reason, 'unknown-assertion', 'an unknown key is reported')
   check(docx.problem and docx.problem.message:find('ensureFileRegexMatches', 1, true) ~= nil,
     'the unknown key message lists the valid keys')
+  check(docx.problem and docx.problem.message:find('e7d4eab', 1, true) ~= nil,
+    'the unknown key message names the q2 commit the key table tracks')
 
   local empty = frontmatter.spec(nil)
   check(not empty.has_format_keys and #empty.formats == 0, 'no block gives no format keys')
@@ -1318,6 +1320,25 @@ do
   check(files ~= nil and files.status == 'pass',
     'fileExists finds the output and its support directory',
     files and (files.status .. ' ' .. tostring(files.failure and files.failure.message)))
+end
+
+do
+  -- A format that `quarto inspect` does not report is written under the
+  -- document's `output-file` only when every reported format agrees on it.
+  -- A name set inside one format block says nothing about the others.
+  local render = require('render')
+  equal(render.fallback_output_file({ html = 'elsewhere.html', typst = 'elsewhere.pdf' }, 'doc'), 'elsewhere',
+    'a stem that every reported format shares is the fallback')
+  equal(render.fallback_output_file({ html = 'custom.html', typst = 'doc.pdf' }, 'doc'), 'doc',
+    'formats that disagree fall back to the document stem')
+  equal(render.fallback_output_file({}, 'doc'), 'doc', 'no reported format falls back to the document stem')
+
+  -- A project inspect that fails cannot check the project keys, and says so.
+  local config_case = render.project_check(util.join(here, 'tests/_results/no-such-project'))
+  check(config_case ~= nil and config_case.id == 'render/config' and config_case.status == 'skip'
+    and config_case.failure.reason == 'project-inspect-failed',
+    'a failed project inspect is reported as a skip, not passed over',
+    config_case and (config_case.status .. ' ' .. tostring(config_case.failure and config_case.failure.reason)))
 end
 
 do
