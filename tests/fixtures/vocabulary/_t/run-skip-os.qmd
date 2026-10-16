@@ -1,0 +1,11 @@
+---
+title: Skipped on every system
+format: html
+_quarto:
+  tests:
+    run:
+      not_os: [darwin, linux, windows]
+    html:
+---
+
+{{< present >}}

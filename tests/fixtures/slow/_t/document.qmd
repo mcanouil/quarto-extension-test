@@ -1,0 +1,12 @@
+---
+title: Slow
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: 1
+    html:
+---
+
+{{< slow >}}

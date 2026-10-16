@@ -1,0 +1,9 @@
+project:
+  type: default
+  output-dir: _output
+_quarto:
+  tests:
+    run:
+      skip: "set at project level"
+      extension-test:
+        timeout: 120

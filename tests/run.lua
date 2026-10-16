@@ -1241,6 +1241,47 @@ do
     'the warning line is recorded in the diagnostics')
 end
 
+do
+  local results = run_fixture('vocabulary', '--layer render')
+  local function reason(suffix)
+    local case = find_case(results, suffix)
+    return case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)) or 'missing'
+  end
+  equal(reason('render/unknown-assertion/html'), 'fail unknown-assertion', 'an unknown key fails its format')
+  equal(reason('render/policy-conflict/html'), 'fail policy-conflict', 'two policy keys fail their format')
+  local known = find_case(results, 'render/known-not-executed/html')
+  check(known ~= nil and known.status == 'pass' and known.assertions[1].status == 'skip',
+    'a known key the runner does not execute is a skip entry, and the case passes')
+  local rejected = find_case(results, 'render/q2-rejected-key/html')
+  check(rejected ~= nil and rejected.assertions[1].warnings ~= nil,
+    'a key q2 rejects carries a warning')
+  equal(reason('render/run-skip-os'), 'skip skipped', '`not_os` skips the document')
+  equal(reason('render/options-invalid'), 'fail options-invalid', 'an invalid timeout fails the document')
+  equal(reason('render/no-format-keys/html'), 'pass nil', 'a document with no format keys renders every format')
+  equal(reason('render/empty-format-value/html'), 'pass nil', 'an empty format value renders under the default rule')
+  equal(reason('render/format-not-in-front-matter/docx'), 'pass nil',
+    'a format key that the format key does not name renders with --to, and its output is found')
+  equal(reason('render/prints-warn-without-noerrors/html'), 'fail shortcode-not-found',
+    'an expected warning without noErrors still fails, here on the promoted warning first')
+  check(duplicate_id(results) == nil, 'no two cases of the vocabulary fixture share an id')
+
+  local project = run_fixture('project-tests-keys', '--layer render')
+  local config = find_case(project, 'render/config')
+  equal(config and (config.status .. ' ' .. tostring(config.failure and config.failure.reason)) or 'missing',
+    'fail project-tests-keys', 'a project file that sets `run.skip` fails `render/config`')
+
+  if util.timeout_command() then
+    local slow = run_fixture('slow', '--layer render')
+    local stalled = find_case(slow, 'render/document/html')
+    check(stalled ~= nil and stalled.failure and stalled.failure.reason == 'timeout'
+      and stalled.failure.stage == 'render',
+      'a render that exceeds its timeout fails with `timeout`',
+      stalled and stalled.failure and stalled.failure.reason)
+  else
+    io.stdout:write('skip a render that exceeds its timeout: neither timeout nor gtimeout is available\n')
+  end
+end
+
 io.stdout:write('# determinism\n')
 
 do

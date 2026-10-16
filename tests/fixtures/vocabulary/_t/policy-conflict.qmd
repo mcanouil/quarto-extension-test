@@ -1,0 +1,11 @@
+---
+title: Policy conflict
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      shouldError: true
+---
+
+{{< present >}}
