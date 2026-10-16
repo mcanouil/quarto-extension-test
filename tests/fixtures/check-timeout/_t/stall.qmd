@@ -1,0 +1,13 @@
+---
+title: Stall
+format: gfm
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: 6
+        check: sleep 30
+    gfm:
+---
+
+{{< hello >}}

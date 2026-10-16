@@ -1,0 +1,14 @@
+---
+title: check-should-error
+format: html
+bibliography: missing.bib
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/fail.sh
+    html:
+      shouldError: true
+---
+
+{{< hello >}}

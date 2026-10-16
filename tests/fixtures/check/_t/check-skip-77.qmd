@@ -1,0 +1,12 @@
+---
+title: check-skip-77
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/skip-77.sh
+    html:
+---
+
+{{< hello >}}

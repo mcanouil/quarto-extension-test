@@ -1,0 +1,12 @@
+---
+title: check-pass
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/tap-pass.sh
+    html:
+---
+
+{{< hello >}}

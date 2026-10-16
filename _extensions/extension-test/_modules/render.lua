@@ -12,6 +12,7 @@ local frontmatter = require('frontmatter')
 local cli = require('cli')
 local log = require('log')
 local assertions = require('assert')
+local check = require('check')
 
 local M = {}
 
@@ -229,7 +230,7 @@ end
 --- The checks run in a fixed order, and the first one that fails gives the
 --- reason of the case. Under `shouldError`, only the timeout check, the
 --- `shouldError` check, and the `printsMessage` entries apply.
---- @param context table {tests, log_dir, settings, exhaustive, document, layer, output_files, output_dir, fallback_output_file}
+--- @param context table {tests, log_dir, settings, exhaustive, check, document, layer, output_files, output_dir, fallback_output_file}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case
 local function render_and_grade(context, target, typ)
@@ -397,7 +398,32 @@ local function render_and_grade(context, target, typ)
     typ_preexisting = typ_preexisting,
     typ_label = output_is_typ and output_label or pandoc.path.filename(typ_path),
   }
-  return grade_assertions(ctx, false)
+  grade_assertions(ctx, false)
+  if case.status ~= 'pass' or not context.check then
+    return case
+  end
+
+  local result = check.run({
+    tests = context.tests,
+    command = context.check,
+    timeout = settings.timeout,
+    log_path = util.join(context.log_dir, slug .. '.check.log'),
+    env = {
+      EXTENSION_TEST_INPUT = document.absolute,
+      EXTENSION_TEST_OUTPUT = output_path,
+      EXTENSION_TEST_FORMAT = format,
+      EXTENSION_TEST_CASE_ID = id,
+    },
+  })
+  table.move(result.entries, 1, #result.entries, #case.assertions + 1, case.assertions)
+  if result.status == 'timeout' then
+    fail('check', 'timeout', result.message)
+    case.failure.log = result.log
+  elseif result.status == 'fail' then
+    fail('check', 'check-failed', result.message)
+    case.failure.log = result.log
+  end
+  return case
 end
 
 --- Render one document to one format, judge it, and remove the `.typ` file
@@ -648,6 +674,7 @@ function M.execute(options, documents, descriptors, layer, emit)
       context.document = document
       context.settings = settings
       context.exhaustive = exhaustive
+      context.check = document.origin == 'tests' and settings.check or nil
       context.layer = layer
       context.output_files = info.output_files
       context.output_dir = info.output_dir

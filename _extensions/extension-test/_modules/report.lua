@@ -56,6 +56,7 @@ function M.add(results, case)
 end
 
 --- Roll per-case results up into per-layer and overall summaries.
+--- The tier is `check` when any case holds a `check` entry.
 --- @param results table
 --- @return table results
 function M.finalise(results)
@@ -72,6 +73,11 @@ function M.finalise(results)
     layer[case.status] = (layer[case.status] or 0) + 1
     total.total = total.total + 1
     total[case.status] = (total[case.status] or 0) + 1
+    for _, entry in ipairs(case.assertions or {}) do
+      if entry.kind == 'check' then
+        results.tier = 'check'
+      end
+    end
   end
 
   for _, name in ipairs(order) do

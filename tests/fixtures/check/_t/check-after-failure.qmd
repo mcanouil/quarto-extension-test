@@ -1,0 +1,13 @@
+---
+title: check-after-failure
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/fail.sh
+    html:
+      ensureFileRegexMatches: [["never in the output"]]
+---
+
+{{< hello >}}

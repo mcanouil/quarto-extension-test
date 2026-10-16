@@ -1,0 +1,9 @@
+---
+title: Authored
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+{{< hello >}}
