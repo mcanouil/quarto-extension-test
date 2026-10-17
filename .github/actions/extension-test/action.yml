@@ -101,6 +101,9 @@ runs:
         if [[ -f "${TESTS_DIR}/package-lock.json" ]]; then
           cd -- "${TESTS_DIR}"
           npm ci
+        else
+          printf '::warning::node-version is set but %s does not exist, so npm ci did not run and npx resolves packages on its own.\n' \
+            "${TESTS_DIR}/package-lock.json"
         fi
 
     - name: Install the Playwright browsers
@@ -132,8 +135,10 @@ runs:
         # shellcheck disable=SC2086
         quarto pandoc lua "${RUNNER_PATH}" ${RUNNER_ARGS}
 
+    # Gated like the upload: when the inputs are refused, there is no run to
+    # summarise, and a "no result file" line would read as a failed suite.
     - name: Write the summary
-      if: always()
+      if: ${{ always() && steps.resolve.outputs.path != '' }}
       shell: bash
       env:
         RESULTS: ${{ inputs.results }}

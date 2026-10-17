@@ -31,6 +31,9 @@ end
 --- @param line string
 --- @return table|nil record {ok, description, directive, reason}
 local function parse_line(line)
+  -- A command that writes CRLF leaves `\r` at the end of each line, and a
+  -- bare `not ok\r` would otherwise be dropped and read as a pass.
+  line = line:gsub('\r$', '')
   local ok, rest = true, line:match('^ok$') and '' or line:match('^ok (.*)$')
   if not rest then
     ok, rest = false, line:match('^not ok$') and '' or line:match('^not ok (.*)$')

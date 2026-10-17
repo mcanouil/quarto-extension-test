@@ -757,6 +757,7 @@ do
   check(not_ok.status == 'fail' and not_ok.message == 'slide count',
     'a not ok line fails the check with exit 0, and the first one is the message', not_ok.message)
   equal(grade(0, 'not ok 7\n').message, 'not ok on TAP line 1', 'a not ok line with no description is named by position')
+  equal(grade(0, 'ok 1 - first\r\nnot ok\r\n').status, 'fail', 'a bare not ok line with a CRLF ending still fails the check')
 
   local exit_fail = grade(3, '', 'first\nbrowser missing\n\n')
   check(exit_fail.status == 'fail' and exit_fail.message == 'browser missing',
