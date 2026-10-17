@@ -473,6 +473,14 @@ do
   equal(defaults.timeout, 300, 'the timeout defaults to 300 seconds')
   local _, bad_value = frontmatter.options({ ['extension-test'] = { timeout = 0 } }, descriptors, 'doc')
   check(bad_value ~= nil and bad_value:find('timeout', 1, true) ~= nil, 'a timeout below 1 is invalid', bad_value)
+  for _, huge in ipairs({ 86401, 1e308 }) do
+    local _, too_long = frontmatter.options({ ['extension-test'] = { timeout = huge } }, descriptors, 'doc')
+    check(too_long ~= nil and too_long:find('timeout', 1, true) ~= nil and too_long:find('must be at most 86400', 1, true) ~= nil,
+      'a timeout over one day is invalid, so a value with no integer form never reaches the timeout command: '
+        .. tostring(huge), too_long)
+  end
+  local _, one_day = frontmatter.options({ ['extension-test'] = { timeout = 86400 } }, descriptors, 'doc')
+  equal(one_day, nil, 'a timeout of one day is valid')
   local _, bad_key = frontmatter.options({ ['extension-test'] = { strict = true } }, descriptors, 'doc')
   check(bad_key ~= nil and bad_key:find('strict', 1, true) ~= nil, 'a removed option is invalid', bad_key)
   local decoded = frontmatter.options(pandoc.json.decode('{"extension-test": {"timeout": 6}}'), descriptors, 'doc')
