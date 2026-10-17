@@ -872,7 +872,7 @@ do
     and summary(stalled) == 'check fail',
     'exit 124 under a time limit is a timeout', stalled.message)
   equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
-  equal(grade(137, '', '', true, 40).status, 'timeout', 'exit 137 once the time limit has passed is a timeout')
+  equal(grade(137, '', '', true, 40).status, 'timeout', 'exit 137 after the limit and the grace period is a timeout')
   equal(grade(137, '', '', true, 3).status, 'fail', 'exit 137 before the time limit is an ordinary failure, such as the OOM killer')
 
   local bail = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nBail out! no browser\nok 3 - later\n')
@@ -1925,8 +1925,10 @@ do
     'a project default check does not run on a generated document',
     generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
 
-  equal(util.timed_out(137, 20, 30), true, 'exit 137 once the time limit has passed is a timeout')
+  equal(util.timed_out(137, 20, 20 + util.TIMEOUT_GRACE), true, 'exit 137 after the limit and the grace period is a timeout')
   equal(util.timed_out(137, 20, 3), false, 'exit 137 before the time limit is not a timeout')
+  equal(util.timed_out(137, 1, 1), false,
+    'exit 137 within the grace period is not a timeout, since a SIGKILL from the limit cannot come sooner')
   equal(util.timed_out(137, nil, 30), false, 'exit 137 with no time limit is not a timeout')
   equal(util.timed_out(1, 20, 30), false, 'exit 1 under a time limit is not a timeout')
 
@@ -1943,9 +1945,10 @@ do
       case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)
         .. ' ' .. tostring(case.failure and case.failure.message)))
     local ignored = find_case(stalled, 'render/ignore-term/gfm')
+    local ignored_log = ignored and ignored.failure and util.read_file(ignored.failure.log or '') or ''
     check(ignored ~= nil and ignored.failure ~= nil and ignored.failure.stage == 'check'
       and ignored.failure.reason == 'timeout' and ignored.failure.message == 'the check exceeded 5 seconds'
-      and elapsed < 120,
+      and ignored_log:find('\nexit 137\n', 1, true) ~= nil and elapsed < 120,
       'a check that ignores SIGTERM is killed after the grace period and fails as a timeout',
       string.format('%s in %d seconds', ignored and (ignored.status .. ' ' .. tostring(ignored.failure
         and ignored.failure.reason)) or 'missing', elapsed))
