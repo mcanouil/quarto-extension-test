@@ -16,6 +16,16 @@ on:
         required: false
         default: '["release"]'
         type: string
+      node-version:
+        description: "Node.js version to set up for a check command, for example `22`. Empty sets up no Node.js."
+        required: false
+        default: ""
+        type: string
+      playwright-browsers:
+        description: "Playwright browsers to install, for example `chromium`. Needs `node-version`."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -41,3 +51,5 @@ jobs:
         uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.1.2
         with:
           quarto: ${{ matrix.quarto }}
+          node-version: ${{ inputs.node-version }}
+          playwright-browsers: ${{ inputs.playwright-browsers }}

@@ -286,6 +286,17 @@ equal(report.yaml_scalar('ERROR: broke'), '"ERROR: broke"',
 equal(report.yaml_scalar('say "hi"'), '"say \\"hi\\""',
   'a quote inside a TAP diagnostic is escaped')
 
+do
+  local with_check = report.new({})
+  report.add(with_check, { id = 'render/a/html', layer = 'render', status = 'pass',
+    assertions = { { id = 'check', kind = 'check', status = 'skip' } } })
+  equal(report.finalise(with_check).tier, 'check', 'tier is check when a check entry is present')
+  local without = report.new({})
+  report.add(without, { id = 'render/a/html', layer = 'render', status = 'pass',
+    assertions = { { id = 'printsMessage/1', kind = 'printsMessage', status = 'pass' } } })
+  equal(report.finalise(without).tier, 'render', 'tier stays render without a check entry')
+end
+
 io.stdout:write('# vocabulary\n')
 
 do
@@ -496,6 +507,18 @@ do
   equal(frontmatter.project_problem(nil), nil, 'no project block is valid')
 end
 
+do
+  local descriptors = schema.load_schema(here .. '_extensions/extension-test/test-schema.yml').options
+  local settings = frontmatter.options({ ['extension-test'] = { check = 'bash _checks/x.sh' } }, descriptors, 'doc')
+  equal(settings.check, 'bash _checks/x.sh', 'check is a runner option')
+  for _, case in ipairs({ { '', 'must be at least 1 characters' }, { 3, 'must be of type "string"' } }) do
+    local bad, wording = case[1], case[2]
+    local _, problem = frontmatter.options({ ['extension-test'] = { check = bad } }, descriptors, 'doc')
+    check(problem ~= nil and problem:find('check', 1, true) ~= nil and problem:find(wording, 1, true) ~= nil,
+      'check must be a non-empty string: ' .. string.format('%q', tostring(bad)), problem)
+  end
+end
+
 io.stdout:write('# assert\n')
 
 do
@@ -685,6 +708,123 @@ do
   equal(assertions.failure({ { status = 'pass' } }), nil, 'no failed entry gives no failure')
   equal(assertions.failure(failing), 'ensureFileRegexMatches/match/1 "absent" not found in doc.html (2 of 2 assertions failed)',
     'the failure names the first failed entry and the count')
+  util.remove_tree(scratch)
+end
+
+io.stdout:write('# check\n')
+
+do
+  local check_hook = require('check')
+  local tap = check_hook.parse_tap(table.concat({
+    'TAP version 13', '1..5',
+    'ok 1 - renders',
+    'not ok 2 - slide count',
+    'ok 3 - title # SKIP no title here',
+    'not ok 4 - toast # todo later',
+    'ok',
+    '    not ok 1 - a subtest line',
+    'okay, not TAP',
+    '# a comment',
+  }, '\n'))
+  equal(#tap, 5, 'only top-level ok and not ok lines are TAP lines')
+  equal(tap[1].description, 'renders', 'the description drops the number and the dash')
+  equal(tap[2].ok, false, 'not ok is a failed line')
+  equal(tap[3].directive, 'SKIP', 'a SKIP directive is read')
+  equal(tap[3].description, 'title', 'the directive is not part of the description')
+  equal(tap[3].reason, 'no title here', 'the reason follows the directive')
+  equal(tap[4].directive, 'TODO', 'a directive is read in any case')
+  equal(tap[5].ok and tap[5].description, '', 'a bare ok has an empty description')
+
+  local function grade(code, stdout, stderr, limited)
+    return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30)
+  end
+  local function summary(result)
+    local parts = {}
+    for _, entry in ipairs(result.entries) do
+      parts[#parts + 1] = entry.id .. ' ' .. entry.status
+    end
+    return table.concat(parts, '|')
+  end
+
+  local passing = grade(0, 'ok 1 - renders\nok 2 - title # SKIP no title\nnot ok 3 - toast # TODO later\n')
+  equal(passing.status, 'pass', 'TAP with only ok, SKIP, and TODO lines passes')
+  equal(summary(passing), 'check/1 pass|check/2 skip|check/3 skip', 'each TAP line is a check entry')
+  equal(passing.entries[1].kind .. ' ' .. passing.entries[1].expected, 'check renders',
+    'a TAP entry has kind check and the description as expected')
+  equal(passing.entries[3].message, 'TODO later', 'a not ok TODO line is a skip that gives its reason')
+
+  local not_ok = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nnot ok 3 - toast\n')
+  check(not_ok.status == 'fail' and not_ok.message == 'slide count',
+    'a not ok line fails the check with exit 0, and the first one is the message', not_ok.message)
+  equal(grade(0, 'not ok 7\n').message, 'not ok on TAP line 1', 'a not ok line with no description is named by position')
+  equal(grade(0, 'ok 1 - first\r\nnot ok\r\n').status, 'fail', 'a bare not ok line with a CRLF ending still fails the check')
+
+  local exit_fail = grade(3, '', 'first\nbrowser missing\n\n')
+  check(exit_fail.status == 'fail' and exit_fail.message == 'browser missing',
+    'a failing exit gives the last line of standard error', exit_fail.message)
+  equal(summary(exit_fail) .. ' ' .. tostring(exit_fail.entries[1].message), 'check fail exit 3',
+    'with no TAP line, one check entry records the exit code')
+  equal(grade(1, '', '').message, 'the check exited 1', 'a silent failure names the exit code')
+  local tap_then_exit = grade(2, 'ok 1 - fine\n', 'crashed after\n')
+  check(tap_then_exit.status == 'fail' and tap_then_exit.message == 'crashed after' and #tap_then_exit.entries == 1,
+    'a failing exit fails the check even when every TAP line passed', tap_then_exit.message)
+
+  local plain = grade(0, 'Running 3 tests\n3 passed\n', '')
+  equal(plain.status .. ' ' .. summary(plain), 'pass check pass', 'output that is not TAP gives one check entry')
+  local on_stderr = grade(0, '', 'not ok 1 - on stderr\n')
+  equal(on_stderr.status .. ' ' .. summary(on_stderr), 'pass check pass', 'a not ok line on standard error is not TAP')
+
+  local skipped = grade(77, 'not ok 1 - ignored\n', '')
+  equal(skipped.status .. ' ' .. summary(skipped), 'skip check skip', 'exit 77 is one skip entry, and the TAP lines are ignored')
+
+  local stalled = grade(124, 'ok 1 - partial\n', '', true)
+  check(stalled.status == 'timeout' and stalled.message == 'the check exceeded 30 seconds'
+    and summary(stalled) == 'check fail',
+    'exit 124 under a time limit is a timeout', stalled.message)
+  equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
+end
+
+do
+  local check_hook = require('check')
+  -- The space and the quote in the path are the point: both reach a shell.
+  local scratch = util.absolute(util.join(here, "tests/_results/check it's"))
+  util.remove_tree(scratch)
+  util.write_file(util.join(scratch, 'out.html'), 'x')
+  local log_path = util.join(scratch, 'logs', 'case.check.log')
+  local function run_check(command, timeout)
+    return check_hook.run({
+      tests = scratch, command = command, timeout = timeout or 30, log_path = log_path,
+      env = { EXTENSION_TEST_OUTPUT = util.join(scratch, 'out.html'), EXTENSION_TEST_FORMAT = 'html' },
+    })
+  end
+
+  local quoted = run_check([[printf 'ok 1 - %s\n' "it's quoted" | cat]])
+  equal(quoted.entries[1] and quoted.entries[1].expected, "it's quoted",
+    'the command reaches sh unchanged, quotes and pipe included')
+  local env = run_check(
+    '[ -f "$EXTENSION_TEST_OUTPUT" ] && [ "$EXTENSION_TEST_FORMAT" = html ]'
+    .. ' && [ "$(pwd -P)" = "$(cd "$(dirname "$EXTENSION_TEST_OUTPUT")" && pwd -P)" ]')
+  equal(env.status, 'pass', 'the variables and the working directory survive a path with a space and a quote')
+  equal(run_check('cat').status, 'pass', 'a check that reads standard input gets an empty one and does not wait')
+  local split = run_check('echo "ok 1 - out"; echo "not ok 2 - err" >&2')
+  check(split.status == 'pass' and #split.entries == 1 and split.entries[1].id == 'check/1',
+    'standard error stays out of the TAP lines', split.message)
+
+  local failed = run_check('echo "to stdout"; echo "the reason" >&2; exit 4')
+  check(failed.status == 'fail' and failed.message == 'the reason' and failed.log == log_path,
+    'a failing command is graded and names its log', failed.message)
+  local log_text = util.read_file(log_path) or ''
+  check(log_text:find('to stdout', 1, true) ~= nil and log_text:find('the reason', 1, true) ~= nil
+    and log_text:find('exit 4', 1, true) ~= nil,
+    'the check log holds the exit code and both streams', log_text)
+  check(not util.exists(log_path .. '.stdout') and not util.exists(log_path .. '.stderr'),
+    'the stream files are removed once the log is written')
+
+  if util.timeout_command() then
+    equal(run_check('sleep 5', 1).status, 'timeout', 'a check over its time budget is a timeout')
+  else
+    io.stdout:write('skip a check over its time budget: neither timeout nor gtimeout is available\n')
+  end
   util.remove_tree(scratch)
 end
 
@@ -1514,6 +1654,19 @@ do
     'with no top-level output-file, the output name is left to the format suffix')
   util.remove_tree(scratch)
 
+  -- A package that `npm ci` installs under the tests directory holds
+  -- `.qmd` files that are not test documents.
+  local packages = util.join(here, 'tests/_results/node-modules')
+  util.write_file(util.join(packages, 'a.qmd'), '---\ntitle: A\n---\n\nBody.\n')
+  util.write_file(util.join(packages, 'node_modules/pkg/readme.qmd'), '---\ntitle: R\n---\n\nBody.\n')
+  util.write_file(util.join(packages, 'sub/node_modules/pkg/readme.qmd'), '---\ntitle: R\n---\n\nBody.\n')
+  local found = {}
+  for _, document in ipairs(render.discover(packages, packages)) do
+    found[#found + 1] = document.relative
+  end
+  equal(table.concat(found, '|'), 'a.qmd', 'node_modules directories are not searched for test documents')
+  util.remove_tree(packages)
+
   -- A project inspect that fails cannot check the project keys, and says so.
   local config_case = render.project_check(util.join(here, 'tests/_results/no-such-project'))
   check(config_case ~= nil and config_case.id == 'render/_config' and config_case.status == 'skip'
@@ -1606,6 +1759,73 @@ do
     'a project default of exhaustive does not apply to a generated document',
     smoke_exhaustive and (smoke_exhaustive.status .. ' '
       .. tostring(smoke_exhaustive.failure and smoke_exhaustive.failure.reason)))
+end
+
+do
+  local results = run_fixture('check', '--layer render')
+  local function check_entries(suffix)
+    local case = find_case(results, suffix)
+    local parts = {}
+    for _, entry in ipairs((case or {}).assertions or {}) do
+      if entry.kind == 'check' then
+        parts[#parts + 1] = entry.id .. ' ' .. entry.status
+      end
+    end
+    return table.concat(parts, '|')
+  end
+
+  equal(outcome(results, 'render/check-pass/html'), 'pass nil', 'a check whose TAP lines all pass passes')
+  equal(check_entries('render/check-pass/html'), 'check/1 pass|check/2 skip|check/3 skip',
+    'each TAP line of the check is an entry of the case')
+
+  equal(outcome(results, 'render/check-fail-exit/html'), 'fail check-failed', 'a failing exit fails the case')
+  local exit_fail = find_case(results, 'render/check-fail-exit/html')
+  check(exit_fail ~= nil and exit_fail.failure.stage == 'check' and exit_fail.failure.message == 'browser missing'
+    and tostring(exit_fail.failure.log):match('%.check%.log$') ~= nil,
+    'the failure has stage check, the last line of standard error, and the check log',
+    exit_fail and (tostring(exit_fail.failure.message) .. ' ' .. tostring(exit_fail.failure.log)))
+  check(exit_fail ~= nil and (util.read_file(exit_fail.failure.log) or ''):find('browser missing', 1, true) ~= nil,
+    'the check log holds the standard error of the command')
+
+  equal(outcome(results, 'render/check-notok-exit0/html'), 'fail check-failed', 'a not ok line fails the case with exit 0')
+  local not_ok = find_case(results, 'render/check-notok-exit0/html')
+  equal(not_ok and not_ok.failure.message, 'slide count', 'the first not ok description is the message')
+
+  equal(outcome(results, 'render/check-stderr-notok/html'), 'pass nil', 'a not ok line on standard error is not TAP')
+  equal(check_entries('render/check-stderr-notok/html'), 'check pass', 'without TAP, one entry records the exit code')
+
+  equal(outcome(results, 'render/check-skip-77/html'), 'pass nil', 'exit 77 does not change the status of the case')
+  equal(check_entries('render/check-skip-77/html'), 'check skip', 'exit 77 is one skip entry')
+
+  local env = find_case(results, 'render/check-env/html')
+  check(env ~= nil and env.status == 'pass' and check_entries('render/check-env/html'):find('fail', 1, true) == nil,
+    'the check gets the input, the output, the format, and the case id',
+    env and (env.status .. ' ' .. tostring(env.failure and env.failure.message)))
+
+  equal(outcome(results, 'render/check-after-failure/html'), 'fail assertion-failed',
+    'a failed assertion comes before the check')
+  equal(check_entries('render/check-after-failure/html'), '', 'the check does not run once the case has failed')
+  equal(outcome(results, 'render/check-should-error/html'), 'pass nil', 'shouldError still passes with a failing check')
+  equal(check_entries('render/check-should-error/html'), '', 'the check does not run under shouldError')
+
+  equal(results and results.tier, 'check', 'tier is check when a check ran')
+
+  local default = run_fixture('check-default', '--layer render --layer smoke')
+  equal(outcome(default, 'render/authored/html'), 'fail check-failed', 'a project default check runs on an authored document')
+  local generated = find_case(default, 'smoke/generated/')
+  check(generated ~= nil and generated.status == 'pass' and check_entries('smoke/generated/') == '',
+    'a project default check does not run on a generated document',
+    generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
+
+  if util.timeout_command() then
+    local stalled = run_fixture('check-timeout', '--layer render')
+    local case = find_case(stalled, 'render/stall/gfm')
+    check(case ~= nil and case.failure ~= nil and case.failure.stage == 'check' and case.failure.reason == 'timeout',
+      'a check that exceeds its timeout fails with stage check and reason timeout',
+      case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)))
+  else
+    io.stdout:write('skip a check that exceeds its timeout: neither timeout nor gtimeout is available\n')
+  end
 end
 
 do

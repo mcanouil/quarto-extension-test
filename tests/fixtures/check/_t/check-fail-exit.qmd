@@ -1,0 +1,12 @@
+---
+title: check-fail-exit
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/exit-fail.sh
+    html:
+---
+
+{{< hello >}}

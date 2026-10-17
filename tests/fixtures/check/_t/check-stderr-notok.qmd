@@ -1,0 +1,12 @@
+---
+title: check-stderr-notok
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/stderr-notok.sh
+    html:
+---
+
+{{< hello >}}

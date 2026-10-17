@@ -1,0 +1,12 @@
+---
+title: check-env
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/env.sh
+    html:
+---
+
+{{< hello >}}

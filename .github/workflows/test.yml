@@ -34,6 +34,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # The guard must fail before Quarto is set up, so this costs seconds.
+      - name: Run the action with playwright-browsers and no node-version
+        id: browsers-without-node
+        continue-on-error: true
+        uses: ./.github/actions/extension-test
+        with:
+          runner: "_extensions/extension-test/run.lua"
+          playwright-browsers: "chromium"
+
+      - name: Expect that run to fail
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.browsers-without-node.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${OUTCOME}" != "failure" ]]; then
+            printf 'Error: the action accepted playwright-browsers without node-version (outcome %s).\n' "${OUTCOME}" >&2
+            exit 1
+          fi
+
       # The repository is the first consumer of its own action. The action sets
       # up Quarto, which the unit suite also needs, because the fixture tests
       # drive the Quarto CLI and the unit tests call `pandoc.*`.

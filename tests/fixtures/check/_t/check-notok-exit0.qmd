@@ -1,0 +1,12 @@
+---
+title: check-notok-exit0
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/notok-exit0.sh
+    html:
+---
+
+{{< hello >}}

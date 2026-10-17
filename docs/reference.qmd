@@ -85,7 +85,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 | `skip` | Skips the document. A string is the reason. |
 | `os`, `not_os` | Runs the document only on, or never on, `darwin`, `linux`, or `windows`. |
 | `ci` | With `false`, skips the document on continuous integration. Other values have no effect, as in q2. |
-| `requires_js` | Skips the document, because the runner does not execute JavaScript. |
+| `requires_js` | Skips the document, because the runner does not execute JavaScript. A document with a `check` must not set it, because the document is then skipped and the check does not run. |
 | `requires` | Skips the document when `Rscript` (`knitr`) or `jupyter` (`jupyter`) is not on the `PATH`. |
 | `extension-test` | Holds the options of this runner. |
 
@@ -97,6 +97,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 | `name` | string | The file stem | A human name for the case. |
 | `description` | string | `""` | What the case covers. |
 | `warnings` | `default` or `exhaustive` | `default` | With `exhaustive`, each warning in a `noErrors` format must match a `printsMessage` entry at `WARN` that is not negated. A document with `exhaustive` and no `noErrors` format fails with `options-invalid`. |
+| `check` | string | None | A shell command that runs after the assertions of each format pass. See "Check hook". |
 
 : The options under `_quarto.tests.run.extension-test`. {.striped .hover tbl-colwidths="[14,14,20,52]"}
 
@@ -117,6 +118,7 @@ If `quarto inspect` cannot read the tests project, `render/_config` is a skip wi
 - `warnings: exhaustive` is specific to the runner, and q2 applies `noErrors` alone.
 - The runner reads the kept `.typ` file beside the input, named after it.
 - A document without format keys renders here, and q2 skips it.
+- q2 ignores `check`, so the check hook runs only with this runner.
 
 ## Command line
 
@@ -185,9 +187,73 @@ The runner does these checks in this order, and the first check that fails gives
 5. The output file exists.
 6. The output holds no shortcode text outside code, which would mean a shortcode did not expand.
 7. Every assertion of the format passes.
+8. The `check` command passes, when the document sets one.
 
 Under `shouldError`, the runner does only the timeout check, the `shouldError` check, and the `printsMessage` entries.
 When a render exits 0 but writes no log, the case is a skip with `log-missing`, because the log rule cannot be checked.
+
+### Check hook
+
+The `check` option runs a shell command on the output of a render.
+Use it for a test that Lua cannot do, such as a browser test of a slide deck.
+
+The command runs once for each format, after every assertion of the format passes.
+It does not run in these cases:
+
+- The case already failed.
+- The format sets `shouldError`.
+- The document is a generated smoke document.
+- The document is the demo `example.qmd` or `template.qmd`.
+
+The command runs through `sh`, from the tests directory, with empty standard input.
+A command that reads standard input therefore ends at once.
+The check hook supports POSIX shells only.
+
+The runner sets these variables for the command:
+
+| Variable | Value |
+| --- | --- |
+| `EXTENSION_TEST_INPUT` | The absolute path of the test document. |
+| `EXTENSION_TEST_OUTPUT` | The absolute path of the output file. |
+| `EXTENSION_TEST_FORMAT` | The format name, such as `revealjs`. |
+| `EXTENSION_TEST_CASE_ID` | The identifier of the case, such as `render/check-env/html`. |
+
+: Variables of a check command. {.striped .hover tbl-colwidths="[34,66]"}
+
+The exit code and the output of the command decide the result:
+
+| Result | Outcome |
+| --- | --- |
+| Exit 0, and no failing TAP line | The check passes. |
+| Exit 77 | One `check` entry with status `skip`. The runner ignores the TAP lines. The status of the case does not change. |
+| Any other exit code | The case fails with stage `check` and reason `check-failed`. |
+| A `not ok` line without `# SKIP` or `# TODO` | The case fails with stage `check` and reason `check-failed`. |
+| A timeout | The case fails with stage `check` and reason `timeout`. |
+
+: Results of a check command. {.striped .hover tbl-colwidths="[40,60]"}
+
+The time limit is the `timeout` option, and it is separate from the time limit of the render.
+It needs `timeout` or `gtimeout` on the `PATH`.
+With a time limit, exit 124 is a timeout, also when the command itself exits 124.
+Without one, no limit applies and exit 124 is an ordinary failure.
+
+The runner reads TAP from standard output only.
+Each top-level `ok` or `not ok` line gives one entry, named `check/<n>` by its position.
+Plan lines, comments, indented subtest lines, and text such as `okay` are not TAP lines.
+If the command writes no TAP line, one `check` entry records the exit code.
+
+The failure message is the first failing `not ok` description.
+If there is none, it is the last non-empty line of standard error.
+If standard error is empty, it is `the check exited <code>`.
+The output of the command lands in `tests/_results/logs/<slug>.check.log`.
+
+A project default in `tests/_quarto.yml` runs for every format.
+If a command applies to some formats only, make it read `EXTENSION_TEST_FORMAT` and exit 77 for the others.
+A document turns off a project default with `check: "exit 77"`.
+A document with `check: ""` fails with `options-invalid`.
+
+A `check` command is repository code.
+It has the same trust as the Lua code of the repository.
 
 ### Smoke
 
@@ -221,7 +287,7 @@ Two runs can be compared case by case.
 | `quarto` | The Quarto version and its channel, `release` or `prerelease`. |
 | `extension` | The repository root and the names of the extensions found. |
 | `environment` | The severity and the tests directory. |
-| `tier` | The test tier, currently always `render`. |
+| `tier` | `check` when at least one check command ran, else `render`. A check that exits 77 counts as run. |
 | `layer_order` | The layers in the order they ran. |
 | `status` | `fail` when any case failed, `pass` when any passed, and `skip` when every case was skipped. |
 | `summary` | Counts of all cases, by status. |
@@ -241,8 +307,15 @@ It needs `contents: read` and nothing else.
 | Input | Type | Default | Description |
 | --- | --- | --- | --- |
 | `quarto-channels` | string | `'["release"]'` | A JSON array of Quarto channels, each run as its own job. |
+| `node-version` | string | `""` | The Node.js version to set up for a check command. Empty means no Node.js setup. |
+| `playwright-browsers` | string | `""` | The Playwright browsers to install for a check command, such as `chromium`. Empty means no install. It needs `node-version`, and the action fails without it. |
 
 : Inputs of the `extension-test.yml` workflow. {.striped .hover tbl-colwidths="[22,12,20,46]"}
+
+If `node-version` is set and `tests/package-lock.json` exists, `npm ci` runs in `tests/` before the tests.
+Without `node-version`, `npm ci` does not run.
+`node-version` and `playwright-browsers` take effect from version 0.2.0.
+Before that release, the workflow ignores them.
 
 The companion workflow `.github/workflows/extension-test-issue.yml` opens or updates a single issue naming the failed cases.
 It takes no input.

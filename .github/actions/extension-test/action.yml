@@ -22,6 +22,14 @@ inputs:
       a `_results` directory and those two move with it.
     required: false
     default: "tests/_results/results.json"
+  node-version:
+    description: "Node.js version to set up for a check command, for example `22`. Empty sets up no Node.js."
+    required: false
+    default: ""
+  playwright-browsers:
+    description: "Playwright browsers to install, for example `chromium`. Needs `node-version`."
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -36,6 +44,8 @@ runs:
         QUARTO_CHANNEL: ${{ inputs.quarto }}
         RUNNER_GLOB: ${{ inputs.runner }}
         RESULTS: ${{ inputs.results }}
+        NODE_VERSION: ${{ inputs.node-version }}
+        PLAYWRIGHT_BROWSERS: ${{ inputs.playwright-browsers }}
       run: |
         set -euo pipefail
         case "${QUARTO_CHANNEL}" in
@@ -45,6 +55,10 @@ runs:
             exit 1
             ;;
         esac
+        if [[ -n "${PLAYWRIGHT_BROWSERS}" && -z "${NODE_VERSION}" ]]; then
+          printf 'Error: playwright-browsers needs node-version, because Playwright runs on Node.js.\n' >&2
+          exit 1
+        fi
         mapfile -t runners < <(compgen -G "${RUNNER_GLOB}" || true)
         if [[ "${#runners[@]}" -eq 0 ]]; then
           printf 'Error: no runner matched %s.\n' "${RUNNER_GLOB}" >&2
@@ -63,12 +77,51 @@ runs:
           printf 'path=%s\n' "${runners[0]}"
           printf 'logs=%s\n' "${results_dir}/logs"
           printf 'output=%s\n' "${tests_dir}/_output"
+          printf 'tests=%s\n' "${tests_dir}"
         } >> "${GITHUB_OUTPUT}"
 
     - name: Setup Quarto
       uses: quarto-dev/quarto-actions/setup@v2
       with:
         version: ${{ inputs.quarto }}
+
+    - name: Setup Node.js
+      if: ${{ inputs.node-version != '' }}
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install the Node.js dependencies
+      if: ${{ inputs.node-version != '' }}
+      shell: bash
+      env:
+        TESTS_DIR: ${{ steps.resolve.outputs.tests }}
+      run: |
+        set -euo pipefail
+        if [[ -f "${TESTS_DIR}/package-lock.json" ]]; then
+          cd -- "${TESTS_DIR}"
+          npm ci
+        else
+          printf '::warning::node-version is set but %s does not exist, so npm ci did not run and npx resolves packages on its own.\n' \
+            "${TESTS_DIR}/package-lock.json"
+        fi
+
+    - name: Install the Playwright browsers
+      if: ${{ inputs.playwright-browsers != '' }}
+      shell: bash
+      env:
+        TESTS_DIR: ${{ steps.resolve.outputs.tests }}
+        PLAYWRIGHT_BROWSERS: ${{ inputs.playwright-browsers }}
+      run: |
+        set -euo pipefail
+        if [[ ! -d "${TESTS_DIR}" ]]; then
+          printf 'Error: the tests directory %s, found from results, does not exist, so Playwright has nowhere to install.\n' "${TESTS_DIR}" >&2
+          exit 1
+        fi
+        cd -- "${TESTS_DIR}"
+        # Word splitting is deliberate: `playwright-browsers` is a list of names.
+        # shellcheck disable=SC2086
+        npx playwright install --with-deps ${PLAYWRIGHT_BROWSERS}
 
     - name: Run the tests
       id: run
@@ -82,8 +135,10 @@ runs:
         # shellcheck disable=SC2086
         quarto pandoc lua "${RUNNER_PATH}" ${RUNNER_ARGS}
 
+    # Gated like the upload: when the inputs are refused, there is no run to
+    # summarise, and a "no result file" line would read as a failed suite.
     - name: Write the summary
-      if: always()
+      if: ${{ always() && steps.resolve.outputs.path != '' }}
       shell: bash
       env:
         RESULTS: ${{ inputs.results }}
