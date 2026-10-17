@@ -53,6 +53,8 @@ Pass `quarto-channels` to test more than one channel, for example `'["release", 
 
 If a `check` command needs Node.js or a browser, set `node-version` and `playwright-browsers`.
 The workflow then installs both before the tests run.
+Both inputs take effect from version 0.2.0.
+Before that release, the workflow ignores them.
 
 ```yaml
     uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main

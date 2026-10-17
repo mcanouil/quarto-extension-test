@@ -314,6 +314,8 @@ It needs `contents: read` and nothing else.
 
 If `node-version` is set and `tests/package-lock.json` exists, `npm ci` runs in `tests/` before the tests.
 Without `node-version`, `npm ci` does not run.
+`node-version` and `playwright-browsers` take effect from version 0.2.0.
+Before that release, the workflow ignores them.
 
 The companion workflow `.github/workflows/extension-test-issue.yml` opens or updates a single issue naming the failed cases.
 It takes no input.
