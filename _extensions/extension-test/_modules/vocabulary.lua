@@ -95,7 +95,7 @@ function M.known_keys()
 end
 
 --- Decide whether `q2 call test` can judge a test document.
---- The rules match the measurements of q2 `0.33.0`. The check hook does not
+--- The rules match the measurements of q2 `0.34.0`. The check hook does not
 --- take a document out, because q2 ignores the option. A policy conflict stays
 --- in, because q2 fails it too.
 --- @param spec table the specification from `frontmatter.spec`
