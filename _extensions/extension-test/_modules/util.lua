@@ -112,6 +112,7 @@ function M.is_dir(path)
   local ok = pcall(pandoc.system.list_directory, path)
   return ok
 end
+
 --- Read a whole file.
 --- @param path string
 --- @return string|nil contents, string|nil error
