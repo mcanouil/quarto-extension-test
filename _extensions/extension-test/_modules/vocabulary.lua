@@ -94,4 +94,44 @@ function M.known_keys()
   return keys
 end
 
+--- Decide whether `q2 call test` can judge a test document.
+--- The rules match the measurements of q2 `0.33.0`. The check hook does not
+--- take a document out, because q2 ignores the option. A policy conflict stays
+--- in, because q2 fails it too.
+--- @param spec table the specification from `frontmatter.spec`
+--- @param settings table the options from `frontmatter.options`
+--- @return table {included = boolean, reason = string|nil}
+function M.q2_selection(spec, settings)
+  if not spec.has_format_keys then
+    return { included = false, reason = 'no format keys, so q2 call test skips it' }
+  end
+  local function rejected(format, key)
+    return {
+      included = false,
+      reason = string.format('`%s.%s` is a key that q2 call test rejects', format, key),
+    }
+  end
+  for _, format in ipairs(spec.formats) do
+    if format.problem and format.problem.reason == 'unknown-assertion' then
+      return rejected(format.name, format.problem.key)
+    end
+    for _, assertion in ipairs(format.assertions) do
+      if assertion.q2_rejects then
+        return rejected(format.name, assertion.key)
+      end
+      if assertion.key == 'printsMessage' then
+        return {
+          included = false,
+          reason = string.format(
+            '`%s.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics', format.name),
+        }
+      end
+    end
+  end
+  if settings.warnings == 'exhaustive' then
+    return { included = false, reason = '`warnings: exhaustive` is a rule of this runner only' }
+  end
+  return { included = true }
+end
+
 return M

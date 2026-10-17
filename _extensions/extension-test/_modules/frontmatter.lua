@@ -80,6 +80,7 @@ local function format_entry(name, value)
     if kind.class == 'unknown' then
       entry.problem = entry.problem or {
         reason = 'unknown-assertion',
+        key = key,
         message = string.format(
           'unknown key `%s` under `_quarto.tests.%s`; the valid keys are %s. This runner tracks the q2 keys of commit %s, so a key q2 added later is unknown here until the runner is updated.',
           key, name, table.concat(vocabulary.known_keys(), ', '), vocabulary.Q2_COMMIT),

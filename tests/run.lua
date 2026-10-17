@@ -329,6 +329,49 @@ do
     'the list of valid keys holds executed and known keys, and not `run`')
 end
 
+do
+  local null = pandoc.json.null
+  local function selection_of(tests, settings)
+    local spec = frontmatter.spec(tests)
+    return vocabulary.q2_selection(spec, settings or {})
+  end
+  local function summary(selection)
+    return tostring(selection.included) .. ' ' .. tostring(selection.reason)
+  end
+
+  equal(summary(selection_of({ html = { ensureFileRegexMatches = { { 'a' } } } })), 'true nil',
+    'a document with executed keys q2 accepts goes to q2')
+  equal(summary(selection_of({ revealjs = null, typst = { noErrors = true, shouldError = true } })), 'true nil',
+    'an empty format value and a policy conflict stay in, because q2 gives the same verdict')
+  equal(summary(selection_of({ html = { ensureHtmlElements = { { 'p' } } } })), 'true nil',
+    'a known key that q2 accepts stays in')
+  equal(summary(selection_of(nil)), 'false no format keys, so q2 call test skips it',
+    'a document without format keys goes out')
+  equal(summary(selection_of({ run = { skip = true } })), 'false no format keys, so q2 call test skips it',
+    'a run block alone is not a format key')
+  equal(summary(selection_of({ docx = { ensureDocxRegexMatches = { {}, { 'x' } } } })),
+    'false `docx.ensureDocxRegexMatches` is a key that q2 call test rejects', 'a key q2 rejects takes the document out')
+  equal(summary(selection_of({ html = { ensurePptxLayout = {} } })),
+    'false `html.ensurePptxLayout` is a key that q2 call test rejects', 'a known key q2 rejects takes the document out')
+  equal(summary(selection_of({ html = { ensureNothing = {} } })),
+    'false `html.ensureNothing` is a key that q2 call test rejects', 'an unknown key takes the document out')
+  for _, item in ipairs({
+    { level = 'INFO', regex = 'Output created' },
+    { level = 'ERROR', regex = 'x', negate = true },
+    { level = 'WARN', regex = 'x', count = 1 },
+  }) do
+    equal(summary(selection_of({ html = { noErrors = true, printsMessage = item } })),
+      'false `html.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics',
+      'printsMessage takes the document out at level ' .. item.level)
+  end
+  equal(summary(selection_of({ html = { noErrors = true } }, { warnings = 'exhaustive' })),
+    'false `warnings: exhaustive` is a rule of this runner only', 'warnings: exhaustive takes the document out')
+  equal(summary(selection_of({ html = { noErrors = true } }, { warnings = 'default' })), 'true nil',
+    'warnings: default stays in')
+  equal(selection_of({ docx = { ensureDocxRegexMatches = { {} } }, html = { printsMessage = {} } }).reason,
+    '`docx.ensureDocxRegexMatches` is a key that q2 call test rejects', 'the first reason in format order wins')
+end
+
 io.stdout:write('# log\n')
 
 do
