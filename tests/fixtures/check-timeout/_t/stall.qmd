@@ -5,8 +5,8 @@ _quarto:
   tests:
     run:
       extension-test:
-        timeout: 6
-        check: sleep 30
+        timeout: 20
+        check: sleep 60
     gfm:
 ---
 

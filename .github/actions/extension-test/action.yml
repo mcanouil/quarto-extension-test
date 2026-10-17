@@ -111,6 +111,10 @@ runs:
         PLAYWRIGHT_BROWSERS: ${{ inputs.playwright-browsers }}
       run: |
         set -euo pipefail
+        if [[ ! -d "${TESTS_DIR}" ]]; then
+          printf 'Error: the tests directory %s, found from results, does not exist, so Playwright has nowhere to install.\n' "${TESTS_DIR}" >&2
+          exit 1
+        fi
         cd -- "${TESTS_DIR}"
         # Word splitting is deliberate: `playwright-browsers` is a list of names.
         # shellcheck disable=SC2086
