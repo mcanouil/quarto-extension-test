@@ -1,0 +1,11 @@
+---
+title: A support path that names a directory
+format: html
+_quarto:
+  tests:
+    html:
+      fileExists:
+        supportPath: "libs"
+---
+
+{{< present >}}

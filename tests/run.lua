@@ -2008,7 +2008,7 @@ do
       listed[#listed + 1] = line
     end
   end
-  check(fail_code == 0 and #listed == 2 and #util.lines(fail_out) == 2,
+  check(fail_code == 0 and #listed == 3 and #util.lines(fail_out) == 3,
     'every line of --stage output is the absolute path of an existing document', fail_out)
   run_stage('q2-fail', '--unstage')
 end
@@ -2017,13 +2017,14 @@ do
   if util.capture('q2 --version') ~= 0 then
     io.stdout:write('skip q2 and the runner agree: q2 is not available\n')
   else
-    for _, name in ipairs({ 'q2-selection', 'q2-fail' }) do
+    for _, fixture in ipairs({ { name = 'q2-selection', count = 2 }, { name = 'q2-fail', count = 3 } }) do
+      local name = fixture.name
       local tests = util.absolute(util.join(FIXTURES, name, '_t'))
       local results = run_fixture(name, '--layer render')
       local stage_code, listed = run_stage(name, '--stage')
       local documents = util.lines(listed)
-      check(stage_code == 0 and #documents == 2,
-        string.format('--stage lists 2 documents for %s before the verdicts are compared', name),
+      check(stage_code == 0 and #documents == fixture.count,
+        string.format('--stage lists %d documents for %s before the verdicts are compared', fixture.count, name),
         string.format('exit %d, %d lines: %s', stage_code, #documents, listed))
       for _, path in ipairs(documents) do
         local relative = path:sub(#tests + 2)
