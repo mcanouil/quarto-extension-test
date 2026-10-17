@@ -358,6 +358,9 @@ It leaves a document out of the q2 run in these cases:
 A document with a policy conflict stays in the q2 run.
 The check hook does not take a document out, because q2 ignores it.
 The runner also leaves out the demo document, and any document that it cannot read or validate.
+The runner cannot find two differences from the front matter.
+A `shouldError` document that relies on a missing bibliography stays in the q2 run, and fails on q2.
+A `fileExists` entry that names a directory also stays in, and fails on q2.
 
 A failure on the `nightly` channel is a warning.
 A failure on the `release` channel fails the run, so the issue job reports it.
@@ -370,7 +373,7 @@ Then call q2 and remove the staged extension:
 
 ```bash
 quarto pandoc lua tests/_extensions/*/extension-test/run.lua --stage > q2-documents.txt
-tr '\n' '\0' < q2-documents.txt | xargs -0 q2 call test
+tr '\n' '\0' < q2-documents.txt | xargs -0 -r q2 call test
 quarto pandoc lua tests/_extensions/*/extension-test/run.lua --unstage
 ```
 
