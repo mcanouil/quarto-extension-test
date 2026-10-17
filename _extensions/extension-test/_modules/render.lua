@@ -418,11 +418,8 @@ local function render_and_grade(context, target, typ)
     },
   })
   table.move(result.entries, 1, #result.entries, #case.assertions + 1, case.assertions)
-  if result.status == 'timeout' then
-    fail('check', 'timeout', result.message)
-    case.failure.log = result.log
-  elseif result.status == 'fail' then
-    fail('check', 'check-failed', result.message)
+  if result.status == 'timeout' or result.status == 'fail' then
+    fail('check', result.status == 'timeout' and 'timeout' or 'check-failed', result.message)
     case.failure.log = result.log
   end
   return case

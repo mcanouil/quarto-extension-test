@@ -1812,13 +1812,7 @@ do
   local default = run_fixture('check-default', '--layer render --layer smoke')
   equal(outcome(default, 'render/authored/html'), 'fail check-failed', 'a project default check runs on an authored document')
   local generated = find_case(default, 'smoke/generated/')
-  local generated_checks = 0
-  for _, entry in ipairs((generated or {}).assertions or {}) do
-    if entry.kind == 'check' then
-      generated_checks = generated_checks + 1
-    end
-  end
-  check(generated ~= nil and generated.status == 'pass' and generated_checks == 0,
+  check(generated ~= nil and generated.status == 'pass' and check_entries('smoke/generated/') == '',
     'a project default check does not run on a generated document',
     generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
 

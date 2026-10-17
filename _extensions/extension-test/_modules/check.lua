@@ -95,6 +95,14 @@ local function last_line(text)
   return nil
 end
 
+--- The single entry that stands for a check without TAP lines, or one that did not run to its end.
+--- @param status string `pass`, `fail`, or `skip`
+--- @param message string|nil
+--- @return table entry
+local function summary_entry(status, message)
+  return { id = 'check', kind = 'check', expected = 'exit 0', status = status, message = message }
+end
+
 --- Grade a finished check command.
 --- @param code integer exit code of the command
 --- @param stdout string
@@ -105,47 +113,30 @@ end
 function M.grade(code, stdout, stderr, limited, timeout)
   if limited and code == 124 then
     local message = 'the check exceeded ' .. timeout .. ' seconds'
-    return {
-      status = 'timeout',
-      message = message,
-      entries = { { id = 'check', kind = 'check', expected = 'exit 0', status = 'fail', message = message } },
-    }
+    return { status = 'timeout', message = message, entries = { summary_entry('fail', message) } }
   end
   if code == 77 then
     return {
       status = 'skip',
-      entries = {
-        {
-          id = 'check',
-          kind = 'check',
-          expected = 'exit 0',
-          status = 'skip',
-          message = 'exit 77: the check does not apply to this case',
-        },
-      },
+      entries = { summary_entry('skip', 'exit 77: the check does not apply to this case') },
     }
   end
 
   local entries, failed_message = {}, nil
+  local failed = code ~= 0
   for position, record in ipairs(M.parse_tap(stdout)) do
     local entry = tap_entry(record, position)
     entries[#entries + 1] = entry
-    if entry.status == 'fail' and not failed_message then
-      failed_message = record.description ~= '' and record.description or ('not ok on TAP line ' .. position)
+    if entry.status == 'fail' then
+      failed = true
+      failed_message = failed_message
+        or (record.description ~= '' and record.description or ('not ok on TAP line ' .. position))
     end
   end
   if #entries == 0 then
-    local entry = { id = 'check', kind = 'check', expected = 'exit 0', status = 'pass' }
-    if code ~= 0 then
-      entry.status, entry.message = 'fail', 'exit ' .. code
-    end
-    entries[1] = entry
+    entries[1] = code ~= 0 and summary_entry('fail', 'exit ' .. code) or summary_entry('pass')
   end
 
-  local failed = code ~= 0
-  for _, entry in ipairs(entries) do
-    failed = failed or entry.status == 'fail'
-  end
   if not failed then
     return { status = 'pass', entries = entries }
   end
