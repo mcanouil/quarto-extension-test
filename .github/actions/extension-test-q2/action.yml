@@ -75,6 +75,10 @@ runs:
           exit 1
         fi
         tar -xzf q2-*-linux_amd64.tar.gz -C "${q2_dir}/bin"
+        if [[ ! -x "${q2_dir}/bin/q2" ]]; then
+          printf 'Error: the q2 %s archive has no q2 file at its root.\n' "${tag}" >&2
+          exit 1
+        fi
         printf '%s\n' "${q2_dir}/bin" >> "${GITHUB_PATH}"
         "${q2_dir}/bin/q2" --version
 
@@ -127,8 +131,10 @@ runs:
         mapfile -t documents < "${RUNNER_TEMP}/q2-documents.txt"
         q2 call test "${documents[@]}"
 
+    # Only a stage step that ran can leave a staged copy, and Quarto is on
+    # PATH by then.
     - name: Remove the staged extension
-      if: ${{ always() && steps.resolve.outputs.path != '' }}
+      if: ${{ always() && steps.stage.outcome != 'skipped' }}
       shell: bash
       env:
         RUNNER_PATH: ${{ steps.resolve.outputs.path }}
