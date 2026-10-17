@@ -137,6 +137,20 @@ function M.spec(tests)
   return spec, nil
 end
 
+--- The settings with a whole `timeout` as an integer.
+---
+--- JSON numbers decode as floats, so a `timeout: 6` arrives as `6.0` and
+--- would print as `6.0` in a message. A value with no integer form, such as
+--- `1e308`, stays as it is.
+--- @param settings table
+--- @return table settings
+local function whole_timeout(settings)
+  if math.type(settings.timeout) == 'float' then
+    settings.timeout = math.tointeger(settings.timeout) or settings.timeout
+  end
+  return settings
+end
+
 --- Validate the options of the runner.
 --- @param run table `_quarto.tests.run`
 --- @param descriptors table the options of `test-schema.yml`
@@ -159,7 +173,7 @@ function M.options(run, descriptors, stem)
     for key, value in pairs(declared) do
       settings[key] = value
     end
-    return settings, nil
+    return whole_timeout(settings), nil
   end
   local _, errors, _, coerced = schema.validate(declared, descriptors, { unknown = 'error' })
   if errors and #errors > 0 then
@@ -168,7 +182,7 @@ function M.options(run, descriptors, stem)
   for key, value in pairs(coerced or declared) do
     settings[key] = value
   end
-  return settings, nil
+  return whole_timeout(settings), nil
 end
 
 --- The operating system, with the names q2 uses.
