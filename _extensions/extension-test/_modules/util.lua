@@ -261,6 +261,16 @@ function M.timeout_command()
   return nil
 end
 
+--- A number of seconds for a message.
+---
+--- JSON numbers decode as floats, so a whole `6` would print as `6.0`.
+--- A value with no integer form, such as `1e308`, prints unchanged.
+--- @param seconds number
+--- @return string
+function M.seconds(seconds)
+  return tostring(math.tointeger(seconds) or seconds)
+end
+
 --- A command prefix bounding a run to `seconds`, empty when unavailable.
 --- @param seconds number
 --- @return string

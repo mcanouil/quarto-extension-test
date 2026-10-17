@@ -208,6 +208,7 @@ It does not run in these cases:
 The command runs through `sh`, from the tests directory, with empty standard input.
 A command that reads standard input therefore ends at once.
 The check hook supports POSIX shells only.
+A `check` value that is empty or holds only whitespace fails the document with `options-invalid`.
 
 The runner sets these variables for the command:
 
@@ -228,6 +229,7 @@ The exit code and the output of the command decide the result:
 | Exit 77 | One `check` entry with status `skip`. The runner ignores the TAP lines. The status of the case does not change. |
 | Any other exit code | The case fails with stage `check` and reason `check-failed`. |
 | A `not ok` line without `# SKIP` or `# TODO` | The case fails with stage `check` and reason `check-failed`. |
+| A `Bail out!` line | The case fails with stage `check` and reason `check-failed`, also with exit 0. |
 | A timeout | The case fails with stage `check` and reason `timeout`. |
 
 : Results of a check command. {.striped .hover tbl-colwidths="[40,60]"}
@@ -239,10 +241,13 @@ Without one, no limit applies and exit 124 is an ordinary failure.
 
 The runner reads TAP from standard output only.
 Each top-level `ok` or `not ok` line gives one entry, named `check/<n>` by its position.
+A colon can follow the directive word, as in `# SKIP: no browser`.
+A `Bail out!` line gives one failed entry and ends the TAP lines, so the runner ignores the lines after it.
 Plan lines, comments, indented subtest lines, and text such as `okay` are not TAP lines.
 If the command writes no TAP line, one `check` entry records the exit code.
 
-The failure message is the first failing `not ok` description.
+After a `Bail out!` line, the failure message is the text after `Bail out!`, or `Bail out!` when there is no text.
+Otherwise, the failure message is the first failing `not ok` description.
 If there is none, it is the last non-empty line of standard error.
 If standard error is empty, it is `the check exited <code>`.
 The output of the command lands in `tests/_results/logs/<slug>.check.log`.

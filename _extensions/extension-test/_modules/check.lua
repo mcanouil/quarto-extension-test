@@ -9,6 +9,8 @@ local util = require('util')
 local M = {}
 
 --- The directive of a TAP line: a `#` followed by `skip` or `todo` in any case.
+---
+--- A colon may follow the word, as in `# SKIP: reason`, as TAP::Parser reads it.
 --- @param text string the line after its number and dash
 --- @return string description, string|nil directive, string reason
 local function split_directive(text)
@@ -20,8 +22,8 @@ local function split_directive(text)
     end
     local word, rest = text:sub(at + 1):match('^%s*(%a+)(.*)$')
     local name = word and word:upper()
-    if (name == 'SKIP' or name == 'TODO') and (rest == '' or rest:match('^%s')) then
-      return util.trim(text:sub(1, at - 1)), name, util.trim(rest)
+    if (name == 'SKIP' or name == 'TODO') and (rest == '' or rest:match('^[%s:]')) then
+      return util.trim(text:sub(1, at - 1)), name, util.trim((rest:gsub('^:', '')))
     end
     from = at + 1
   end
@@ -50,11 +52,18 @@ end
 ---
 --- Plan lines, comments, indented subtest lines, and other text are not TAP
 --- lines, and neither is a line such as `okay` that only starts with `ok`.
+--- A `Bail out!` line is the last record, with `bail` set, because the
+--- command gave up and the lines after it are not results.
 --- @param text string
---- @return table[] records {ok, description, directive, reason}
+--- @return table[] records {ok, description, directive, reason, bail}
 function M.parse_tap(text)
   local records = {}
   for _, line in ipairs(util.lines(text)) do
+    local bail_reason = line:gsub('\r$', ''):match('^Bail out!(.*)$')
+    if bail_reason then
+      records[#records + 1] = { ok = false, bail = true, description = '', reason = util.trim(bail_reason) }
+      break
+    end
     local record = parse_line(line)
     if record then
       records[#records + 1] = record
@@ -72,7 +81,10 @@ local function tap_entry(record, position)
   if record.description ~= '' then
     entry.expected = record.description
   end
-  if record.directive == 'SKIP' then
+  if record.bail then
+    entry.expected, entry.status = 'no Bail out!', 'fail'
+    entry.message = record.reason ~= '' and record.reason or 'Bail out!'
+  elseif record.directive == 'SKIP' then
     entry.status, entry.message = 'skip', util.trim('SKIP ' .. record.reason)
   elseif not record.ok and record.directive == 'TODO' then
     entry.status, entry.message = 'skip', util.trim('TODO ' .. record.reason)
@@ -115,7 +127,7 @@ end
 --- @return table result {status, entries, message}
 function M.grade(code, stdout, stderr, limited, timeout)
   if limited and code == 124 then
-    local message = 'the check exceeded ' .. timeout .. ' seconds'
+    local message = 'the check exceeded ' .. util.seconds(timeout) .. ' seconds'
     return { status = 'timeout', message = message, entries = { summary_entry('fail', message) } }
   end
   if code == 77 then
@@ -130,7 +142,9 @@ function M.grade(code, stdout, stderr, limited, timeout)
   for position, record in ipairs(M.parse_tap(stdout)) do
     local entry = tap_entry(record, position)
     entries[#entries + 1] = entry
-    if entry.status == 'fail' then
+    if record.bail then
+      failed, failed_message = true, entry.message
+    elseif entry.status == 'fail' then
       failed = true
       failed_message = failed_message
         or (record.description ~= '' and record.description or ('not ok on TAP line ' .. position))

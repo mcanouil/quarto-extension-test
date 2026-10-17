@@ -511,11 +511,15 @@ do
   local descriptors = schema.load_schema(here .. '_extensions/extension-test/test-schema.yml').options
   local settings = frontmatter.options({ ['extension-test'] = { check = 'bash _checks/x.sh' } }, descriptors, 'doc')
   equal(settings.check, 'bash _checks/x.sh', 'check is a runner option')
-  for _, case in ipairs({ { '', 'must be at least 1 characters' }, { 3, 'must be of type "string"' } }) do
+  for _, case in ipairs({
+    { '', 'does not match required pattern' },
+    { ' \t\n', 'does not match required pattern' },
+    { 3, 'must be of type "string"' },
+  }) do
     local bad, wording = case[1], case[2]
     local _, problem = frontmatter.options({ ['extension-test'] = { check = bad } }, descriptors, 'doc')
     check(problem ~= nil and problem:find('check', 1, true) ~= nil and problem:find(wording, 1, true) ~= nil,
-      'check must be a non-empty string: ' .. string.format('%q', tostring(bad)), problem)
+      'check must be a string that is not empty or only whitespace: ' .. string.format('%q', tostring(bad)), problem)
   end
 end
 
@@ -735,6 +739,14 @@ do
   equal(tap[3].reason, 'no title here', 'the reason follows the directive')
   equal(tap[4].directive, 'TODO', 'a directive is read in any case')
   equal(tap[5].ok and tap[5].description, '', 'a bare ok has an empty description')
+  local colon = check_hook.parse_tap('ok 1 - title # SKIP: no title here\nnot ok 2 # TODO:later\n')
+  equal(colon[1].directive and (colon[1].directive .. ' ' .. colon[1].reason), 'SKIP no title here',
+    'a directive followed by a colon is read, and the colon is not part of the reason')
+  equal(colon[2].directive and (colon[2].directive .. ' ' .. colon[2].reason), 'TODO later',
+    'a colon with no space after it still ends the directive')
+  local bailed = check_hook.parse_tap('ok 1 - first\nBail out! no browser\nnot ok 2 - after\n')
+  check(#bailed == 2 and bailed[2].bail == true and bailed[2].reason == 'no browser',
+    'a Bail out! line is read with its reason, and the lines after it are not', #bailed)
 
   local function grade(code, stdout, stderr, limited)
     return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30)
@@ -783,6 +795,16 @@ do
     and summary(stalled) == 'check fail',
     'exit 124 under a time limit is a timeout', stalled.message)
   equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
+  equal(check_hook.grade(124, '', '', true, 6.0).message, 'the check exceeded 6 seconds',
+    'a whole timeout decoded from JSON as a float is printed without a decimal part')
+  equal(util.seconds(6.0) .. ' ' .. util.seconds(1e308), '6 1e+308',
+    'seconds prints a whole number without a decimal part, and keeps a value with no integer form')
+
+  local bail = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nBail out! no browser\nok 3 - later\n')
+  check(bail.status == 'fail' and bail.message == 'no browser' and summary(bail) == 'check/1 pass|check/2 fail|check/3 fail',
+    'Bail out! fails the check with exit 0, gives its reason as the message, and ends the TAP lines',
+    bail.status .. ' ' .. tostring(bail.message) .. ' ' .. summary(bail))
+  equal(grade(0, 'Bail out!\n').message, 'Bail out!', 'a Bail out! with no reason is named as such')
 end
 
 do
@@ -1573,9 +1595,9 @@ do
     local slow = run_fixture('slow', '--layer render')
     local stalled = find_case(slow, 'render/document/html')
     check(stalled ~= nil and stalled.failure and stalled.failure.reason == 'timeout'
-      and stalled.failure.stage == 'render',
-      'a render that exceeds its timeout fails with `timeout`',
-      stalled and stalled.failure and stalled.failure.reason)
+      and stalled.failure.stage == 'render' and stalled.failure.message == 'the render exceeded 1 seconds',
+      'a render that exceeds its timeout fails with `timeout`, and the message has no decimal part',
+      stalled and stalled.failure and (stalled.failure.reason .. ' ' .. tostring(stalled.failure.message)))
   else
     io.stdout:write('skip a render that exceeds its timeout: neither timeout nor gtimeout is available\n')
   end
@@ -1821,9 +1843,11 @@ do
   if util.timeout_command() then
     local stalled = run_fixture('check-timeout', '--layer render')
     local case = find_case(stalled, 'render/stall/gfm')
-    check(case ~= nil and case.failure ~= nil and case.failure.stage == 'check' and case.failure.reason == 'timeout',
-      'a check that exceeds its timeout fails with stage check and reason timeout',
-      case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)))
+    check(case ~= nil and case.failure ~= nil and case.failure.stage == 'check' and case.failure.reason == 'timeout'
+      and case.failure.message == 'the check exceeded 20 seconds',
+      'a check that exceeds its timeout fails with stage check and reason timeout, and the message has no decimal part',
+      case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)
+        .. ' ' .. tostring(case.failure and case.failure.message)))
   else
     io.stdout:write('skip a check that exceeds its timeout: neither timeout nor gtimeout is available\n')
   end
