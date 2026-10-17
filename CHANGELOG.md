@@ -7,6 +7,7 @@
 - feat: Check the content of an output with `ensureFileRegexMatches`, `ensureTypstFileRegexMatches`, `ensureDocxRegexMatches`, `printsMessage`, and `fileExists`.
 - feat: Check how many times a message appears with `count` in `printsMessage`, and reject warnings a document does not expect with `warnings: exhaustive`.
 - feat: Run a check command of your own after the assertions of each format pass, with `check` under `run.extension-test`. The reusable workflow can set up Node.js and Playwright for it with `node-version` and `playwright-browsers`.
+- fix: Report a `printsMessage` count that is too large to be a whole number, such as `1e308`, as an invalid assertion. The render no longer crashes on it.
 
 ## 0.1.2 (2026-09-23)
 
