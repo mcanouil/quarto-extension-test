@@ -227,7 +227,7 @@ local function message_level(item)
   local level = log.normalise_level(item.level)
   local count = item.count
   local count_valid = count == nil
-    or (type(count) == 'number' and count >= 1 and count == math.floor(count) and not item.negate)
+    or (type(count) == 'number' and math.tointeger(count) and count >= 1 and not item.negate)
   if not level or type(item.regex) ~= 'string'
     or (item.negate ~= nil and type(item.negate) ~= 'boolean') or not count_valid then
     return nil
