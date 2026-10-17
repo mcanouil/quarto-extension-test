@@ -63,7 +63,7 @@ jobs:
     name: Test on q2 (${{ matrix.channel }})
     # An empty matrix is an error in GitHub Actions, so the job is skipped
     # instead when no q2 channel is asked for.
-    if: ${{ inputs.q2-channels != '[]' }}
+    if: ${{ inputs.q2-channels != '[]' && inputs.q2-channels != '' }}
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.channel == 'nightly' }}
     strategy:
