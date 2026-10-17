@@ -1,0 +1,10 @@
+---
+title: An unknown assertion
+format: html
+_quarto:
+  tests:
+    html:
+      ensureNothing: []
+---
+
+{{< present >}}

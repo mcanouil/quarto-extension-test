@@ -13,6 +13,7 @@ local cli = require('cli')
 local log = require('log')
 local assertions = require('assert')
 local check = require('check')
+local vocabulary = require('vocabulary')
 
 local M = {}
 
@@ -105,6 +106,51 @@ function M.discover(root, tests)
     end
   end
   return {}
+end
+
+--- Decide which discovered documents `q2 call test` can judge.
+---
+--- The front matter is read as `M.execute` reads it, from the staged project,
+--- but nothing is rendered. `run.skip` is not a reason here, because q2 reads
+--- `run` itself.
+--- @param options table
+--- @param descriptors table `run.extension-test` descriptors
+--- @return table[] records {relative, absolute, included, reason}, in discovery order
+function M.q2_documents(options, descriptors)
+  local records = {}
+  for _, document in ipairs(M.discover(options.root, options.tests)) do
+    local record = { relative = document.relative, absolute = document.absolute, included = false }
+    records[#records + 1] = record
+    if document.origin == 'demo' then
+      record.reason = 'the demo document is outside the tests project'
+      goto continue
+    end
+
+    do
+      local info, inspect_err = cli.inspect(document.absolute, options.tests)
+      if not info then
+        record.reason = inspect_err
+        goto continue
+      end
+      local spec, problem = frontmatter.spec(info.tests)
+      if problem then
+        record.reason = 'front-matter-invalid: ' .. problem
+        goto continue
+      end
+      local stem = pandoc.path.filename(document.relative):gsub('%.qmd$', '')
+      local settings, options_err = frontmatter.options(spec.run, descriptors, stem)
+      if options_err then
+        record.reason = '`run.extension-test` does not validate: ' .. options_err
+        goto continue
+      end
+      local selection = vocabulary.q2_selection(spec, settings)
+      record.included = selection.included
+      record.reason = selection.reason
+    end
+
+    ::continue::
+  end
+  return records
 end
 
 --- The first promoted warning among the log lines.

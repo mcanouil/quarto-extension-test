@@ -1,0 +1,14 @@
+---
+title: A negated printsMessage entry
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+      printsMessage:
+        level: INFO
+        regex: "never written"
+        negate: true
+---
+
+{{< present >}}

@@ -1,0 +1,12 @@
+---
+title: A docx assertion that q2 rejects
+format: docx
+_quarto:
+  tests:
+    docx:
+      ensureDocxRegexMatches:
+        - []
+        - ["Backup"]
+---
+
+{{< present >}}

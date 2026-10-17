@@ -103,6 +103,27 @@ local function run_fixture(name, extra)
   return parsed, output
 end
 
+--- Run the runner with `--stage` or `--unstage` against a fixture.
+---
+--- The two streams are read from separate files, because `--stage` keeps its
+--- standard output for document paths. The command is a group, because
+--- `util.capture` appends `2>&1`, which would otherwise merge them.
+--- @param name string fixture directory name
+--- @param flag string `--stage`, `--unstage`, or both
+--- @return integer code, string stdout, string stderr
+local function run_stage(name, flag)
+  local root = util.join(FIXTURES, name)
+  local results = here .. 'tests/_results'
+  pandoc.system.make_directory(results, true)
+  local out_path = util.join(results, 'stage-stdout.txt')
+  local err_path = util.join(results, 'stage-stderr.txt')
+  local command = string.format('{ quarto pandoc lua %s --root %s --tests %s %s > %s 2> %s; }',
+    util.shell_quote(RUNNER), util.shell_quote(root), util.shell_quote(util.join(root, '_t')),
+    flag, util.shell_quote(out_path), util.shell_quote(err_path))
+  local code = util.capture(command)
+  return code, util.read_file(out_path) or '', util.read_file(err_path) or ''
+end
+
 --- Run a copy of the framework whose own descriptors are missing.
 ---
 --- `M.run` continues with empty descriptors when it cannot read them, so this
@@ -1922,6 +1943,64 @@ do
   check(results ~= nil and #names > 0 and not found_test_key, 'generated documents carry no `test:` key',
     tostring(#names) .. ' generated')
   util.remove_tree(generated)
+end
+
+do
+  local tests = util.absolute(util.join(FIXTURES, 'q2-selection', '_t'))
+  local staged = util.join(tests, '_extensions', 'local', 'present', '_extension.yml')
+  util.remove_tree(util.join(tests, '_extensions'))
+
+  local code, stdout, stderr = run_stage('q2-selection', '--stage')
+  equal(code, 0, '--stage exits 0')
+  equal(stdout, util.join(tests, 'included.qmd') .. '\n' .. util.join(tests, 'sub', 'nested.qmd') .. '\n',
+    '--stage writes the absolute path of each selected document, and nothing else')
+  check(util.exists(staged), '--stage leaves the extension staged')
+  for _, line in ipairs({
+    'skip excluded-docx.qmd: `docx.ensureDocxRegexMatches` is a key that q2 call test rejects',
+    'skip excluded-exhaustive.qmd: `warnings: exhaustive` is a rule of this runner only',
+    'skip excluded-no-format-keys.qmd: no format keys, so q2 call test skips it',
+    'skip excluded-options.qmd: `run.extension-test` does not validate:',
+    'skip excluded-prints.qmd: `html.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics',
+    'skip excluded-unknown.qmd: `html.ensureNothing` is a key that q2 call test rejects',
+    '2 of 8 documents go to q2',
+  }) do
+    check(stderr:find(line, 1, true) ~= nil, '--stage reports on standard error: ' .. line, stderr)
+  end
+  check(stderr:find('_draft', 1, true) == nil, 'a document that discovery ignores is not reported')
+
+  local again_code, again = run_stage('q2-selection', '--stage')
+  check(again_code == 0 and again == stdout and not util.exists(util.join(tests, '_extensions', 'local', 'present', 'present')),
+    'a second --stage gives the same list and does not nest the staged copy')
+
+  equal(run_stage('q2-selection', '--unstage'), 0, '--unstage exits 0')
+  check(not util.exists(util.join(tests, '_extensions', 'local')), '--unstage removes the staged copy')
+  equal(run_stage('q2-selection', '--unstage'), 0, '--unstage with nothing staged exits 0')
+
+  local both = run_stage('q2-selection', '--stage --unstage')
+  equal(both, 2, '--stage and --unstage together are refused')
+
+  local exhaustive_code, exhaustive_out, exhaustive_err = run_stage('exhaustive-default', '--stage')
+  check(exhaustive_code == 0 and exhaustive_out == ''
+    and exhaustive_err:find('skip stray.qmd: `warnings: exhaustive` is a rule of this runner only', 1, true) ~= nil
+    and exhaustive_err:find('0 of 1 documents go to q2', 1, true) ~= nil,
+    'a project default of exhaustive takes the document out, and an empty list still exits 0', exhaustive_err)
+  run_stage('exhaustive-default', '--unstage')
+
+  local missing_code, missing_out, missing_err = run_stage('no-project-file', '--stage')
+  check(missing_code == 2 and missing_out == '' and missing_err:find('has no `_quarto.yml`', 1, true) ~= nil
+    and not util.exists(util.join(FIXTURES, 'no-project-file', '_t', '_extensions', 'local')),
+    '--stage without a project file fails, writes no path, and leaves nothing staged', missing_err)
+
+  local fail_code, fail_out = run_stage('q2-fail', '--stage')
+  local listed = {}
+  for _, line in ipairs(util.lines(fail_out)) do
+    if pandoc.path.is_absolute(line) and line:match('%.qmd$') and util.exists(line) then
+      listed[#listed + 1] = line
+    end
+  end
+  check(fail_code == 0 and #listed == 2 and #util.lines(fail_out) == 2,
+    'every line of --stage output is the absolute path of an existing document', fail_out)
+  run_stage('q2-fail', '--unstage')
 end
 
 io.stdout:write('# determinism\n')

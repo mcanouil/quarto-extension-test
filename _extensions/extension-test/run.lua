@@ -69,6 +69,8 @@ Options:
   --json <path>         Write the result JSON. Default: tests/_results/results.json.
   --tap <path>          Write TAP 13. `-` means stdout. Default: stdout.
   --list                Print the plan and run nothing.
+  --stage               Stage the extension, print the documents q2 can test, and stop.
+  --unstage             Remove the staged extension, and stop.
   --quiet               Suppress the human summary on stderr.
   --version             Print the framework version.
   --help                Print this message.
@@ -137,6 +139,10 @@ local function parse_args(argv)
       options.tap = value()
     elseif flag == '--list' then
       options.list = true
+    elseif flag == '--stage' then
+      options.stage = true
+    elseif flag == '--unstage' then
+      options.unstage = true
     elseif flag == '--quiet' then
       options.quiet = true
     elseif flag == '--version' then
@@ -152,6 +158,9 @@ local function parse_args(argv)
     index = index + 1
   end
 
+  if options.stage and options.unstage then
+    return nil, '`--stage` and `--unstage` cannot be used together'
+  end
   if #options.layers == 0 then
     options.layers = { 'conformance', 'render', 'smoke' }
   end
@@ -343,6 +352,46 @@ local function run_smoke(options, extensions, descriptors, emit)
   end
 end
 
+--- Stage the extension and list the documents that `q2 call test` can judge.
+---
+--- Standard output holds only the absolute path of each selected document,
+--- one for each line, so a caller can pass it to q2 as it is. Everything else
+--- goes to standard error. The staged copy is left in place for q2 to use.
+--- @param options table
+--- @return integer exit code
+local function stage_for_q2(options)
+  local function fail(message)
+    stage.unstage(options.tests)
+    io.stderr:write('error: ', message, '\n')
+    return 2
+  end
+
+  local staged, stage_err = stage.stage(options.root, options.tests)
+  if stage_err then
+    return fail(stage_err)
+  end
+  if #staged.names == 0 then
+    return fail('the repository ships no extension to stage')
+  end
+  local missing = stage.missing_project(options.tests)
+  if missing then
+    return fail(missing)
+  end
+
+  local records = render.q2_documents(options, load_test_descriptors(options))
+  local included = 0
+  for _, record in ipairs(records) do
+    if record.included then
+      included = included + 1
+      io.stdout:write(record.absolute, '\n')
+    else
+      io.stderr:write(string.format('skip %s: %s\n', record.relative, record.reason))
+    end
+  end
+  io.stderr:write(string.format('%d of %d documents go to q2\n', included, #records))
+  return 0
+end
+
 local function main(argv)
   local options, parse_err = parse_args(argv)
   if not options then
@@ -363,6 +412,14 @@ local function main(argv)
   if not util.is_dir(options.root) then
     io.stderr:write(string.format('error: repository root `%s` is not a directory\n', options.root))
     return 2
+  end
+
+  if options.unstage then
+    stage.unstage(options.tests)
+    return 0
+  end
+  if options.stage then
+    return stage_for_q2(options)
   end
 
   local results = report.new({

@@ -1,0 +1,9 @@
+---
+title: A draft that discovery ignores
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+{{< present >}}

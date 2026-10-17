@@ -1,0 +1,12 @@
+---
+title: A run option that does not validate
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: soon
+    html:
+---
+
+{{< present >}}

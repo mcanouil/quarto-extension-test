@@ -1,0 +1,11 @@
+---
+title: A pattern that is never in the output
+format: html
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["never in the output"]
+---
+
+{{< present >}}
