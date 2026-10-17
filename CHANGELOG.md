@@ -8,7 +8,8 @@
 - feat: Check how many times a message appears with `count` in `printsMessage`, and reject warnings a document does not expect with `warnings: exhaustive`.
 - feat: Run a check command of your own after the assertions of each format pass, with `check` under `run.extension-test`. The reusable workflow can set up Node.js and Playwright for it with `node-version` and `playwright-browsers`.
 - fix: Report a `printsMessage` count that is too large to be a whole number, such as `1e308`, as an invalid assertion. The render no longer crashes on it.
-- fix: Fail a check that prints `Bail out!`, read `# SKIP:` and `# TODO:` with a colon as directives, and reject a `check` that holds only whitespace. Timeout messages now print whole seconds, such as `6` in place of `6.0`.
+- fix: Fail a check that prints `Bail out!`, read `# SKIP:` and `# TODO:` with a colon as directives, and reject a `check` that holds only whitespace. Timeout messages now print whole seconds, such as `6` in place of `6.0`. (#26)
+- fix: Reject a `timeout` over `86400` seconds as an invalid option. A huge value such as `1e308` no longer stops the render layer. (#27)
 
 ## 0.1.2 (2026-09-23)
 

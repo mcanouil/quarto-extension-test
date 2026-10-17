@@ -93,7 +93,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `timeout` | integer | `300` | Seconds for each render. It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
+| `timeout` | integer | `300` | Seconds for each render, from `1` to `86400` (one day). It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
 | `name` | string | The file stem | A human name for the case. |
 | `description` | string | `""` | What the case covers. |
 | `warnings` | `default` or `exhaustive` | `default` | With `exhaustive`, each warning in a `noErrors` format must match a `printsMessage` entry at `WARN` that is not negated. A document with `exhaustive` and no `noErrors` format fails with `options-invalid`. |
