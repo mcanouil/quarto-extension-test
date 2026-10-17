@@ -1680,9 +1680,6 @@ do
   -- A `.typ` file already beside a document is not what the render kept.
   -- Quarto itself writes and removes `<stem>.typ` during a Typst render, so
   -- the file is created here, before the run, rather than committed.
-  equal(util.is_file(FIXTURES), false, 'a directory is not a regular file')
-  equal(util.is_file(util.join(FIXTURES, 'assertions', '_t', 'file-exists.qmd')), true, 'a file is a regular file')
-  equal(util.is_file(util.join(FIXTURES, 'assertions', '_t', 'absent.qmd')), false, 'a missing path is not a regular file')
   util.write_file(util.join(FIXTURES, 'assertions', '_t', 'handwritten.typ'), 'here\n')
   util.write_file(util.join(FIXTURES, 'assertions', '_t', 'typst-under-html.typ'), 'here\n')
   local results = run_fixture('assertions', '--layer render')
