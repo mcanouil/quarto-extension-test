@@ -302,8 +302,10 @@ local function file_exists(value, ctx)
     end
     local path = util.join(base, value[key])
     local entry = { id = kind .. '/' .. key, kind = kind, expected = value[key] }
-    if util.exists(path) then
+    if util.is_file(path) then
       entry.status = 'pass'
+    elseif util.is_dir(path) then
+      entry.status, entry.message = 'fail', 'not a regular file: ' .. path
     else
       entry.status, entry.message = 'fail', 'missing: ' .. path
     end

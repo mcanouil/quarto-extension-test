@@ -1680,6 +1680,9 @@ do
   -- A `.typ` file already beside a document is not what the render kept.
   -- Quarto itself writes and removes `<stem>.typ` during a Typst render, so
   -- the file is created here, before the run, rather than committed.
+  equal(util.is_file(FIXTURES), false, 'a directory is not a regular file')
+  equal(util.is_file(util.join(FIXTURES, 'assertions', '_t', 'file-exists.qmd')), true, 'a file is a regular file')
+  equal(util.is_file(util.join(FIXTURES, 'assertions', '_t', 'absent.qmd')), false, 'a missing path is not a regular file')
   util.write_file(util.join(FIXTURES, 'assertions', '_t', 'handwritten.typ'), 'here\n')
   util.write_file(util.join(FIXTURES, 'assertions', '_t', 'typst-under-html.typ'), 'here\n')
   local results = run_fixture('assertions', '--layer render')
@@ -1727,8 +1730,18 @@ do
     'the q2 warning of an assertion entry reaches the case diagnostics')
   local files = find_case(results, 'render/file-exists/html')
   check(files ~= nil and files.status == 'pass',
-    'fileExists finds the output and its support directory',
+    'fileExists finds the output and a file in its support directory',
     files and (files.status .. ' ' .. tostring(files.failure and files.failure.message)))
+  local directories = find_case(results, 'render/file-exists-directory/html')
+  local refused = 0
+  for _, entry in ipairs(directories and directories.assertions or {}) do
+    if entry.status == 'fail' and (entry.message or ''):find('not a regular file', 1, true) then
+      refused = refused + 1
+    end
+  end
+  check(directories ~= nil and directories.status == 'fail' and refused == 2,
+    'fileExists fails when outputPath or supportPath names a directory',
+    directories and (directories.status .. ' ' .. tostring(directories.failure and directories.failure.message)))
 end
 
 do

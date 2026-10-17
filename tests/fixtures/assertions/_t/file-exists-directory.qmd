@@ -1,0 +1,12 @@
+---
+title: Paths that name a directory
+format: html
+_quarto:
+  tests:
+    html:
+      fileExists:
+        outputPath: "file-exists-directory_files"
+        supportPath: "libs"
+---
+
+{{< present >}}

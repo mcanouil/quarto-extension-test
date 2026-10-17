@@ -46,7 +46,7 @@ _quarto:
 | `ensureTypstFileRegexMatches` | Matches the kept `.typ` file in the same way. Set `keep-typ: true` on the `typst` format. A `.typ` file that is already beside the document before the render fails the assertion. |
 | `ensureDocxRegexMatches` | Matches `word/document.xml` of a DOCX output in the same way. q2 does not know this key. |
 | `printsMessage` | Looks for a log line: `{level, regex, negate, count}`, or a list of these. With `count`, exactly that many lines must match. |
-| `fileExists` | Looks for `outputPath` beside the output, and for `supportPath` in `<output name>_files`. |
+| `fileExists` | Looks for the file `outputPath` beside the output, and for the file `supportPath` in `<output name>_files`. A directory fails the assertion, as on q2. |
 
 : The keys that the runner executes. {.striped .hover tbl-colwidths="[30,70]"}
 
@@ -121,7 +121,6 @@ If `quarto inspect` cannot read the tests project, `render/_config` is a skip wi
 - q2 ignores `check`, so the check hook runs only with this runner.
 - q2 does not fail on a missing bibliography.
   A `shouldError` document that relies on one fails on q2.
-- q2 needs a file for `fileExists`, and the runner also accepts a directory.
 - q2 matches `printsMessage` against its own diagnostics, and never against the quarto-cli log.
 
 ## Command line
@@ -358,9 +357,8 @@ It leaves a document out of the q2 run in these cases:
 A document with a policy conflict stays in the q2 run.
 The check hook does not take a document out, because q2 ignores it.
 The runner also leaves out the demo document, and any document that it cannot read or validate.
-The runner cannot find two differences from the front matter.
+The runner cannot find one difference from the front matter.
 A `shouldError` document that relies on a missing bibliography stays in the q2 run, and fails on q2.
-A `fileExists` entry that names a directory also stays in, and fails on q2.
 
 A failure on the `nightly` channel is a warning.
 A failure on the `release` channel fails the run, so the issue job reports it.

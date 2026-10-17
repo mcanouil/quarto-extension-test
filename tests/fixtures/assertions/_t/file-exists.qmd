@@ -6,7 +6,7 @@ _quarto:
     html:
       fileExists:
         outputPath: "file-exists.html"
-        supportPath: "libs"
+        supportPath: "libs/bootstrap/bootstrap.min.js"
 ---
 
 {{< present >}}

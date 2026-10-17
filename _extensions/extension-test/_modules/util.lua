@@ -113,6 +113,13 @@ function M.is_dir(path)
   return ok
 end
 
+--- Whether a path exists and is not a directory.
+--- @param path string
+--- @return boolean
+function M.is_file(path)
+  return M.exists(path) and not M.is_dir(path)
+end
+
 --- Read a whole file.
 --- @param path string
 --- @return string|nil contents, string|nil error
