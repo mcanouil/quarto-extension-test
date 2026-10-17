@@ -2003,6 +2003,36 @@ do
   run_stage('q2-fail', '--unstage')
 end
 
+do
+  if util.capture('q2 --version') ~= 0 then
+    io.stdout:write('skip q2 and the runner agree: q2 is not available\n')
+  else
+    for _, name in ipairs({ 'q2-selection', 'q2-fail' }) do
+      local tests = util.absolute(util.join(FIXTURES, name, '_t'))
+      local results = run_fixture(name, '--layer render')
+      local _, listed = run_stage(name, '--stage')
+      for _, path in ipairs(util.lines(listed)) do
+        local relative = path:sub(#tests + 2)
+        local prefix = 'render/' .. relative:gsub('%.qmd$', '') .. '/'
+        local runner_pass, cases = true, 0
+        for _, case in ipairs((results or {}).cases or {}) do
+          if case.id:sub(1, #prefix) == prefix then
+            cases = cases + 1
+            runner_pass = runner_pass and case.status == 'pass'
+          end
+        end
+        -- Relative, because the local Docker wrapper of q2 cannot open an
+        -- absolute path inside the directory it mounts.
+        local q2_code, q2_output = util.capture('cd ' .. util.shell_quote(tests) .. ' && q2 call test ' .. util.shell_quote(relative))
+        check(cases > 0 and runner_pass == (q2_code == 0),
+          string.format('q2 and the runner agree on %s/%s', name, relative),
+          string.format('runner %s over %d cases, q2 exit %d: %s', tostring(runner_pass), cases, q2_code, q2_output))
+      end
+      run_stage(name, '--unstage')
+    end
+  end
+end
+
 io.stdout:write('# determinism\n')
 
 do
