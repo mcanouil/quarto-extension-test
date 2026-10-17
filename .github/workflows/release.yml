@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   release:
-    uses: mcanouil/quarto-workflows/.github/workflows/release.yml@v2
+    uses: mcanouil/quarto-workflows/.github/workflows/release.yml@ci/use-token-and-land
     permissions:
       contents: write
       pull-requests: write
