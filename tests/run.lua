@@ -475,6 +475,11 @@ do
   check(bad_value ~= nil and bad_value:find('timeout', 1, true) ~= nil, 'a timeout below 1 is invalid', bad_value)
   local _, bad_key = frontmatter.options({ ['extension-test'] = { strict = true } }, descriptors, 'doc')
   check(bad_key ~= nil and bad_key:find('strict', 1, true) ~= nil, 'a removed option is invalid', bad_key)
+  local decoded = frontmatter.options(pandoc.json.decode('{"extension-test": {"timeout": 6}}'), descriptors, 'doc')
+  equal(math.type(decoded.timeout) .. ' ' .. tostring(decoded.timeout), 'integer 6',
+    'a timeout that JSON decodes as a float is a whole number, so a message prints 6 and not 6.0')
+  local unread_float = frontmatter.options({ ['extension-test'] = { timeout = 7.0 } }, {}, 'doc')
+  equal(math.type(unread_float.timeout), 'integer', 'a float timeout is a whole number without descriptors too')
   local unread, unread_problem = frontmatter.options({ ['extension-test'] = { timeout = 7 } }, {}, 'doc')
   check(unread_problem == nil and unread.timeout == 7,
     'without readable descriptors the options are kept, not all reported as unknown', unread_problem)
@@ -795,10 +800,6 @@ do
     and summary(stalled) == 'check fail',
     'exit 124 under a time limit is a timeout', stalled.message)
   equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
-  equal(check_hook.grade(124, '', '', true, 6.0).message, 'the check exceeded 6 seconds',
-    'a whole timeout decoded from JSON as a float is printed without a decimal part')
-  equal(util.seconds(6.0) .. ' ' .. util.seconds(1e308), '6 1e+308',
-    'seconds prints a whole number without a decimal part, and keeps a value with no integer form')
 
   local bail = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nBail out! no browser\nok 3 - later\n')
   check(bail.status == 'fail' and bail.message == 'no browser' and summary(bail) == 'check/1 pass|check/2 fail|check/3 fail',

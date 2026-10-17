@@ -31,11 +31,15 @@ end
 
 --- Read one top-level TAP line.
 --- @param line string
---- @return table|nil record {ok, description, directive, reason}
+--- @return table|nil record {ok, description, directive, reason}, or {bail, reason} for `Bail out!`
 local function parse_line(line)
   -- A command that writes CRLF leaves `\r` at the end of each line, and a
   -- bare `not ok\r` would otherwise be dropped and read as a pass.
   line = line:gsub('\r$', '')
+  local bail_reason = line:match('^Bail out!(.*)$')
+  if bail_reason then
+    return { bail = true, reason = util.trim(bail_reason) }
+  end
   local ok, rest = true, line:match('^ok$') and '' or line:match('^ok (.*)$')
   if not rest then
     ok, rest = false, line:match('^not ok$') and '' or line:match('^not ok (.*)$')
@@ -55,18 +59,16 @@ end
 --- A `Bail out!` line is the last record, with `bail` set, because the
 --- command gave up and the lines after it are not results.
 --- @param text string
---- @return table[] records {ok, description, directive, reason, bail}
+--- @return table[] records from `parse_line`
 function M.parse_tap(text)
   local records = {}
   for _, line in ipairs(util.lines(text)) do
-    local bail_reason = line:gsub('\r$', ''):match('^Bail out!(.*)$')
-    if bail_reason then
-      records[#records + 1] = { ok = false, bail = true, description = '', reason = util.trim(bail_reason) }
-      break
-    end
     local record = parse_line(line)
     if record then
       records[#records + 1] = record
+      if record.bail then
+        break
+      end
     end
   end
   return records
@@ -127,7 +129,7 @@ end
 --- @return table result {status, entries, message}
 function M.grade(code, stdout, stderr, limited, timeout)
   if limited and code == 124 then
-    local message = 'the check exceeded ' .. util.seconds(timeout) .. ' seconds'
+    local message = 'the check exceeded ' .. timeout .. ' seconds'
     return { status = 'timeout', message = message, entries = { summary_entry('fail', message) } }
   end
   if code == 77 then
