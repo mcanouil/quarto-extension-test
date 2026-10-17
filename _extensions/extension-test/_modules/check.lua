@@ -128,7 +128,7 @@ end
 --- @param timeout number the time limit in seconds
 --- @return table result {status, entries, message}
 function M.grade(code, stdout, stderr, limited, timeout)
-  if limited and code == 124 then
+  if util.timed_out(code, limited) then
     local message = 'the check exceeded ' .. timeout .. ' seconds'
     return { status = 'timeout', message = message, entries = { summary_entry('fail', message) } }
   end

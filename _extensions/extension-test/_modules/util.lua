@@ -261,6 +261,10 @@ function M.timeout_command()
   return nil
 end
 
+--- Seconds between SIGTERM and SIGKILL, so a command that ignores SIGTERM
+--- still stops.
+M.TIMEOUT_GRACE = 10
+
 --- A command prefix bounding a run to `seconds`, empty when unavailable.
 --- @param seconds number
 --- @return string
@@ -269,7 +273,18 @@ function M.timeout_prefix(seconds)
   if not command then
     return ''
   end
-  return string.format('%s %d ', command, math.floor(tonumber(seconds) or 300))
+  return string.format('%s -k %d %d ', command, M.TIMEOUT_GRACE, math.floor(tonumber(seconds) or 300))
+end
+
+--- Whether an exit code means the time limit stopped the command.
+---
+--- `timeout` exits 124 after SIGTERM, and 137 when it has to send SIGKILL.
+--- Without a time limit, neither code says anything about time.
+--- @param code integer
+--- @param limited boolean true when a time limit was applied
+--- @return boolean
+function M.timed_out(code, limited)
+  return limited and (code == 124 or code == 137) or false
 end
 
 --- Split text into lines, dropping a trailing empty line.

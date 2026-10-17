@@ -369,7 +369,7 @@ local function render_and_grade(context, target, typ)
 
   -- A timeout is the harness giving up, not the failure the document
   -- declares, so `shouldError` does not turn a stall into a pass.
-  if code == 124 then
+  if util.timed_out(code, util.timeout_command() ~= nil) then
     return fail('render', 'timeout', string.format('the render exceeded %s seconds', tostring(settings.timeout)))
   end
 

@@ -93,7 +93,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `timeout` | integer | `300` | Seconds for each render, from `1` to `86400` (one day). It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. |
+| `timeout` | integer | `300` | Seconds for each render, from `1` to `86400` (one day). It needs `timeout` or `gtimeout` on the `PATH`, and has no effect without one. A render that ignores SIGTERM is killed 10 seconds after the limit. |
 | `name` | string | The file stem | A human name for the case. |
 | `description` | string | `""` | What the case covers. |
 | `warnings` | `default` or `exhaustive` | `default` | With `exhaustive`, each warning in a `noErrors` format must match a `printsMessage` entry at `WARN` that is not negated. A document with `exhaustive` and no `noErrors` format fails with `options-invalid`. |
@@ -241,8 +241,9 @@ The exit code and the output of the command decide the result:
 
 The time limit is the `timeout` option, and it is separate from the time limit of the render.
 It needs `timeout` or `gtimeout` on the `PATH`.
-With a time limit, exit 124 is a timeout, also when the command itself exits 124.
-Without one, no limit applies and exit 124 is an ordinary failure.
+When the time runs out, the runner sends SIGTERM, then SIGKILL 10 seconds later if the command is still running.
+With a time limit, exit 124 or 137 is a timeout, also when the command itself exits with that code.
+Without one, no limit applies and exit 124 or 137 is an ordinary failure.
 
 The runner reads TAP from standard output only.
 Each top-level `ok` or `not ok` line gives one entry, named `check/<n>` by its position.
