@@ -592,6 +592,7 @@ do
   for _, bad in ipairs({
     { level = 'WARN', regex = 'x', count = 0 },
     { level = 'WARN', regex = 'x', count = 1.5 },
+    { level = 'WARN', regex = 'x', count = 1e308 },
     { level = 'WARN', regex = 'x', count = '1' },
     { level = 'WARN', regex = 'x', count = 1, negate = true },
   }) do
