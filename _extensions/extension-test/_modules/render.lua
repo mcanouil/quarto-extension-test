@@ -108,6 +108,31 @@ function M.discover(root, tests)
   return {}
 end
 
+--- Why `q2 call test` cannot judge a document, or nil when it can.
+--- @param options table
+--- @param document table from `M.discover`
+--- @param descriptors table `run.extension-test` descriptors
+--- @return string|nil reason
+local function q2_reason(options, document, descriptors)
+  if document.origin == 'demo' then
+    return 'the demo document is outside the tests project'
+  end
+  local info, inspect_err = cli.inspect(document.absolute, options.tests)
+  if not info then
+    return inspect_err
+  end
+  local spec, problem = frontmatter.spec(info.tests)
+  if problem then
+    return 'front-matter-invalid: ' .. problem
+  end
+  local stem = pandoc.path.filename(document.relative):gsub('%.qmd$', '')
+  local settings, options_err = frontmatter.options(spec.run, descriptors, stem)
+  if options_err then
+    return '`run.extension-test` does not validate: ' .. options_err
+  end
+  return vocabulary.q2_selection(spec, settings).reason
+end
+
 --- Decide which discovered documents `q2 call test` can judge.
 ---
 --- The front matter is read as `M.execute` reads it, from the staged project,
@@ -119,36 +144,13 @@ end
 function M.q2_documents(options, descriptors)
   local records = {}
   for _, document in ipairs(M.discover(options.root, options.tests)) do
-    local record = { relative = document.relative, absolute = document.absolute, included = false }
-    records[#records + 1] = record
-    if document.origin == 'demo' then
-      record.reason = 'the demo document is outside the tests project'
-      goto continue
-    end
-
-    do
-      local info, inspect_err = cli.inspect(document.absolute, options.tests)
-      if not info then
-        record.reason = inspect_err
-        goto continue
-      end
-      local spec, problem = frontmatter.spec(info.tests)
-      if problem then
-        record.reason = 'front-matter-invalid: ' .. problem
-        goto continue
-      end
-      local stem = pandoc.path.filename(document.relative):gsub('%.qmd$', '')
-      local settings, options_err = frontmatter.options(spec.run, descriptors, stem)
-      if options_err then
-        record.reason = '`run.extension-test` does not validate: ' .. options_err
-        goto continue
-      end
-      local selection = vocabulary.q2_selection(spec, settings)
-      record.included = selection.included
-      record.reason = selection.reason
-    end
-
-    ::continue::
+    local reason = q2_reason(options, document, descriptors)
+    records[#records + 1] = {
+      relative = document.relative,
+      absolute = document.absolute,
+      included = reason == nil,
+      reason = reason,
+    }
   end
   return records
 end
@@ -768,41 +770,13 @@ function M.run(options, descriptors, emit)
     return
   end
 
-  local staged, stage_err = stage.stage(options.root, options.tests)
-  if stage_err then
-    -- A part-copied extension left in the tree would be rendered by any other
-    -- tool that looks at it before the next run cleans up.
-    stage.unstage(options.tests)
+  local staged, reason, message = stage.prepare(options.root, options.tests)
+  if not staged then
     emit({
       id = 'render/stage',
       layer = 'render',
-      status = 'fail',
-      failure = { stage = 'stage', reason = 'staging-failed', message = stage_err },
-    })
-    return
-  end
-  if #staged.names == 0 then
-    emit({
-      id = 'render/stage',
-      layer = 'render',
-      status = 'skip',
-      failure = {
-        stage = 'stage',
-        reason = 'nothing-to-stage',
-        message = 'the repository ships no extension to stage',
-      },
-    })
-    return
-  end
-
-  local missing = stage.missing_project(options.tests)
-  if missing then
-    stage.unstage(options.tests)
-    emit({
-      id = 'render/stage',
-      layer = 'render',
-      status = 'fail',
-      failure = { stage = 'stage', reason = 'no-project-file', message = missing },
+      status = reason == 'nothing-to-stage' and 'skip' or 'fail',
+      failure = { stage = 'stage', reason = reason, message = message },
     })
     return
   end

@@ -102,14 +102,14 @@ end
 --- @param settings table the options from `frontmatter.options`
 --- @return table {included = boolean, reason = string|nil}
 function M.q2_selection(spec, settings)
-  if not spec.has_format_keys then
-    return { included = false, reason = 'no format keys, so q2 call test skips it' }
+  local function excluded(reason)
+    return { included = false, reason = reason }
   end
   local function rejected(format, key)
-    return {
-      included = false,
-      reason = string.format('`%s.%s` is a key that q2 call test rejects', format, key),
-    }
+    return excluded(string.format('`%s.%s` is a key that q2 call test rejects', format, key))
+  end
+  if not spec.has_format_keys then
+    return excluded('no format keys, so q2 call test skips it')
   end
   for _, format in ipairs(spec.formats) do
     if format.problem and format.problem.reason == 'unknown-assertion' then
@@ -120,16 +120,13 @@ function M.q2_selection(spec, settings)
         return rejected(format.name, assertion.key)
       end
       if assertion.key == 'printsMessage' then
-        return {
-          included = false,
-          reason = string.format(
-            '`%s.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics', format.name),
-        }
+        return excluded(string.format(
+          '`%s.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics', format.name))
       end
     end
   end
   if settings.warnings == 'exhaustive' then
-    return { included = false, reason = '`warnings: exhaustive` is a rule of this runner only' }
+    return excluded('`warnings: exhaustive` is a rule of this runner only')
   end
   return { included = true }
 end

@@ -251,32 +251,13 @@ local function run_smoke(options, extensions, descriptors, emit)
     return
   end
 
-  local staged, stage_err = stage.stage(options.root, options.tests)
-  if stage_err or #staged.names == 0 then
-    -- Undone on the error path too: a part-copied extension left behind would
-    -- be rendered by anything else that looks at the tree before the next run.
-    stage.unstage(options.tests)
+  local staged, reason, message = stage.prepare(options.root, options.tests)
+  if not staged then
     emit({
       id = 'smoke/stage',
       layer = 'smoke',
-      status = stage_err and 'fail' or 'skip',
-      failure = {
-        stage = 'stage',
-        reason = stage_err and 'staging-failed' or 'nothing-to-stage',
-        message = stage_err or 'the repository ships no extension to stage',
-      },
-    })
-    return
-  end
-
-  local missing = stage.missing_project(options.tests)
-  if missing then
-    stage.unstage(options.tests)
-    emit({
-      id = 'smoke/stage',
-      layer = 'smoke',
-      status = 'fail',
-      failure = { stage = 'stage', reason = 'no-project-file', message = missing },
+      status = reason == 'nothing-to-stage' and 'skip' or 'fail',
+      failure = { stage = 'stage', reason = reason, message = message },
     })
     return
   end
@@ -360,22 +341,10 @@ end
 --- @param options table
 --- @return integer exit code
 local function stage_for_q2(options)
-  local function fail(message)
-    stage.unstage(options.tests)
+  local staged, _, message = stage.prepare(options.root, options.tests)
+  if not staged then
     io.stderr:write('error: ', message, '\n')
     return 2
-  end
-
-  local staged, stage_err = stage.stage(options.root, options.tests)
-  if stage_err then
-    return fail(stage_err)
-  end
-  if #staged.names == 0 then
-    return fail('the repository ships no extension to stage')
-  end
-  local missing = stage.missing_project(options.tests)
-  if missing then
-    return fail(missing)
   end
 
   local records = render.q2_documents(options, load_test_descriptors(options))
