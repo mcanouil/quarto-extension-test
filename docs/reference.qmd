@@ -319,8 +319,8 @@ It needs `contents: read` and nothing else.
 | --- | --- | --- | --- |
 | `quarto-channels` | string | `'["release"]'` | A JSON array of Quarto channels, each run as its own job. |
 | `node-version` | string | `""` | The Node.js version to set up for a check command. Empty means no Node.js setup. |
-| `q2-channels` | string | `'[]'` | A JSON array of q2 channels, `release` and `nightly`, each run as its own job. Empty runs no q2 job. |
 | `playwright-browsers` | string | `""` | The Playwright browsers to install for a check command, such as `chromium`. Empty means no install. It needs `node-version`, and the action fails without it. |
+| `q2-channels` | string | `'[]'` | A JSON array of q2 channels, `release` and `nightly`, each run as its own job. Empty runs no q2 job. |
 
 : Inputs of the `extension-test.yml` workflow. {.striped .hover tbl-colwidths="[22,12,20,46]"}
 
@@ -329,6 +329,7 @@ Without `node-version`, `npm ci` does not run.
 `node-version` and `playwright-browsers` take effect from version 0.2.0.
 Before that release, the workflow ignores them.
 `q2-channels` also takes effect from version 0.2.0.
+Before that release, setting `q2-channels` fails the `test-q2` job.
 
 The companion workflow `.github/workflows/extension-test-issue.yml` opens or updates a single issue naming the failed cases.
 It takes no input.
@@ -359,7 +360,7 @@ The check hook does not take a document out, because q2 ignores it.
 The runner also leaves out the demo document, and any document that it cannot read or validate.
 
 A failure on the `nightly` channel is a warning.
-A failure on the `release` channel fails the run and the issue job.
+A failure on the `release` channel fails the run, so the issue job reports it.
 The `test-q2` job writes no result file.
 For this reason the issue lists only the quarto-cli cases, and it links to the run.
 The q2 log is in that run.
