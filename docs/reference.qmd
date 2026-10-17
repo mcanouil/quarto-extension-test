@@ -242,8 +242,9 @@ The exit code and the output of the command decide the result:
 The time limit is the `timeout` option, and it is separate from the time limit of the render.
 It needs `timeout` or `gtimeout` on the `PATH`.
 When the time runs out, the runner sends SIGTERM, then SIGKILL 10 seconds later if the command is still running.
-With a time limit, exit 124 or 137 is a timeout, also when the command itself exits with that code.
-Without one, no limit applies and exit 124 or 137 is an ordinary failure.
+With a time limit, exit 124 is a timeout, also when the command itself exits 124.
+Exit 137 is a timeout only once the limit has passed, because any SIGKILL, such as one from the out-of-memory killer, gives 137.
+Without a time limit, exit 124 or 137 is an ordinary failure.
 
 The runner reads TAP from standard output only.
 Each top-level `ok` or `not ok` line gives one entry, named `check/<n>` by its position.

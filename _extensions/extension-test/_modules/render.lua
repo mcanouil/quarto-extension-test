@@ -316,8 +316,10 @@ local function render_and_grade(context, target, typ)
     typ.path, typ.remove = typ_path, not typ_preexisting
   end
 
+  local started = os.time()
   local code, output = util.capture(cli.render_command(context.tests, document.absolute, format,
     log_path, settings.timeout))
+  local elapsed = os.time() - started
   local lines, incomplete, log_missing = log.read(log_path)
   local errors, logged_warnings = log.messages_at(lines, 'ERROR'), log.messages_at(lines, 'WARN')
   -- The diagnostics hold the logged warnings and the notes of the runner.
@@ -369,7 +371,7 @@ local function render_and_grade(context, target, typ)
 
   -- A timeout is the harness giving up, not the failure the document
   -- declares, so `shouldError` does not turn a stall into a pass.
-  if util.timed_out(code, util.timeout_command() ~= nil) then
+  if util.timed_out(code, util.timeout_command() and settings.timeout, elapsed) then
     return fail('render', 'timeout', string.format('the render exceeded %s seconds', tostring(settings.timeout)))
   end
 

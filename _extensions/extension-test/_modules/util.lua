@@ -279,12 +279,18 @@ end
 --- Whether an exit code means the time limit stopped the command.
 ---
 --- `timeout` exits 124 after SIGTERM, and 137 when it has to send SIGKILL.
---- Without a time limit, neither code says anything about time.
+--- Any SIGKILL gives 137, the OOM killer's too, so 137 counts only once the
+--- limit has passed. Without a time limit, neither code says anything about
+--- time.
 --- @param code integer
---- @param limited boolean true when a time limit was applied
+--- @param limit number|nil the time limit in seconds, nil when none applied
+--- @param elapsed number seconds the command ran
 --- @return boolean
-function M.timed_out(code, limited)
-  return limited == true and (code == 124 or code == 137)
+function M.timed_out(code, limit, elapsed)
+  if not limit then
+    return false
+  end
+  return code == 124 or (code == 137 and elapsed >= limit)
 end
 
 --- Split text into lines, dropping a trailing empty line.

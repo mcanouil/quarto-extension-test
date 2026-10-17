@@ -126,9 +126,10 @@ end
 --- @param stderr string
 --- @param limited boolean true when a time limit was applied
 --- @param timeout number the time limit in seconds
+--- @param elapsed number seconds the command ran
 --- @return table result {status, entries, message}
-function M.grade(code, stdout, stderr, limited, timeout)
-  if util.timed_out(code, limited) then
+function M.grade(code, stdout, stderr, limited, timeout, elapsed)
+  if util.timed_out(code, limited and timeout or nil, elapsed) then
     local message = 'the check exceeded ' .. timeout .. ' seconds'
     return { status = 'timeout', message = message, entries = { summary_entry('fail', message) } }
   end
@@ -201,9 +202,11 @@ function M.run(spec)
   end
   pcall(pandoc.system.make_directory, pandoc.path.directory(spec.log_path), true)
 
+  local started = os.time()
   local code = util.capture(M.command(spec.tests, spec.command, spec.env, stdout_path, stderr_path, spec.timeout))
+  local elapsed = os.time() - started
   local stdout, stderr = util.read_file(stdout_path) or '', util.read_file(stderr_path) or ''
-  local result = M.grade(code, stdout, stderr, util.timeout_command() ~= nil, spec.timeout)
+  local result = M.grade(code, stdout, stderr, util.timeout_command() ~= nil, spec.timeout, elapsed)
 
   util.write_file(spec.log_path, table.concat({
     '$ ' .. spec.command, 'exit ' .. code, '', '# stdout', stdout, '', '# stderr', stderr, '',

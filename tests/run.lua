@@ -825,8 +825,8 @@ do
   check(#bailed == 2 and bailed[2].bail == true and bailed[2].reason == 'no browser',
     'a Bail out! line is read with its reason, and the lines after it are not', #bailed)
 
-  local function grade(code, stdout, stderr, limited)
-    return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30)
+  local function grade(code, stdout, stderr, limited, elapsed)
+    return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30, elapsed or 0)
   end
   local function summary(result)
     local parts = {}
@@ -872,6 +872,8 @@ do
     and summary(stalled) == 'check fail',
     'exit 124 under a time limit is a timeout', stalled.message)
   equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
+  equal(grade(137, '', '', true, 40).status, 'timeout', 'exit 137 once the time limit has passed is a timeout')
+  equal(grade(137, '', '', true, 3).status, 'fail', 'exit 137 before the time limit is an ordinary failure, such as the OOM killer')
 
   local bail = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nBail out! no browser\nok 3 - later\n')
   check(bail.status == 'fail' and bail.message == 'no browser' and summary(bail) == 'check/1 pass|check/2 fail|check/3 fail',
@@ -1923,9 +1925,10 @@ do
     'a project default check does not run on a generated document',
     generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
 
-  equal(util.timed_out(137, true), true, 'exit 137 under a time limit is a timeout')
-  equal(util.timed_out(137, false), false, 'exit 137 with no time limit is not a timeout')
-  equal(util.timed_out(1, true), false, 'exit 1 under a time limit is not a timeout')
+  equal(util.timed_out(137, 20, 30), true, 'exit 137 once the time limit has passed is a timeout')
+  equal(util.timed_out(137, 20, 3), false, 'exit 137 before the time limit is not a timeout')
+  equal(util.timed_out(137, nil, 30), false, 'exit 137 with no time limit is not a timeout')
+  equal(util.timed_out(1, 20, 30), false, 'exit 1 under a time limit is not a timeout')
 
   if util.timeout_command() then
     equal(util.timeout_prefix(20), string.format('%s -k %d 20 ', util.timeout_command(), util.TIMEOUT_GRACE),
