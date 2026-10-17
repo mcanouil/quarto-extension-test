@@ -66,7 +66,7 @@ Before that release, the workflow ignores them.
 To run the test documents on q2 as well, set `q2-channels`.
 Only the documents that q2 can judge go to q2.
 The input takes effect from version 0.2.0.
-See [Running on q2](https://mcanouil.github.io/quarto-extension-test/reference.html#running-on-q2).
+See [Running on q2](https://m.canouil.dev/quarto-extension-test/reference.html#running-on-q2).
 
 ```yaml
     uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
