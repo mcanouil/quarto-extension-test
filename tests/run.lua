@@ -2010,8 +2010,12 @@ do
     for _, name in ipairs({ 'q2-selection', 'q2-fail' }) do
       local tests = util.absolute(util.join(FIXTURES, name, '_t'))
       local results = run_fixture(name, '--layer render')
-      local _, listed = run_stage(name, '--stage')
-      for _, path in ipairs(util.lines(listed)) do
+      local stage_code, listed = run_stage(name, '--stage')
+      local documents = util.lines(listed)
+      check(stage_code == 0 and #documents == 2,
+        string.format('--stage lists 2 documents for %s before the verdicts are compared', name),
+        string.format('exit %d, %d lines: %s', stage_code, #documents, listed))
+      for _, path in ipairs(documents) do
         local relative = path:sub(#tests + 2)
         local prefix = 'render/' .. relative:gsub('%.qmd$', '') .. '/'
         local runner_pass, cases = true, 0
