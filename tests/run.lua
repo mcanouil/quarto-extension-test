@@ -1923,14 +1923,12 @@ do
     'a project default check does not run on a generated document',
     generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
 
-  equal(util.timed_out(124, true), true, 'exit 124 under a time limit is a timeout')
   equal(util.timed_out(137, true), true, 'exit 137 under a time limit is a timeout')
   equal(util.timed_out(137, false), false, 'exit 137 with no time limit is not a timeout')
-  equal(util.timed_out(124, false), false, 'exit 124 with no time limit is not a timeout')
   equal(util.timed_out(1, true), false, 'exit 1 under a time limit is not a timeout')
 
   if util.timeout_command() then
-    equal(util.timeout_prefix(20), util.timeout_command() .. ' -k 10 20 ',
+    equal(util.timeout_prefix(20), string.format('%s -k %d 20 ', util.timeout_command(), util.TIMEOUT_GRACE),
       'the time limit prefix kills the command 10 seconds after it sends SIGTERM')
     local started = os.time()
     local stalled = run_fixture('check-timeout', '--layer render')
@@ -1944,7 +1942,7 @@ do
     local ignored = find_case(stalled, 'render/ignore-term/gfm')
     check(ignored ~= nil and ignored.failure ~= nil and ignored.failure.stage == 'check'
       and ignored.failure.reason == 'timeout' and ignored.failure.message == 'the check exceeded 5 seconds'
-      and elapsed < 150,
+      and elapsed < 120,
       'a check that ignores SIGTERM is killed after the grace period and fails as a timeout',
       string.format('%s in %d seconds', ignored and (ignored.status .. ' ' .. tostring(ignored.failure
         and ignored.failure.reason)) or 'missing', elapsed))

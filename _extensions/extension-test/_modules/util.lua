@@ -284,7 +284,7 @@ end
 --- @param limited boolean true when a time limit was applied
 --- @return boolean
 function M.timed_out(code, limited)
-  return limited and (code == 124 or code == 137) or false
+  return limited == true and (code == 124 or code == 137)
 end
 
 --- Split text into lines, dropping a trailing empty line.
