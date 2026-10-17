@@ -1,0 +1,6 @@
+---
+title: A document with no format keys
+format: html
+---
+
+{{< present >}}

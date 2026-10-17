@@ -1,0 +1,13 @@
+---
+title: A document under the exhaustive rule
+format: html
+_quarto:
+  tests:
+    run:
+      extension-test:
+        warnings: exhaustive
+    html:
+      noErrors: true
+---
+
+{{< present >}}

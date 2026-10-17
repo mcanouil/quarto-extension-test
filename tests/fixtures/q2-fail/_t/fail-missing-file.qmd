@@ -1,0 +1,11 @@
+---
+title: A file that is never written
+format: html
+_quarto:
+  tests:
+    html:
+      fileExists:
+        outputPath: "missing.html"
+---
+
+{{< present >}}

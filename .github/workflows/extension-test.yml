@@ -26,6 +26,11 @@ on:
         required: false
         default: ""
         type: string
+      q2-channels:
+        description: "JSON array of q2 channels: release, nightly. Empty runs no q2 job."
+        required: false
+        default: '[]'
+        type: string
 
 permissions:
   contents: read
@@ -53,3 +58,24 @@ jobs:
           quarto: ${{ matrix.quarto }}
           node-version: ${{ inputs.node-version }}
           playwright-browsers: ${{ inputs.playwright-browsers }}
+
+  test-q2:
+    name: Test on q2 (${{ matrix.channel }})
+    # An empty matrix is an error in GitHub Actions, so the job is skipped
+    # instead when no q2 channel is asked for.
+    if: ${{ inputs.q2-channels != '[]' && inputs.q2-channels != '' }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.channel == 'nightly' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ${{ fromJSON(inputs.q2-channels) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Pinned like the action of the `test` job, and moved with it.
+      - name: Run the tests on q2
+        uses: mcanouil/quarto-extension-test/.github/actions/extension-test-q2@0.1.2
+        with:
+          channel: ${{ matrix.channel }}

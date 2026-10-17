@@ -119,6 +119,10 @@ If `quarto inspect` cannot read the tests project, `render/_config` is a skip wi
 - The runner reads the kept `.typ` file beside the input, named after it.
 - A document without format keys renders here, and q2 skips it.
 - q2 ignores `check`, so the check hook runs only with this runner.
+- q2 does not fail on a missing bibliography.
+  A `shouldError` document that relies on one fails on q2.
+- q2 needs a file for `fileExists`, and the runner also accepts a directory.
+- q2 matches `printsMessage` against its own diagnostics, and never against the quarto-cli log.
 
 ## Command line
 
@@ -136,6 +140,8 @@ quarto pandoc lua tests/_extensions/*/extension-test/run.lua [options]
 | `--keep-generated` | Off | Leave the generated documents in `tests/generated/` to inspect them. |
 | `--json <path>` | `tests/_results/results.json` | Where to write the result JSON. |
 | `--tap <path>` | `-` | Where to write TAP 13. `-` means standard output. |
+| `--stage` | Off | Stage the extension, write the absolute path of each document q2 can test to standard output, and the others with their reasons to standard error, then stop. See "Running on q2". |
+| `--unstage` | Off | Remove the staged extension, and stop. |
 | `--list` | Off | Print the plan and run nothing. |
 | `--quiet` | Off | Leave out the summary on standard error. |
 | `--version` | | Print the framework version. |
@@ -314,6 +320,7 @@ It needs `contents: read` and nothing else.
 | `quarto-channels` | string | `'["release"]'` | A JSON array of Quarto channels, each run as its own job. |
 | `node-version` | string | `""` | The Node.js version to set up for a check command. Empty means no Node.js setup. |
 | `playwright-browsers` | string | `""` | The Playwright browsers to install for a check command, such as `chromium`. Empty means no install. It needs `node-version`, and the action fails without it. |
+| `q2-channels` | string | `'[]'` | A JSON array of q2 channels, `release` and `nightly`, each run as its own job. Empty runs no q2 job. |
 
 : Inputs of the `extension-test.yml` workflow. {.striped .hover tbl-colwidths="[22,12,20,46]"}
 
@@ -321,10 +328,54 @@ If `node-version` is set and `tests/package-lock.json` exists, `npm ci` runs in 
 Without `node-version`, `npm ci` does not run.
 `node-version` and `playwright-browsers` take effect from version 0.2.0.
 Before that release, the workflow ignores them.
+`q2-channels` also takes effect from version 0.2.0.
+Before that release, setting `q2-channels` fails the `test-q2` job.
 
 The companion workflow `.github/workflows/extension-test-issue.yml` opens or updates a single issue naming the failed cases.
 It takes no input.
 Call it as a second job of the same run, and grant `issues: write` to that job alone.
+
+## Running on q2
+
+When `q2-channels` is set, the reusable workflow adds the `test-q2` job.
+The job runs once for each channel.
+It downloads q2 from the `quarto-dev/q2` releases and checks the archive against `checksums.sha256`.
+It also installs the latest pandoc, because q2 needs pandoc 3.11 or newer.
+Then it calls `q2 call test` on the documents that q2 can judge.
+
+The runner selects these documents.
+It leaves a document out of the q2 run in these cases:
+
+| Case | Reason |
+| --- | --- |
+| The document has no format keys. | `q2 call test` skips it. |
+| A format has a key that q2 rejects, or a key that nobody knows. | `q2 call test` rejects the document. |
+| A format has a `printsMessage` entry. | q2 matches its own diagnostics, and never the quarto-cli log. |
+| The document, or the project default, sets `warnings: exhaustive`. | This rule exists in the runner only. |
+
+: Why a document does not go to q2. {.striped .hover tbl-colwidths="[50,50]"}
+
+A document with a policy conflict stays in the q2 run.
+The check hook does not take a document out, because q2 ignores it.
+The runner also leaves out the demo document, and any document that it cannot read or validate.
+The runner cannot find two differences from the front matter.
+A `shouldError` document that relies on a missing bibliography stays in the q2 run, and fails on q2.
+A `fileExists` entry that names a directory also stays in, and fails on q2.
+
+A failure on the `nightly` channel is a warning.
+A failure on the `release` channel fails the run, so the issue job reports it.
+The `test-q2` job writes no result file.
+For this reason the issue lists only the quarto-cli cases, and it links to the run.
+The q2 log is in that run.
+
+To run the same test on your computer, stage the extension and list the documents.
+Then call q2 and remove the staged extension:
+
+```bash
+quarto pandoc lua tests/_extensions/*/extension-test/run.lua --stage > q2-documents.txt
+tr '\n' '\0' < q2-documents.txt | xargs -0 -r q2 call test
+quarto pandoc lua tests/_extensions/*/extension-test/run.lua --unstage
+```
 
 ## Limitations
 

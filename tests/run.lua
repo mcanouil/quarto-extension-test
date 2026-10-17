@@ -103,6 +103,27 @@ local function run_fixture(name, extra)
   return parsed, output
 end
 
+--- Run the runner with `--stage` or `--unstage` against a fixture.
+---
+--- The two streams are read from separate files, because `--stage` keeps its
+--- standard output for document paths. The command is a group, because
+--- `util.capture` appends `2>&1`, which would otherwise merge them.
+--- @param name string fixture directory name
+--- @param flag string `--stage`, `--unstage`, or both
+--- @return integer code, string stdout, string stderr
+local function run_stage(name, flag)
+  local root = util.join(FIXTURES, name)
+  local results = here .. 'tests/_results'
+  pandoc.system.make_directory(results, true)
+  local out_path = util.join(results, 'stage-stdout.txt')
+  local err_path = util.join(results, 'stage-stderr.txt')
+  local command = string.format('{ quarto pandoc lua %s --root %s --tests %s %s > %s 2> %s; }',
+    util.shell_quote(RUNNER), util.shell_quote(root), util.shell_quote(util.join(root, '_t')),
+    flag, util.shell_quote(out_path), util.shell_quote(err_path))
+  local code = util.capture(command)
+  return code, util.read_file(out_path) or '', util.read_file(err_path) or ''
+end
+
 --- Run a copy of the framework whose own descriptors are missing.
 ---
 --- `M.run` continues with empty descriptors when it cannot read them, so this
@@ -327,6 +348,49 @@ do
   check(util.contains(keys, 'ensureHtmlElements') and util.contains(keys, 'noErrors')
     and not util.contains(keys, 'run'),
     'the list of valid keys holds executed and known keys, and not `run`')
+end
+
+do
+  local null = pandoc.json.null
+  local function selection_of(tests, settings)
+    local spec = frontmatter.spec(tests)
+    return vocabulary.q2_selection(spec, settings or {})
+  end
+  local function summary(selection)
+    return tostring(selection.included) .. ' ' .. tostring(selection.reason)
+  end
+
+  equal(summary(selection_of({ html = { ensureFileRegexMatches = { { 'a' } } } })), 'true nil',
+    'a document with executed keys q2 accepts goes to q2')
+  equal(summary(selection_of({ revealjs = null, typst = { noErrors = true, shouldError = true } })), 'true nil',
+    'an empty format value and a policy conflict stay in, because q2 gives the same verdict')
+  equal(summary(selection_of({ html = { ensureHtmlElements = { { 'p' } } } })), 'true nil',
+    'a known key that q2 accepts stays in')
+  equal(summary(selection_of(nil)), 'false no format keys, so q2 call test skips it',
+    'a document without format keys goes out')
+  equal(summary(selection_of({ run = { skip = true } })), 'false no format keys, so q2 call test skips it',
+    'a run block alone is not a format key')
+  equal(summary(selection_of({ docx = { ensureDocxRegexMatches = { {}, { 'x' } } } })),
+    'false `docx.ensureDocxRegexMatches` is a key that q2 call test rejects', 'a key q2 rejects takes the document out')
+  equal(summary(selection_of({ html = { ensurePptxLayout = {} } })),
+    'false `html.ensurePptxLayout` is a key that q2 call test rejects', 'a known key q2 rejects takes the document out')
+  equal(summary(selection_of({ html = { ensureNothing = {} } })),
+    'false `html.ensureNothing` is a key that q2 call test rejects', 'an unknown key takes the document out')
+  for _, item in ipairs({
+    { level = 'INFO', regex = 'Output created' },
+    { level = 'ERROR', regex = 'x', negate = true },
+    { level = 'WARN', regex = 'x', count = 1 },
+  }) do
+    equal(summary(selection_of({ html = { noErrors = true, printsMessage = item } })),
+      'false `html.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics',
+      'printsMessage takes the document out at level ' .. item.level)
+  end
+  equal(summary(selection_of({ html = { noErrors = true } }, { warnings = 'exhaustive' })),
+    'false `warnings: exhaustive` is a rule of this runner only', 'warnings: exhaustive takes the document out')
+  equal(summary(selection_of({ html = { noErrors = true } }, { warnings = 'default' })), 'true nil',
+    'warnings: default stays in')
+  equal(selection_of({ docx = { ensureDocxRegexMatches = { {} } }, html = { printsMessage = {} } }).reason,
+    '`docx.ensureDocxRegexMatches` is a key that q2 call test rejects', 'the first reason in format order wins')
 end
 
 io.stdout:write('# log\n')
@@ -1879,6 +1943,98 @@ do
   check(results ~= nil and #names > 0 and not found_test_key, 'generated documents carry no `test:` key',
     tostring(#names) .. ' generated')
   util.remove_tree(generated)
+end
+
+do
+  local tests = util.absolute(util.join(FIXTURES, 'q2-selection', '_t'))
+  local staged = util.join(tests, '_extensions', 'local', 'present', '_extension.yml')
+  util.remove_tree(util.join(tests, '_extensions'))
+
+  local code, stdout, stderr = run_stage('q2-selection', '--stage')
+  equal(code, 0, '--stage exits 0')
+  equal(stdout, util.join(tests, 'included.qmd') .. '\n' .. util.join(tests, 'sub', 'nested.qmd') .. '\n',
+    '--stage writes the absolute path of each selected document, and nothing else')
+  check(util.exists(staged), '--stage leaves the extension staged')
+  for _, line in ipairs({
+    'skip excluded-docx.qmd: `docx.ensureDocxRegexMatches` is a key that q2 call test rejects',
+    'skip excluded-exhaustive.qmd: `warnings: exhaustive` is a rule of this runner only',
+    'skip excluded-no-format-keys.qmd: no format keys, so q2 call test skips it',
+    'skip excluded-options.qmd: `run.extension-test` does not validate:',
+    'skip excluded-prints.qmd: `html.printsMessage` matches the quarto-cli log, and q2 matches its own diagnostics',
+    'skip excluded-unknown.qmd: `html.ensureNothing` is a key that q2 call test rejects',
+    '2 of 8 documents go to q2',
+  }) do
+    check(stderr:find(line, 1, true) ~= nil, '--stage reports on standard error: ' .. line, stderr)
+  end
+  check(stderr:find('_draft', 1, true) == nil, 'a document that discovery ignores is not reported')
+
+  local again_code, again = run_stage('q2-selection', '--stage')
+  check(again_code == 0 and again == stdout and not util.exists(util.join(tests, '_extensions', 'local', 'present', 'present')),
+    'a second --stage gives the same list and does not nest the staged copy')
+
+  equal(run_stage('q2-selection', '--unstage'), 0, '--unstage exits 0')
+  check(not util.exists(util.join(tests, '_extensions', 'local')), '--unstage removes the staged copy')
+  equal(run_stage('q2-selection', '--unstage'), 0, '--unstage with nothing staged exits 0')
+
+  local both = run_stage('q2-selection', '--stage --unstage')
+  equal(both, 2, '--stage and --unstage together are refused')
+
+  local exhaustive_code, exhaustive_out, exhaustive_err = run_stage('exhaustive-default', '--stage')
+  check(exhaustive_code == 0 and exhaustive_out == ''
+    and exhaustive_err:find('skip stray.qmd: `warnings: exhaustive` is a rule of this runner only', 1, true) ~= nil
+    and exhaustive_err:find('0 of 1 documents go to q2', 1, true) ~= nil,
+    'a project default of exhaustive takes the document out, and an empty list still exits 0', exhaustive_err)
+  run_stage('exhaustive-default', '--unstage')
+
+  local missing_code, missing_out, missing_err = run_stage('no-project-file', '--stage')
+  check(missing_code == 2 and missing_out == '' and missing_err:find('has no `_quarto.yml`', 1, true) ~= nil
+    and not util.exists(util.join(FIXTURES, 'no-project-file', '_t', '_extensions', 'local')),
+    '--stage without a project file fails, writes no path, and leaves nothing staged', missing_err)
+
+  local fail_code, fail_out = run_stage('q2-fail', '--stage')
+  local listed = {}
+  for _, line in ipairs(util.lines(fail_out)) do
+    if pandoc.path.is_absolute(line) and line:match('%.qmd$') and util.exists(line) then
+      listed[#listed + 1] = line
+    end
+  end
+  check(fail_code == 0 and #listed == 2 and #util.lines(fail_out) == 2,
+    'every line of --stage output is the absolute path of an existing document', fail_out)
+  run_stage('q2-fail', '--unstage')
+end
+
+do
+  if util.capture('q2 --version') ~= 0 then
+    io.stdout:write('skip q2 and the runner agree: q2 is not available\n')
+  else
+    for _, name in ipairs({ 'q2-selection', 'q2-fail' }) do
+      local tests = util.absolute(util.join(FIXTURES, name, '_t'))
+      local results = run_fixture(name, '--layer render')
+      local stage_code, listed = run_stage(name, '--stage')
+      local documents = util.lines(listed)
+      check(stage_code == 0 and #documents == 2,
+        string.format('--stage lists 2 documents for %s before the verdicts are compared', name),
+        string.format('exit %d, %d lines: %s', stage_code, #documents, listed))
+      for _, path in ipairs(documents) do
+        local relative = path:sub(#tests + 2)
+        local prefix = 'render/' .. relative:gsub('%.qmd$', '') .. '/'
+        local runner_pass, cases = true, 0
+        for _, case in ipairs((results or {}).cases or {}) do
+          if case.id:sub(1, #prefix) == prefix then
+            cases = cases + 1
+            runner_pass = runner_pass and case.status == 'pass'
+          end
+        end
+        -- Relative, because the local Docker wrapper of q2 cannot open an
+        -- absolute path inside the directory it mounts.
+        local q2_code, q2_output = util.capture('cd ' .. util.shell_quote(tests) .. ' && q2 call test ' .. util.shell_quote(relative))
+        check(cases > 0 and runner_pass == (q2_code == 0),
+          string.format('q2 and the runner agree on %s/%s', name, relative),
+          string.format('runner %s over %d cases, q2 exit %d: %s', tostring(runner_pass), cases, q2_code, q2_output))
+      end
+      run_stage(name, '--unstage')
+    end
+  end
 end
 
 io.stdout:write('# determinism\n')
