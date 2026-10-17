@@ -1,0 +1,140 @@
+name: Extension Test on q2
+description: Set up q2 and run q2 call test over the documents the runner selects.
+
+inputs:
+  channel:
+    description: "q2 channel: release or nightly."
+    required: false
+    default: "release"
+  runner:
+    description: "Glob that resolves to the runner."
+    required: false
+    default: "tests/_extensions/*/extension-test/run.lua"
+  args:
+    description: "Further options passed to the runner with --stage and --unstage."
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # The channel and the glob resolve here, before any download, so a bad
+    # channel or a repository that holds no runner fails with a sentence.
+    - name: Check the inputs and resolve the runner
+      id: resolve
+      shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+        RUNNER_GLOB: ${{ inputs.runner }}
+      run: |
+        set -euo pipefail
+        case "${CHANNEL}" in
+          release | nightly) ;;
+          *)
+            printf 'Error: channel must be release or nightly, not %s.\n' "${CHANNEL}" >&2
+            exit 1
+            ;;
+        esac
+        mapfile -t runners < <(compgen -G "${RUNNER_GLOB}" || true)
+        if [[ "${#runners[@]}" -eq 0 ]]; then
+          printf 'Error: no runner matched %s.\n' "${RUNNER_GLOB}" >&2
+          exit 1
+        fi
+        printf 'path=%s\n' "${runners[0]}" >> "${GITHUB_OUTPUT}"
+
+    # The runner stages the extension and selects the documents through
+    # `quarto pandoc lua`, so Quarto is needed even though q2 renders.
+    - name: Setup Quarto
+      uses: quarto-dev/quarto-actions/setup@v2
+      with:
+        version: release
+
+    - name: Set up q2
+      shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        if [[ "${CHANNEL}" == "nightly" ]]; then
+          tag="nightly"
+        elif ! tag="$(gh release view -R quarto-dev/q2 --json tagName --jq .tagName)"; then
+          printf 'Error: no q2 release was found for the %s channel.\n' "${CHANNEL}" >&2
+          exit 1
+        fi
+        q2_dir="${RUNNER_TEMP}/q2"
+        mkdir -p -- "${q2_dir}/bin"
+        if ! gh release download "${tag}" -R quarto-dev/q2 \
+          -p 'q2-*-linux_amd64.tar.gz' -p 'checksums.sha256' -D "${q2_dir}"; then
+          printf 'Error: cannot download q2 %s from quarto-dev/q2.\n' "${tag}" >&2
+          exit 1
+        fi
+        cd -- "${q2_dir}"
+        if ! sha256sum --check --ignore-missing --strict checksums.sha256; then
+          printf 'Error: the checksum of the q2 %s archive does not agree with checksums.sha256.\n' "${tag}" >&2
+          exit 1
+        fi
+        tar -xzf q2-*-linux_amd64.tar.gz -C "${q2_dir}/bin"
+        printf '%s\n' "${q2_dir}/bin" >> "${GITHUB_PATH}"
+        "${q2_dir}/bin/q2" --version
+
+    # q2 needs pandoc 3.11 or newer for every format other than HTML. The
+    # pandoc that Quarto bundles is older, and Quarto does not put it on PATH.
+    - name: Set up pandoc for q2
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        pandoc_dir="${RUNNER_TEMP}/pandoc"
+        mkdir -p -- "${pandoc_dir}"
+        if ! gh release download -R jgm/pandoc -p 'pandoc-*-linux-amd64.tar.gz' -D "${pandoc_dir}" \
+          || ! tar -xzf "${pandoc_dir}"/pandoc-*-linux-amd64.tar.gz -C "${pandoc_dir}" --strip-components 1 \
+          || [[ ! -x "${pandoc_dir}/bin/pandoc" ]]; then
+          printf 'Error: cannot set up pandoc from jgm/pandoc, which q2 needs for formats other than HTML.\n' >&2
+          exit 1
+        fi
+        printf '%s\n' "${pandoc_dir}/bin" >> "${GITHUB_PATH}"
+        "${pandoc_dir}/bin/pandoc" --version | head -1
+
+    # The runner writes only the absolute paths of the selected documents to
+    # standard output, one for each line, and everything else to standard error.
+    - name: Stage the extension
+      id: stage
+      shell: bash
+      env:
+        RUNNER_PATH: ${{ steps.resolve.outputs.path }}
+        RUNNER_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+        documents_file="${RUNNER_TEMP}/q2-documents.txt"
+        # Word splitting is deliberate: `args` is a command line, not one path.
+        # shellcheck disable=SC2086
+        quarto pandoc lua "${RUNNER_PATH}" --stage ${RUNNER_ARGS} > "${documents_file}"
+        count="$(wc -l < "${documents_file}" | tr -d ' ')"
+        printf 'count=%s\n' "${count}" >> "${GITHUB_OUTPUT}"
+        if [[ "${count}" -eq 0 ]]; then
+          printf '::notice::No test document can go to q2, so q2 call test did not run.\n'
+        fi
+
+    # q2 refuses `q2 call test` with no document, so an empty selection skips
+    # this step and the notice above says why.
+    - name: Run q2 call test
+      if: ${{ steps.stage.outputs.count != '0' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        mapfile -t documents < "${RUNNER_TEMP}/q2-documents.txt"
+        q2 call test "${documents[@]}"
+
+    - name: Remove the staged extension
+      if: ${{ always() && steps.resolve.outputs.path != '' }}
+      shell: bash
+      env:
+        RUNNER_PATH: ${{ steps.resolve.outputs.path }}
+        RUNNER_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+        # Word splitting is deliberate: `args` is a command line, not one path.
+        # shellcheck disable=SC2086
+        quarto pandoc lua "${RUNNER_PATH}" --unstage ${RUNNER_ARGS}

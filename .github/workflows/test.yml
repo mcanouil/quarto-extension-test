@@ -7,6 +7,7 @@ on:
       - "_extensions/**"
       - "tests/**"
       - ".github/actions/extension-test/action.yml"
+      - ".github/actions/extension-test-q2/action.yml"
       - ".github/workflows/test.yml"
   push:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - "_extensions/**"
       - "tests/**"
       - ".github/actions/extension-test/action.yml"
+      - ".github/actions/extension-test-q2/action.yml"
       - ".github/workflows/test.yml"
   workflow_dispatch:
 
@@ -67,6 +69,35 @@ jobs:
           runner: "_extensions/extension-test/run.lua"
           args: "--root tests/fixtures/clean --tests tests/fixtures/clean/_t"
           results: "tests/fixtures/clean/_t/_results/results.json"
+
+      # The guard must fail before Quarto is set up, so this costs seconds.
+      - name: Run the q2 action with an unknown channel
+        id: q2-bad-channel
+        continue-on-error: true
+        uses: ./.github/actions/extension-test-q2
+        with:
+          channel: "beta"
+          runner: "_extensions/extension-test/run.lua"
+
+      - name: Expect that run to fail
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.q2-bad-channel.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${OUTCOME}" != "failure" ]]; then
+            printf 'Error: the q2 action accepted the channel beta (outcome %s).\n' "${OUTCOME}" >&2
+            exit 1
+          fi
+
+      # The q2 action also leaves q2 and pandoc on PATH, so the unit tests
+      # below run the same-verdict test instead of skipping it.
+      - name: Run the q2 action over its own fixture
+        uses: ./.github/actions/extension-test-q2
+        with:
+          channel: "release"
+          runner: "_extensions/extension-test/run.lua"
+          args: "--root tests/fixtures/q2-selection --tests tests/fixtures/q2-selection/_t"
 
       - name: Run the unit tests
         shell: bash
