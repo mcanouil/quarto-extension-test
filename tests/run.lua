@@ -2086,6 +2086,8 @@ do
     kept[#kept + 1] = output
   end
   check(kept[1] ~= nil and kept[1] ~= kept[2], 'each format keeps its own console output', table.concat(kept, ' | '))
+  -- The killed render cannot remove its session directories, so the test does.
+  util.remove_tree(util.join(FIXTURES, 'silent-failure', '_t', '.quarto'))
 
   -- A run removes the console output an earlier run kept for the same case,
   -- as it removes the log, so what is left always belongs to this run.
