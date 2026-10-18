@@ -2079,10 +2079,10 @@ do
   for _, format in ipairs({ 'html', 'gfm' }) do
     local case = find_case(results, 'render/silent/' .. format)
     local output = case and case.failure and case.failure.output
-    check(case ~= nil and case.failure.message == render.NO_DIAGNOSTIC
+    check(case ~= nil and case.failure ~= nil and case.failure.message == render.NO_DIAGNOSTIC
       and output ~= nil and util.exists(output),
       'a render that fails with no diagnostic output keeps its console output (' .. format .. ')',
-      case and (tostring(case.failure.message) .. ' ' .. tostring(output)))
+      case and (tostring(case.failure and case.failure.message) .. ' ' .. tostring(output)))
     kept[#kept + 1] = output
   end
   check(kept[1] ~= nil and kept[1] ~= kept[2], 'each format keeps its own console output', table.concat(kept, ' | '))

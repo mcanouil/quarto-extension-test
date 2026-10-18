@@ -404,8 +404,8 @@ local function render_and_grade(context, target, typ)
     -- With nothing to quote, the console output is all there is to go on,
     -- so it is kept beside the log rather than lost with the run.
     if message == M.NO_DIAGNOSTIC then
-      case.failure.output = log_path:gsub('%.log$', '') .. '.output.log'
-      util.write_file(case.failure.output, output or '')
+      case.failure.output = util.join(context.log_dir, slug .. '.output.log')
+      util.write_file(case.failure.output, output)
     end
     return case
   end
