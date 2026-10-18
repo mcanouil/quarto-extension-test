@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 (2026-10-18)
+
 - feat: Read test cases from the `_quarto.tests` block that q2 uses, in place of the `test:` block, which is removed.
 - feat: Fail the render of a test document on a logged warning by default. Use `noErrors` to allow warnings. Generated smoke documents and the demo `example.qmd` still allow warnings.
 - feat: Check the content of an output with `ensureFileRegexMatches`, `ensureTypstFileRegexMatches`, `ensureDocxRegexMatches`, `printsMessage`, and `fileExists`.
