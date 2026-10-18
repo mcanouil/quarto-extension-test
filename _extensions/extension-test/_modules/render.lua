@@ -406,8 +406,11 @@ local function render_and_grade(context, target, typ)
     -- With nothing to quote, the console output is all there is to go on,
     -- so it is kept beside the log rather than lost with the run.
     if message == M.NO_DIAGNOSTIC then
-      if util.write_file(console_path, output) then
+      local written, err = util.write_file(console_path, output)
+      if written then
         case.failure.output = console_path
+      else
+        warnings[#warnings + 1] = 'the console output could not be kept: ' .. tostring(err)
       end
     end
     return case
