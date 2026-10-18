@@ -87,6 +87,8 @@ function M.parse(text)
   -- `quarto.log.warning` writes `(W)`, its text and the newline in separate
   -- calls. A read can end between them, so a `(W)` or `(E)` line that a
   -- record leaves open is carried into the next record before it is read.
+  -- Each later call starts with a space or a newline, so a record that starts
+  -- otherwise is not the rest of the line, and the carried line stands alone.
   local carried, carried_level
   for _, raw in ipairs(util.lines(text or '')) do
     if util.trim(raw) ~= '' then
@@ -94,8 +96,11 @@ function M.parse(text)
       if ok and type(record) == 'table' and type(record.msg) == 'string' then
         local level = M.normalise_level(record.levelName) or 'INFO'
         local msg = strip_ansi(record.msg)
-        if carried then
+        if carried and msg:match('^[ \n]') then
           msg, level, carried = carried .. msg, carried_level, nil
+        elseif carried then
+          add(carried, carried_level)
+          carried = nil
         end
         local open = msg:match('([^\n]*)$')
         if open:match('^%([WE]%)') then

@@ -464,6 +464,9 @@ do
     'a marker after a complete line in the same record still joins the next record')
   equal(parsed({ record('metadata'), record('lang: en\n') }), 'INFO metadata|INFO lang: en',
     'a record without a newline and without a marker stays its own line')
+  equal(parsed({ record('(W) warn text'), record('Output created: x.html\n') }),
+    'WARN warn text|INFO Output created: x.html',
+    'an open warning line is not joined to a record that does not continue it')
 
   local none, none_incomplete, none_missing = log.read(util.join(here, 'tests/_results/no-such.log'))
   check(#none == 0 and none_incomplete == false, 'a missing log file gives no log line and no error')
@@ -1825,6 +1828,9 @@ do
   -- quarto-cli writes as an INFO record with a `(W)` marker. `noErrors`
   -- allows it, and `printsMessage` finds it without the marker.
   local split = find_case(run_fixture('split-warning', '--layer render'), 'render/split/html')
+  local split_log = split and split.failure and util.read_file(split.failure.log or '') or ''
+  check(split_log:find('"msg":"(W)"', 1, true) ~= nil,
+    'the split-warning fixture still puts the bare `(W)` marker in a record of its own', split_log:sub(1, 400))
   check(split ~= nil and split.status == 'fail' and split.failure.reason == 'warning-logged'
     and table.concat(split.diagnostics.warnings or {}, '|'):find('split: on purpose', 1, true) ~= nil,
     'a warning whose marker and text reach the log in separate records still fails the default rule',
