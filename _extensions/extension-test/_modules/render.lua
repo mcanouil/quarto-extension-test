@@ -297,7 +297,9 @@ local function render_and_grade(context, target, typ)
   context.sequence = (context.sequence or 0) + 1
   local slug = string.format('%03d-%s', context.sequence, id:gsub('[^%w]+', '-'))
   local log_path = util.join(context.log_dir, slug .. '.log')
+  local output_path = util.join(context.log_dir, slug .. '.output.log')
   os.remove(log_path)
+  os.remove(output_path)
 
   local output_file = context.output_files[format] or context.fallback_output_file
   -- A previous format wrote into the same directory. Every candidate is
@@ -404,8 +406,8 @@ local function render_and_grade(context, target, typ)
     -- With nothing to quote, the console output is all there is to go on,
     -- so it is kept beside the log rather than lost with the run.
     if message == M.NO_DIAGNOSTIC then
-      case.failure.output = util.join(context.log_dir, slug .. '.output.log')
-      util.write_file(case.failure.output, output)
+      case.failure.output = output_path
+      util.write_file(output_path, output)
     end
     return case
   end

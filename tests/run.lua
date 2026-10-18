@@ -2086,6 +2086,16 @@ do
     kept[#kept + 1] = output
   end
   check(kept[1] ~= nil and kept[1] ~= kept[2], 'each format keeps its own console output', table.concat(kept, ' | '))
+
+  -- A run removes the console output an earlier run kept for the same case,
+  -- as it removes the log, so what is left always belongs to this run.
+  run_fixture('clean', '--layer smoke')
+  local tests = util.join(FIXTURES, 'clean', '_t')
+  local stale = util.join(tests, '_results', 'logs', '001-smoke-generated-clean-options-defaults-html.output.log')
+  util.write_file(stale, 'from an earlier run\n')
+  util.capture(string.format('quarto pandoc lua %s --root %s --tests %s --tap /dev/null --quiet --layer smoke',
+    util.shell_quote(RUNNER), util.shell_quote(util.join(FIXTURES, 'clean')), util.shell_quote(tests)))
+  check(not util.exists(stale), 'a run removes the console output an earlier run kept for the same case', stale)
 end
 
 io.stdout:write('# determinism\n')
