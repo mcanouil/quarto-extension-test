@@ -68,27 +68,53 @@ function M.parse(text)
   -- Pandoc writes `[WARNING] ` as a record of its own and the text in the
   -- next one, so a marker alone on its line raises the line that follows.
   local pending
+  local function add(text_of_record, level)
+    for _, line in ipairs(util.lines(text_of_record)) do
+      if util.trim(line) ~= '' then
+        local line_lvl = line_level(line, level)
+        local message = without_marker(line)
+        if util.trim(message) == '' then
+          pending = line_lvl
+        else
+          lines[#lines + 1] = { level = pending or line_lvl, message = message }
+          pending = nil
+        end
+      end
+    end
+  end
+
+  -- quarto-cli logs Pandoc's stderr one pipe read at a time, and
+  -- `quarto.log.warning` writes `(W)`, its text and the newline in separate
+  -- calls. A read can end between them, so a `(W)` or `(E)` line that a
+  -- record leaves open is carried into the next record before it is read.
+  -- Each later call starts with a space or a newline, so a record that starts
+  -- otherwise is not the rest of the line, and the carried line stands alone.
+  local carried, carried_level
   for _, raw in ipairs(util.lines(text or '')) do
     if util.trim(raw) ~= '' then
       local ok, record = pcall(pandoc.json.decode, raw, false)
       if ok and type(record) == 'table' and type(record.msg) == 'string' then
         local level = M.normalise_level(record.levelName) or 'INFO'
-        for _, line in ipairs(util.lines(strip_ansi(record.msg))) do
-          if util.trim(line) ~= '' then
-            local line_lvl = line_level(line, level)
-            local message = without_marker(line)
-            if util.trim(message) == '' then
-              pending = line_lvl
-            else
-              lines[#lines + 1] = { level = pending or line_lvl, message = message }
-              pending = nil
-            end
-          end
+        local msg = strip_ansi(record.msg)
+        if carried and msg:match('^[ \n]') then
+          msg, level, carried = carried .. msg, carried_level, nil
+        elseif carried then
+          add(carried, carried_level)
+          carried = nil
         end
+        local open = msg:match('([^\n]*)$')
+        if open:match('^%([WE]%)') then
+          carried, carried_level = open, level
+          msg = msg:sub(1, #msg - #open)
+        end
+        add(msg, level)
       else
         incomplete = true
       end
     end
+  end
+  if carried then
+    add(carried, carried_level)
   end
   return lines, incomplete
 end
