@@ -825,8 +825,8 @@ do
   check(#bailed == 2 and bailed[2].bail == true and bailed[2].reason == 'no browser',
     'a Bail out! line is read with its reason, and the lines after it are not', #bailed)
 
-  local function grade(code, stdout, stderr, limited)
-    return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30)
+  local function grade(code, stdout, stderr, limited, elapsed)
+    return check_hook.grade(code, stdout or '', stderr or '', limited or false, 30, elapsed or 0)
   end
   local function summary(result)
     local parts = {}
@@ -872,6 +872,8 @@ do
     and summary(stalled) == 'check fail',
     'exit 124 under a time limit is a timeout', stalled.message)
   equal(grade(124, '', '', false).status, 'fail', 'exit 124 without a time limit is an ordinary failure')
+  equal(grade(137, '', '', true, 40).status, 'timeout', 'exit 137 after the limit and the grace period is a timeout')
+  equal(grade(137, '', '', true, 3).status, 'fail', 'exit 137 before the time limit is an ordinary failure, such as the OOM killer')
 
   local bail = grade(0, 'ok 1 - first\nnot ok 2 - slide count\nBail out! no browser\nok 3 - later\n')
   check(bail.status == 'fail' and bail.message == 'no browser' and summary(bail) == 'check/1 pass|check/2 fail|check/3 fail',
@@ -1923,14 +1925,33 @@ do
     'a project default check does not run on a generated document',
     generated and (generated.status .. ' ' .. tostring(generated.failure and generated.failure.reason)))
 
+  equal(util.timed_out(137, 20, 20 + util.TIMEOUT_GRACE), true, 'exit 137 after the limit and the grace period is a timeout')
+  equal(util.timed_out(137, 20, 3), false, 'exit 137 before the time limit is not a timeout')
+  equal(util.timed_out(137, 1, 1), false,
+    'exit 137 within the grace period is not a timeout, since a SIGKILL from the limit cannot come sooner')
+  equal(util.timed_out(137, nil, 30), false, 'exit 137 with no time limit is not a timeout')
+  equal(util.timed_out(1, 20, 30), false, 'exit 1 under a time limit is not a timeout')
+
   if util.timeout_command() then
+    equal(util.timeout_prefix(20), string.format('%s -k %d 20 ', util.timeout_command(), util.TIMEOUT_GRACE),
+      'the time limit prefix kills the command 10 seconds after it sends SIGTERM')
+    local started = os.time()
     local stalled = run_fixture('check-timeout', '--layer render')
+    local elapsed = os.time() - started
     local case = find_case(stalled, 'render/stall/gfm')
     check(case ~= nil and case.failure ~= nil and case.failure.stage == 'check' and case.failure.reason == 'timeout'
       and case.failure.message == 'the check exceeded 20 seconds',
       'a check that exceeds its timeout fails with stage check and reason timeout, and the message has no decimal part',
       case and (case.status .. ' ' .. tostring(case.failure and case.failure.reason)
         .. ' ' .. tostring(case.failure and case.failure.message)))
+    local ignored = find_case(stalled, 'render/ignore-term/gfm')
+    local ignored_log = ignored and ignored.failure and util.read_file(ignored.failure.log or '') or ''
+    check(ignored ~= nil and ignored.failure ~= nil and ignored.failure.stage == 'check'
+      and ignored.failure.reason == 'timeout' and ignored.failure.message == 'the check exceeded 5 seconds'
+      and ignored_log:find('\nexit 137\n', 1, true) ~= nil and elapsed < 120,
+      'a check that ignores SIGTERM is killed after the grace period and fails as a timeout',
+      string.format('%s in %d seconds', ignored and (ignored.status .. ' ' .. tostring(ignored.failure
+        and ignored.failure.reason)) or 'missing', elapsed))
   else
     io.stdout:write('skip a check that exceeds its timeout: neither timeout nor gtimeout is available\n')
   end

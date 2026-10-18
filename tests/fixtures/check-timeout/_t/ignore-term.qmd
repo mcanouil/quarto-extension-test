@@ -1,0 +1,13 @@
+---
+title: Ignore SIGTERM
+format: gfm
+_quarto:
+  tests:
+    run:
+      extension-test:
+        timeout: 5
+        check: trap '' TERM; sleep 300
+    gfm:
+---
+
+{{< hello >}}
