@@ -439,6 +439,32 @@ do
   equal(pandoc_lines[3] and (pandoc_lines[3].level .. ' ' .. pandoc_lines[3].message), 'ERROR inline failure',
     'a Pandoc [ERROR] marker on the same line is an error, without its marker')
 
+  -- quarto-cli logs Pandoc's stderr one pipe read at a time, and
+  -- `quarto.log.warning` writes `(W)`, its text and the newline in separate
+  -- calls, so a read can end between them (measured with a shortcode that
+  -- pauses after writing the marker).
+  local function parsed(records)
+    local out = {}
+    for _, line in ipairs(log.parse(table.concat(records, '\n'))) do
+      out[#out + 1] = line.level .. ' ' .. line.message
+    end
+    return table.concat(out, '|')
+  end
+  local function record(msg)
+    return '{"msg":' .. pandoc.json.encode(msg) .. ',"level":20,"levelName":"INFO","loggerName":"default"}'
+  end
+  equal(parsed({ record('(W)'), record(' split: on purpose\n'), record('Output created: x.html\n') }),
+    'WARN split: on purpose|INFO Output created: x.html',
+    'a `(W)` marker that ends a record raises the text in the next record')
+  equal(parsed({ record('(E)'), record(' boom'), record('\n') }), 'ERROR boom',
+    'an `(E)` line split over three records is one error line')
+  equal(parsed({ record('(W)'), record(' first'), record(' second'), record('\n') }), 'WARN first second',
+    'a warning with several arguments, each in its own record, is one warning line')
+  equal(parsed({ record('done\n(W)'), record(' late\n') }), 'INFO done|WARN late',
+    'a marker after a complete line in the same record still joins the next record')
+  equal(parsed({ record('metadata'), record('lang: en\n') }), 'INFO metadata|INFO lang: en',
+    'a record without a newline and without a marker stays its own line')
+
   local none, none_incomplete, none_missing = log.read(util.join(here, 'tests/_results/no-such.log'))
   check(#none == 0 and none_incomplete == false, 'a missing log file gives no log line and no error')
   check(none_missing == true, 'a missing log file is reported as missing, not read as a clean log')
@@ -1798,6 +1824,12 @@ do
   -- The default rule fails on a warning from `quarto.log.warning`, which
   -- quarto-cli writes as an INFO record with a `(W)` marker. `noErrors`
   -- allows it, and `printsMessage` finds it without the marker.
+  local split = find_case(run_fixture('split-warning', '--layer render'), 'render/split/html')
+  check(split ~= nil and split.status == 'fail' and split.failure.reason == 'warning-logged'
+    and table.concat(split.diagnostics.warnings or {}, '|'):find('split: on purpose', 1, true) ~= nil,
+    'a warning whose marker and text reach the log in separate records still fails the default rule',
+    split and (split.status .. ' ' .. tostring(split.failure and split.failure.reason)))
+
   local results = run_fixture('warnings', '--layer render')
   local default = find_case(results, 'render/default-rule/html')
   check(default ~= nil and default.status == 'fail' and default.failure.reason == 'warning-logged'

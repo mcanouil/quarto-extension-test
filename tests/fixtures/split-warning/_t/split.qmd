@@ -1,0 +1,9 @@
+---
+title: A warning split over two log records
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+{{< split >}}
