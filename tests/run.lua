@@ -2069,6 +2069,25 @@ do
   end
 end
 
+do
+  -- A render killed from outside, as by the out-of-memory killer, leaves no
+  -- log line and no error text. The console output is then kept beside the
+  -- log, so the next such failure can be read after the run.
+  local render = require('render')
+  local results = run_fixture('silent-failure', '--layer render')
+  local kept = {}
+  for _, format in ipairs({ 'html', 'gfm' }) do
+    local case = find_case(results, 'render/silent/' .. format)
+    local output = case and case.failure and case.failure.output
+    check(case ~= nil and case.failure.message == render.NO_DIAGNOSTIC
+      and output ~= nil and util.exists(output),
+      'a render that fails with no diagnostic output keeps its console output (' .. format .. ')',
+      case and (tostring(case.failure.message) .. ' ' .. tostring(output)))
+    kept[#kept + 1] = output
+  end
+  check(kept[1] ~= nil and kept[1] ~= kept[2], 'each format keeps its own console output', table.concat(kept, ' | '))
+end
+
 io.stdout:write('# determinism\n')
 
 do
