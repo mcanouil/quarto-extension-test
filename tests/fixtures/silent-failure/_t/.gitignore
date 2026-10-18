@@ -1,0 +1,6 @@
+/.quarto/
+**/*.quarto_ipynb
+# The killed render leaves its intermediate file behind.
+/silent.md
+/silent.html
+/silent_files/

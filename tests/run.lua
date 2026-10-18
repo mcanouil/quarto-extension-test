@@ -2069,6 +2069,41 @@ do
   end
 end
 
+do
+  -- A render killed from outside, as by the out-of-memory killer, leaves no
+  -- log line and no error text. The console output is then kept beside the
+  -- log, so the next such failure can be read after the run.
+  local render = require('render')
+  if util.capture('command -v ps') ~= 0 then
+    io.stdout:write('skip a render that fails with no diagnostic output: the fixture needs ps\n')
+  else
+    local results = run_fixture('silent-failure', '--layer render')
+    local kept = {}
+    for _, format in ipairs({ 'html', 'gfm' }) do
+      local case = find_case(results, 'render/silent/' .. format)
+      local output = case and case.failure and case.failure.output
+      check(case ~= nil and case.failure ~= nil and case.failure.message == render.NO_DIAGNOSTIC
+        and output ~= nil and util.exists(output),
+        'a render that fails with no diagnostic output keeps its console output (' .. format .. ')',
+        case and (tostring(case.failure and case.failure.message) .. ' ' .. tostring(output)))
+      kept[#kept + 1] = output
+    end
+    check(kept[1] ~= nil and kept[1] ~= kept[2], 'each format keeps its own console output', table.concat(kept, ' | '))
+    -- The killed render cannot remove its session directories, so the test does.
+    util.remove_tree(util.join(FIXTURES, 'silent-failure', '_t', '.quarto'))
+  end
+
+  -- A run removes the console output an earlier run kept for the same case,
+  -- as it removes the log, so what is left always belongs to this run.
+  run_fixture('clean', '--layer smoke')
+  local tests = util.join(FIXTURES, 'clean', '_t')
+  local stale = util.join(tests, '_results', 'logs', '001-smoke-generated-clean-options-defaults-html.output.log')
+  util.write_file(stale, 'from an earlier run\n')
+  util.capture(string.format('quarto pandoc lua %s --root %s --tests %s --tap /dev/null --quiet --layer smoke',
+    util.shell_quote(RUNNER), util.shell_quote(util.join(FIXTURES, 'clean')), util.shell_quote(tests)))
+  check(not util.exists(stale), 'a run removes the console output an earlier run kept for the same case', stale)
+end
+
 io.stdout:write('# determinism\n')
 
 do

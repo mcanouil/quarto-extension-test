@@ -198,6 +198,9 @@ function M.kept_typ_path(document)
   return (document.absolute:gsub('%.qmd$', '.typ'))
 end
 
+--- The message of a failed render that left no error to quote.
+M.NO_DIAGNOSTIC = 'the render failed with no diagnostic output'
+
 --- The most informative line of a failed render.
 ---
 --- Quarto reports a Lua failure as a message followed by a stack trace, and
@@ -225,7 +228,7 @@ function M.first_error(output, errors)
   if headline and frame then
     return headline .. ' (' .. frame .. ')'
   end
-  return headline or frame or 'the render failed with no diagnostic output'
+  return headline or frame or M.NO_DIAGNOSTIC
 end
 
 --- Remove the regions of an output that quote code.
@@ -294,7 +297,9 @@ local function render_and_grade(context, target, typ)
   context.sequence = (context.sequence or 0) + 1
   local slug = string.format('%03d-%s', context.sequence, id:gsub('[^%w]+', '-'))
   local log_path = util.join(context.log_dir, slug .. '.log')
+  local console_path = util.join(context.log_dir, slug .. '.output.log')
   os.remove(log_path)
+  os.remove(console_path)
 
   local output_file = context.output_files[format] or context.fallback_output_file
   -- A previous format wrote into the same directory. Every candidate is
@@ -396,7 +401,19 @@ local function render_and_grade(context, target, typ)
   end
 
   if code ~= 0 then
-    return fail('render', 'exit ' .. tostring(code), M.first_error(output, errors))
+    local message = M.first_error(output, errors)
+    fail('render', 'exit ' .. tostring(code), message)
+    -- With nothing to quote, the console output is all there is to go on,
+    -- so it is kept beside the log rather than lost with the run.
+    if message == M.NO_DIAGNOSTIC then
+      local written, err = util.write_file(console_path, output)
+      if written then
+        case.failure.output = console_path
+      else
+        warnings[#warnings + 1] = 'the console output could not be kept: ' .. tostring(err)
+      end
+    end
+    return case
   end
 
 

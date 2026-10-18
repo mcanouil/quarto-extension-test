@@ -304,7 +304,7 @@ Two runs can be compared case by case.
 | `status` | `fail` when any case failed, `pass` when any passed, and `skip` when every case was skipped. |
 | `summary` | Counts of all cases, by status. |
 | `layers` | The same counts and status for each layer. |
-| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions` with one entry for each check (`id`, `kind`, `expected`, `status`, `message`, `warnings`), and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. |
+| `cases` | One entry per case: `id`, `layer`, `status`, `target`, `diagnostics` with the logged `errors` and `warnings`, `assertions` with one entry for each check (`id`, `kind`, `expected`, `status`, `message`, `warnings`), and `failure` with its `stage`, `reason`, `message`, and log path when the case did not pass. A render that fails with no diagnostic output, for example one killed from outside, also has `output`, the path of its kept console output. |
 
 : Top-level fields of `results.json`. {.striped .hover tbl-colwidths="[20,80]"}
 
