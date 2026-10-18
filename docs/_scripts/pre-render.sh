@@ -134,6 +134,9 @@ fi
 #
 # `--retry` covers that rate limiting: curl counts HTTP 429 as a transient
 # error, alongside 408 and the 5xx family, and honours any Retry-After.
+# `--max-time` bounds one attempt only, and a long Retry-After can hold each
+# retry for minutes. `--retry-max-time` starts no retry after a minute, so with
+# the 20 seconds of the attempt in flight the fetch ends within 80 seconds.
 CARD_URL="https://opengraph.githubassets.com/1/${REPO_SLUG}"
 CARD_REL="assets/social/og-image.png"
 CARD_PATH="${DOCS_DIR}/${CARD_REL}"
@@ -188,7 +191,7 @@ if ! grep -qF "${CARD_REL}" < <(sed 's/#.*//' "${DOCS_DIR}/_quarto.yml"); then
 	printf '[pre-render] _quarto.yml does not use %s; not fetching the social card\n' "${CARD_REL}"
 elif [[ -n "$(find "${CARD_PATH}" -mtime -1 2>/dev/null)" ]]; then
 	printf '[pre-render] Social card cached under a day ago; not refetching\n'
-elif ! curl -fsSL --max-time 20 --retry 3 --retry-delay 2 --create-dirs \
+elif ! curl -fsSL --max-time 20 --retry 3 --retry-delay 2 --retry-max-time 60 --create-dirs \
 	"${CARD_URL}" -o "${CARD_PATH}.tmp"; then
 	rm -f "${CARD_PATH}.tmp"
 	card_unavailable "could not fetch ${CARD_URL}"
