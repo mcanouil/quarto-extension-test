@@ -14,6 +14,7 @@
 - fix: Reject a `timeout` over `86400` seconds as an invalid option. A huge value such as `1e308` no longer stops the render layer. (#27)
 - fix: Fail a `fileExists` entry that names a directory, as q2 does. (#29)
 - fix: Kill a render or check command that ignores SIGTERM, 10 seconds after its timeout. (#30)
+- fix: Read a warning whose `(W)` marker and text reach the render log in separate records as one warning. A document that warns no longer passes the default rule by chance. (#34)
 
 ## 0.1.2 (2026-09-23)
 
