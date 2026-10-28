@@ -307,9 +307,9 @@ local function render_and_grade(context, target, typ)
   local cleared, refused = M.clear_stale_output(context.tests, document, format, output_file,
     context.output_dir)
   if not cleared then
-    -- Nothing has been rendered, so there is no log to read: the case is
-    -- built here rather than from the render's diagnostics.
-    local status, failure = M.grade_missing(refused, format, log_path)
+    -- Nothing has been rendered, so there is no log to read or to point at:
+    -- the case is built here rather than from the render's diagnostics.
+    local status, failure = M.grade_missing(refused, format, nil)
     return {
       id = id,
       layer = layer,

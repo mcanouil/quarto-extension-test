@@ -1603,6 +1603,9 @@ do
     and refused_case.target.format == 'html' and refused_case.id == 'render/doc/html',
     'a refused output path fails the case that asked for it',
     refused_case and tostring(refused_case.failure and refused_case.failure.reason))
+  check(refused_case ~= nil and refused_case.failure.log == nil,
+    'a refused case points at no log, because no render ran',
+    refused_case and tostring(refused_case.failure.log))
   check(util.exists(sentinel),
     'the refused case removed nothing outside the tests directory')
 
