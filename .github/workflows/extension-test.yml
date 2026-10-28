@@ -51,8 +51,7 @@ jobs:
       # that pins this workflow at a tag gets the action that tag was tested
       # with. A relative `./` path cannot be used instead, because it resolves
       # against the calling repository's checkout rather than this one.
-      # The release workflow moves this reference to each new version, through
-      # its `pin-files` input, and the unit tests check it against the manifest.
+      # The release workflow moves this reference through `pin-files`.
       - name: Run the tests
         uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.2.0
         with:

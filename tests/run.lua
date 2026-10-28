@@ -2172,13 +2172,14 @@ end
 
 io.stdout:write('# version\n')
 
+local manifest_version = tostring(schema._parse_yaml_text(
+  util.read_file(here .. '_extensions/extension-test/_extension.yml')).version)
+
 do
-  local text = util.read_file(here .. '_extensions/extension-test/_extension.yml')
-  local parsed = schema._parse_yaml_text(text)
   local pipe = io.popen('quarto pandoc lua ' .. RUNNER .. ' --version')
   local reported = pipe:read('*l')
   pipe:close()
-  equal(reported, tostring(parsed.version),
+  equal(reported, manifest_version,
     'the runner reports the version its manifest declares')
 end
 
@@ -2196,11 +2197,7 @@ do
 end
 
 do
-  -- The reusable workflow pins its own actions to a release, and the release
-  -- workflow rewrites those pins together with the manifest. A pin left
-  -- behind would give a consumer of this release the actions of an older one.
-  local manifest = util.read_file(here .. '_extensions/extension-test/_extension.yml')
-  local version = tostring(schema._parse_yaml_text(manifest).version)
+  -- A pin left behind gives a consumer of this release older actions.
   local workflow = util.read_file(here .. '.github/workflows/extension-test.yml')
   local pins = {}
   for action, pinned in workflow:gmatch(
@@ -2208,7 +2205,7 @@ do
     pins[#pins + 1] = action .. '@' .. pinned
   end
   equal(table.concat(pins, ' '),
-    'extension-test@' .. version .. ' extension-test-q2@' .. version,
+    'extension-test@' .. manifest_version .. ' extension-test-q2@' .. manifest_version,
     'the reusable workflow pins its two actions to the manifest version')
 end
 
