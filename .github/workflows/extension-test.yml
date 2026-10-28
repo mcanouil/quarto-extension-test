@@ -51,9 +51,9 @@ jobs:
       # that pins this workflow at a tag gets the action that tag was tested
       # with. A relative `./` path cannot be used instead, because it resolves
       # against the calling repository's checkout rather than this one.
-      # Move this reference with each release.
+      # The release workflow moves this reference through `pin-files`.
       - name: Run the tests
-        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.1.2
+        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.2.0
         with:
           quarto: ${{ matrix.quarto }}
           node-version: ${{ inputs.node-version }}
@@ -76,6 +76,6 @@ jobs:
 
       # Pinned like the action of the `test` job, and moved with it.
       - name: Run the tests on q2
-        uses: mcanouil/quarto-extension-test/.github/actions/extension-test-q2@0.1.2
+        uses: mcanouil/quarto-extension-test/.github/actions/extension-test-q2@0.2.0
         with:
           channel: ${{ matrix.channel }}

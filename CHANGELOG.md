@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Run the actions of the release a consumer pins the reusable workflow to. The pins had stayed at `0.1.2`, and now follow each release. (#38)
+
 ## 0.2.0 (2026-10-18)
 
 - feat: Read test cases from the `_quarto.tests` block that q2 uses, in place of the `test:` block, which is removed.

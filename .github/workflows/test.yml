@@ -8,6 +8,7 @@ on:
       - "tests/**"
       - ".github/actions/extension-test/action.yml"
       - ".github/actions/extension-test-q2/action.yml"
+      - ".github/workflows/extension-test.yml"
       - ".github/workflows/test.yml"
   push:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - "tests/**"
       - ".github/actions/extension-test/action.yml"
       - ".github/actions/extension-test-q2/action.yml"
+      - ".github/workflows/extension-test.yml"
       - ".github/workflows/test.yml"
   workflow_dispatch:
 
