@@ -9,7 +9,7 @@ project:
   # Quarto copies nothing to the output directory by convention: only these
   # globs, plus files it finds behind an `href` or `src` in the rendered HTML.
   # The manifest names its icons in JSON, which is not scanned, so they are
-  # listed here. The social card is not: Quarto registers the local image named by
+  # listed here. The social card is not: Quarto registers a project-relative
   # `website.open-graph.image` as a resource itself.
   resources:
     - favicon.ico
@@ -20,7 +20,7 @@ website:
   title: "Extension Test"
   description: "Test a Quarto extension against the Quarto CLI: its schema, its test documents, and documents generated from its schema."
   # No trailing slash: Quarto builds the social image URL by concatenating this
-  # with the image path, without normalising.
+  # with a leading-slash image path, without normalising.
   # quarto-dev/quarto-cli#15053 normalises this join. Drop this note once the
   # minimum Quarto version is the first release after 1.11.6.
   site-url: &site-url https://m.canouil.dev/quarto-extension-test
@@ -29,12 +29,16 @@ website:
   # link points at a path one level up from the page it was built for.
   repo-subdir: docs
   favicon: favicon.ico
+  # The leading slash marks a project-relative path, which Quarto turns into
+  # `<site-url>/assets/social/og-image.png` and measures to fill the image width
+  # and height tags. An absolute URL would emit neither: Quarto returns no size
+  # for one, then writes that over whatever the configuration set.
   # _scripts/pre-render.sh writes the file, from GitHub's own preview for this
   # repository; see assets/social/README.md. The keys sit inside these two blocks
   # because a project-level `website.image` loses to Quarto's own harvest of the
   # first image on a page.
   open-graph:
-    image: &social-image assets/social/og-image.png
+    image: &social-image /assets/social/og-image.png
     image-alt: &social-alt "GitHub's repository card for mcanouil/quarto-extension-test: the repository name and its one-line description beside the owner's avatar, over the contributor, issue, star, and fork counts."
   twitter-card:
     image: *social-image

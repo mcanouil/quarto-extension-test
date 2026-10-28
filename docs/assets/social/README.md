@@ -17,7 +17,7 @@ The placeholder is 1200x630 where a real card is 1200x600, and pre-render reads 
 That matters most for the alt text: it describes a real card, and a placeholder carries none of what it promises.
 
 The file is cached locally rather than linked as a remote URL on purpose.
-Quarto measures a local image to fill `og:image:width` and `og:image:height`, and returns no size at all for an absolute one, so linking the endpoint directly would drop both tags and make every scraper lay the card out only after the image had downloaded.
+Quarto measures a project-relative image to fill `og:image:width` and `og:image:height`, and returns no size at all for an absolute one, so linking the endpoint directly would drop both tags and make every scraper lay the card out only after the image had downloaded.
 
 To refresh it by hand:
 
