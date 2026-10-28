@@ -35,4 +35,3 @@ jobs:
       gh-app-id: ${{ vars.APP_ID }}
       version: ${{ inputs.version }}
       quarto: ${{ inputs.quarto }}
-      pin-files: .github/workflows/extension-test.yml
