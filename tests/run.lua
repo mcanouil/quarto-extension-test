@@ -1611,8 +1611,8 @@ do
 
   local status_outside, failure_outside = render.grade_missing('outside-tests', 'html', nil)
   check(status_outside == 'fail' and failure_outside.reason == 'outside-tests'
-    and failure_outside.message:find('outside the tests directory', 1, true) ~= nil,
-    'a refused path is a failure that names the tests directory', tostring(failure_outside.message))
+    and failure_outside.message:find('climbs out of the directory it is placed under', 1, true) ~= nil,
+    'a refused path is a failure that names the directory it was held to', tostring(failure_outside.message))
 
   util.remove_tree(outside)
   util.remove_tree(scratch)

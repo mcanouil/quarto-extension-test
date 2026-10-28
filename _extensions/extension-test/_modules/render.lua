@@ -545,7 +545,7 @@ function M.grade_missing(missing, format, log_path)
     message = string.format('this harness does not know what file a `%s` render writes', format)
   elseif missing == 'outside-tests' then
     message = string.format(
-      'the output directory or name reported for `%s` climbs outside the tests directory, so nothing was removed or rendered',
+      'the output directory or name reported for `%s` climbs out of the directory it is placed under, so nothing was removed or rendered',
       format)
   else
     message = string.format('the render reported success but wrote no `%s` output to check', format)
