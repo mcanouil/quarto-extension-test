@@ -2195,6 +2195,23 @@ do
     err or reported)
 end
 
+do
+  -- The reusable workflow pins its own actions to a release, and the release
+  -- workflow rewrites those pins together with the manifest. A pin left
+  -- behind would give a consumer of this release the actions of an older one.
+  local manifest = util.read_file(here .. '_extensions/extension-test/_extension.yml')
+  local version = tostring(schema._parse_yaml_text(manifest).version)
+  local workflow = util.read_file(here .. '.github/workflows/extension-test.yml')
+  local pins = {}
+  for action, pinned in workflow:gmatch(
+      'mcanouil/quarto%-extension%-test/%.github/actions/([%w%-]+)@([%w%.%-]+)') do
+    pins[#pins + 1] = action .. '@' .. pinned
+  end
+  equal(table.concat(pins, ' '),
+    'extension-test@' .. version .. ' extension-test-q2@' .. version,
+    'the reusable workflow pins its two actions to the manifest version')
+end
+
 io.stdout:write(string.format('\n%d checks, %d failed\n', passed + failed, failed))
 io.stdout:flush()
 os.exit(failed == 0 and 0 or 1, true)
