@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- fix: Refuse an output directory or file name that climbs outside the tests directory. The render clears nothing there and fails the case with `outside-tests`.
 - fix: Run the actions from the same commit as the reusable workflow a consumer calls. They had stayed at `0.1.2` whatever ref the workflow was called at. (#39)
 
 ## 0.2.0 (2026-10-18)

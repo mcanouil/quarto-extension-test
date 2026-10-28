@@ -1543,6 +1543,51 @@ do
   check(candidates ~= nil and util.contains(candidates, util.join(scratch, '_site', 'doc.html')),
     'the candidates keep the defaults as a fallback')
 
+  -- The directory and the name both come from the target repository's own
+  -- configuration, and pandoc.path.join keeps a `..` as written. A target that
+  -- declares `output-dir: ../x`, or reports an `output-file` carrying `../`,
+  -- would otherwise steer the removal of stale output outside the tests
+  -- directory.
+  check(util.is_within(scratch, util.join(scratch, 'a', 'doc.html')),
+    'a path under the root is within it')
+  check(not util.is_within(scratch, util.join(scratch, '..', 'other', 'doc.html')),
+    'a path that climbs out of the root is not within it')
+  check(not util.is_within(scratch, scratch .. '-sibling'),
+    'a sibling that shares the root as a prefix is not within it')
+  check(util.is_within(scratch, util.join(scratch, 'a', '..', 'doc.html')),
+    'a path that climbs and returns inside the root is within it')
+
+  local outside = scratch .. '-outside'
+  pcall(pandoc.system.make_directory, outside, true)
+  local sentinel = util.join(outside, 'doc.html')
+  util.write_file(sentinel, 'keep')
+
+  local escaped, reason = render.output_candidates(scratch, placed, 'html', nil, '../paths-outside')
+  check(escaped == nil and reason == 'outside-tests',
+    'an output directory that climbs out of the tests directory is refused', tostring(reason))
+
+  escaped, reason = render.output_candidates(scratch, placed, 'html', '../paths-outside/doc', nil)
+  check(escaped == nil and reason == 'outside-tests',
+    'an output file name that climbs out of the tests directory is refused', tostring(reason))
+
+  local cleared
+  cleared, reason = render.clear_stale_output(scratch, placed, 'html', nil, '../paths-outside')
+  check(cleared == nil and reason == 'outside-tests',
+    'clearing stale output reports a path outside the tests directory', tostring(reason))
+  check(util.exists(sentinel),
+    'a refused path leaves the file outside the tests directory in place')
+
+  util.write_file(util.join(scratch, 'elsewhere', 'doc.html'), 'stale')
+  cleared = render.clear_stale_output(scratch, placed, 'html', nil, 'elsewhere')
+  check(cleared == true and not util.exists(util.join(scratch, 'elsewhere', 'doc.html')),
+    'stale output inside the tests directory is still cleared')
+
+  local status_outside, failure_outside = render.grade_missing('outside-tests', 'html', nil)
+  check(status_outside == 'fail' and failure_outside.reason == 'outside-tests'
+    and failure_outside.message:find('outside the tests directory', 1, true) ~= nil,
+    'a refused path is a failure that names the tests directory', tostring(failure_outside.message))
+
+  util.remove_tree(outside)
   util.remove_tree(scratch)
 end
 
