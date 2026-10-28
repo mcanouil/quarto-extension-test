@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fix: Run the actions of the release a consumer pins the reusable workflow to. The pins had stayed at `0.1.2`, and now follow each release. (#38)
+- fix: Run the actions from the same commit as the reusable workflow a consumer calls. They had stayed at `0.1.2` whatever ref the workflow was called at. (#39)
 
 ## 0.2.0 (2026-10-18)
 

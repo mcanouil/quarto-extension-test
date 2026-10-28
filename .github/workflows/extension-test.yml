@@ -47,13 +47,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # The action is pinned to a release rather than to `@main`, so a consumer
-      # that pins this workflow at a tag gets the action that tag was tested
-      # with. A relative `./` path cannot be used instead, because it resolves
-      # against the calling repository's checkout rather than this one.
-      # The release workflow moves this reference through `pin-files`.
+      # A relative `./` path resolves against the caller's checkout, so the
+      # commit of this workflow is checked out beside it. Whatever ref a
+      # consumer calls this workflow at, the action comes from the same commit.
+      - name: Checkout the extension test actions
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .extension-test
+          persist-credentials: false
+
       - name: Run the tests
-        uses: mcanouil/quarto-extension-test/.github/actions/extension-test@0.2.0
+        uses: ./.extension-test/.github/actions/extension-test
         with:
           quarto: ${{ matrix.quarto }}
           node-version: ${{ inputs.node-version }}
@@ -74,8 +80,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # Pinned like the action of the `test` job, and moved with it.
+      # Checked out at the commit of this workflow, as in the `test` job.
+      - name: Checkout the extension test actions
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .extension-test
+          persist-credentials: false
+
       - name: Run the tests on q2
-        uses: mcanouil/quarto-extension-test/.github/actions/extension-test-q2@0.2.0
+        uses: ./.extension-test/.github/actions/extension-test-q2
         with:
           channel: ${{ matrix.channel }}
