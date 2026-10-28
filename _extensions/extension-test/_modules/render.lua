@@ -307,8 +307,18 @@ local function render_and_grade(context, target, typ)
   local cleared, refused = M.clear_stale_output(context.tests, document, format, output_file,
     context.output_dir)
   if not cleared then
-    case.status, case.failure = M.grade_missing(refused, format, log_path)
-    return case
+    -- Nothing has been rendered, so there is no log to read: the case is
+    -- built here rather than from the render's diagnostics.
+    local status, failure = M.grade_missing(refused, format, log_path)
+    return {
+      id = id,
+      layer = layer,
+      status = status,
+      target = { kind = document.origin, document = document.relative, format = format },
+      diagnostics = { errors = {}, warnings = {} },
+      assertions = {},
+      failure = failure,
+    }
   end
   local output_is_typ = type(output_file) == 'string' and output_file:match('%.typ$') ~= nil
   -- A `.typ` file that is already there is not the render's to remove: it
@@ -507,6 +517,9 @@ local function render_one(context, target)
   return case
 end
 
+--- Exposed so the tests can drive the one place a refused path is judged.
+M.render_one = render_one
+
 --- Grade a render whose output could not be found.
 ---
 --- An unknown suffix means there is nowhere to look, which is a gap in this
@@ -553,7 +566,7 @@ end
 --- @param output_file string|nil the name Quarto reports for this format
 --- @param output_dir string|nil the output directory Quarto resolved
 --- @return string|nil path
---- @return string|nil reason `unknown-suffix` when there is nowhere to look
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look, `outside-tests` when a path climbs out of its directory, `output-not-found` otherwise
 function M.output_path(tests, document, format, output_file, output_dir)
   local candidates, reason = M.output_candidates(tests, document, format, output_file, output_dir)
   if not candidates then
@@ -569,7 +582,7 @@ end
 
 --- Every path a render of this document and format could have written.
 --- @return string[]|nil candidates
---- @return string|nil reason `unknown-suffix` when there is nowhere to look
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look, `outside-tests` when a path climbs out of its directory
 function M.output_candidates(tests, document, format, output_file, output_dir)
   local extensions = {
     html = 'html', revealjs = 'html', typst = 'pdf', pdf = 'pdf',

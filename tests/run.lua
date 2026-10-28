@@ -1582,6 +1582,30 @@ do
   check(cleared == true and not util.exists(util.join(scratch, 'elsewhere', 'doc.html')),
     'stale output inside the tests directory is still cleared')
 
+  -- The refusal is judged inside the render of one case, before anything is
+  -- rendered. It must come back as that case, failed, rather than raise and
+  -- take the rest of the layer with it.
+  local refused_case
+  local refused_ok, refused_err = pcall(function()
+    refused_case = render.render_one({
+      tests = scratch,
+      log_dir = scratch,
+      settings = { timeout = 60 },
+      document = placed,
+      layer = 'render',
+      output_files = {},
+      output_dir = '../paths-outside',
+    }, { name = 'html', policy = 'noErrors', assertions = {} })
+  end)
+  check(refused_ok, 'a refused output path does not raise', tostring(refused_err))
+  check(refused_case ~= nil and refused_case.status == 'fail'
+    and refused_case.failure.reason == 'outside-tests'
+    and refused_case.target.format == 'html' and refused_case.id == 'render/doc/html',
+    'a refused output path fails the case that asked for it',
+    refused_case and tostring(refused_case.failure and refused_case.failure.reason))
+  check(util.exists(sentinel),
+    'the refused case removed nothing outside the tests directory')
+
   local status_outside, failure_outside = render.grade_missing('outside-tests', 'html', nil)
   check(status_outside == 'fail' and failure_outside.reason == 'outside-tests'
     and failure_outside.message:find('outside the tests directory', 1, true) ~= nil,
