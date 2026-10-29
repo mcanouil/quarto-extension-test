@@ -1543,6 +1543,78 @@ do
   check(candidates ~= nil and util.contains(candidates, util.join(scratch, '_site', 'doc.html')),
     'the candidates keep the defaults as a fallback')
 
+  -- The directory and the name both come from the target repository's own
+  -- configuration, and pandoc.path.join keeps a `..` as written. A target that
+  -- declares `output-dir: ../x`, or reports an `output-file` carrying `../`,
+  -- would otherwise steer the removal of stale output outside the tests
+  -- directory.
+  check(util.is_within(scratch, util.join(scratch, 'a', 'doc.html')),
+    'a path under the root is within it')
+  check(not util.is_within(scratch, util.join(scratch, '..', 'other', 'doc.html')),
+    'a path that climbs out of the root is not within it')
+  check(not util.is_within(scratch, scratch .. '-sibling'),
+    'a sibling that shares the root as a prefix is not within it')
+  check(util.is_within(scratch, util.join(scratch, 'a', '..', 'doc.html')),
+    'a path that climbs and returns inside the root is within it')
+
+  local outside = scratch .. '-outside'
+  pcall(pandoc.system.make_directory, outside, true)
+  local sentinel = util.join(outside, 'doc.html')
+  util.write_file(sentinel, 'keep')
+
+  local escaped, reason = render.output_candidates(scratch, placed, 'html', nil, '../paths-outside')
+  check(escaped == nil and reason == 'outside-tests',
+    'an output directory that climbs out of the tests directory is refused', tostring(reason))
+
+  escaped, reason = render.output_candidates(scratch, placed, 'html', '../paths-outside/doc', nil)
+  check(escaped == nil and reason == 'outside-tests',
+    'an output file name that climbs out of the tests directory is refused', tostring(reason))
+
+  local cleared
+  cleared, reason = render.clear_stale_output(scratch, placed, 'html', nil, '../paths-outside')
+  check(cleared == nil and reason == 'outside-tests',
+    'clearing stale output reports a path outside the tests directory', tostring(reason))
+  check(util.exists(sentinel),
+    'a refused path leaves the file outside the tests directory in place')
+
+  util.write_file(util.join(scratch, 'elsewhere', 'doc.html'), 'stale')
+  cleared = render.clear_stale_output(scratch, placed, 'html', nil, 'elsewhere')
+  check(cleared == true and not util.exists(util.join(scratch, 'elsewhere', 'doc.html')),
+    'stale output inside the tests directory is still cleared')
+
+  -- The refusal is judged inside the render of one case, before anything is
+  -- rendered. It must come back as that case, failed, rather than raise and
+  -- take the rest of the layer with it.
+  local refused_case
+  local refused_ok, refused_err = pcall(function()
+    refused_case = render.render_one({
+      tests = scratch,
+      log_dir = scratch,
+      settings = { timeout = 60 },
+      document = placed,
+      layer = 'render',
+      output_files = {},
+      output_dir = '../paths-outside',
+    }, { name = 'html', policy = 'noErrors', assertions = {} })
+  end)
+  check(refused_ok, 'a refused output path does not raise', tostring(refused_err))
+  check(refused_case ~= nil and refused_case.status == 'fail'
+    and refused_case.failure.reason == 'outside-tests'
+    and refused_case.target.format == 'html' and refused_case.id == 'render/doc/html',
+    'a refused output path fails the case that asked for it',
+    refused_case and tostring(refused_case.failure and refused_case.failure.reason))
+  check(refused_case ~= nil and refused_case.failure.log == nil,
+    'a refused case points at no log, because no render ran',
+    refused_case and tostring(refused_case.failure.log))
+  check(util.exists(sentinel),
+    'the refused case removed nothing outside the tests directory')
+
+  local status_outside, failure_outside = render.grade_missing('outside-tests', 'html', nil)
+  check(status_outside == 'fail' and failure_outside.reason == 'outside-tests'
+    and failure_outside.message:find('climbs out of the directory it is placed under', 1, true) ~= nil,
+    'a refused path is a failure that names the directory it was held to', tostring(failure_outside.message))
+
+  util.remove_tree(outside)
   util.remove_tree(scratch)
 end
 

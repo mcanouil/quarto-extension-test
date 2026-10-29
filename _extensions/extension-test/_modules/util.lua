@@ -14,6 +14,51 @@ function M.join(...)
   return pandoc.path.join({ ... })
 end
 
+--- Split a path into its segments, resolving `.` and `..` by text.
+---
+--- `pandoc.path.join` and `pandoc.path.normalize` keep a `..` as written, so a
+--- path that climbs out of a directory looks like a path inside it until the
+--- dots are resolved. A `..` with nothing left to remove is kept, so a
+--- relative path that starts above its origin still shows it.
+--- @param path string
+--- @return string[]
+local function resolved_segments(path)
+  local segments = {}
+  for part in path:gmatch('[^/\\]+') do
+    if part == '..' then
+      if #segments > 0 and segments[#segments] ~= '..' then
+        segments[#segments] = nil
+      else
+        segments[#segments + 1] = part
+      end
+    elseif part ~= '.' then
+      segments[#segments + 1] = part
+    end
+  end
+  return segments
+end
+
+--- Whether a path is the root or sits under it, judged by text alone.
+---
+--- Neither path is read from disk, so a symbolic link is not followed. The
+--- comparison is exact, so a spelling that differs only in case counts as
+--- outside, which refuses a path rather than allowing one.
+--- @param root string
+--- @param path string
+--- @return boolean
+function M.is_within(root, path)
+  local base, target = resolved_segments(root), resolved_segments(path)
+  if #target < #base then
+    return false
+  end
+  for index, segment in ipairs(base) do
+    if target[index] ~= segment then
+      return false
+    end
+  end
+  return true
+end
+
 --- Absolute directory holding the running script.
 --- @return string
 function M.script_dir()

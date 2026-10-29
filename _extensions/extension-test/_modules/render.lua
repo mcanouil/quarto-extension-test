@@ -302,12 +302,23 @@ local function render_and_grade(context, target, typ)
   os.remove(console_path)
 
   local output_file = context.output_files[format] or context.fallback_output_file
-  -- A previous format wrote into the same directory. Every candidate is
-  -- removed rather than the first one that exists, because a stale copy left
-  -- in any of them would let a render that wrote nothing be read as a pass.
-  for _, path in ipairs(M.output_candidates(context.tests, document, format, output_file,
-    context.output_dir) or {}) do
-    os.remove(path)
+  -- A previous format wrote into the same directory, so the render clears
+  -- what it left before this one starts.
+  local cleared, refused = M.clear_stale_output(context.tests, document, format, output_file,
+    context.output_dir)
+  if not cleared then
+    -- Nothing has been rendered, so there is no log to read or to point at:
+    -- the case is built here rather than from the render's diagnostics.
+    local status, failure = M.grade_missing(refused, format, nil)
+    return {
+      id = id,
+      layer = layer,
+      status = status,
+      target = { kind = document.origin, document = document.relative, format = format },
+      diagnostics = { errors = {}, warnings = {} },
+      assertions = {},
+      failure = failure,
+    }
   end
   local output_is_typ = type(output_file) == 'string' and output_file:match('%.typ$') ~= nil
   -- A `.typ` file that is already there is not the render's to remove: it
@@ -506,6 +517,9 @@ local function render_one(context, target)
   return case
 end
 
+--- Exposed so the tests can drive the one place a refused path is judged.
+M.render_one = render_one
+
 --- Grade a render whose output could not be found.
 ---
 --- An unknown suffix means there is nowhere to look, which is a gap in this
@@ -526,12 +540,20 @@ end
 --- @return table failure The failure record for the case.
 function M.grade_missing(missing, format, log_path)
   local unplaceable = missing == 'unknown-suffix'
+  local message
+  if unplaceable then
+    message = string.format('this harness does not know what file a `%s` render writes', format)
+  elseif missing == 'outside-tests' then
+    message = string.format(
+      'the output directory or name reported for `%s` climbs out of the directory it is placed under, so nothing was removed or rendered',
+      format)
+  else
+    message = string.format('the render reported success but wrote no `%s` output to check', format)
+  end
   return unplaceable and 'skip' or 'fail', {
     stage = 'assert',
     reason = missing,
-    message = unplaceable
-      and string.format('this harness does not know what file a `%s` render writes', format)
-      or string.format('the render reported success but wrote no `%s` output to check', format),
+    message = message,
     log = log_path,
   }
 end
@@ -544,7 +566,7 @@ end
 --- @param output_file string|nil the name Quarto reports for this format
 --- @param output_dir string|nil the output directory Quarto resolved
 --- @return string|nil path
---- @return string|nil reason `unknown-suffix` when there is nowhere to look
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look, `outside-tests` when a path climbs out of its directory, `output-not-found` otherwise
 function M.output_path(tests, document, format, output_file, output_dir)
   local candidates, reason = M.output_candidates(tests, document, format, output_file, output_dir)
   if not candidates then
@@ -560,7 +582,7 @@ end
 
 --- Every path a render of this document and format could have written.
 --- @return string[]|nil candidates
---- @return string|nil reason `unknown-suffix` when there is nowhere to look
+--- @return string|nil reason `unknown-suffix` when there is nowhere to look, `outside-tests` when a path climbs out of its directory
 function M.output_candidates(tests, document, format, output_file, output_dir)
   local extensions = {
     html = 'html', revealjs = 'html', typst = 'pdf', pdf = 'pdf',
@@ -603,15 +625,51 @@ function M.output_candidates(tests, document, format, output_file, output_dir)
   -- `output-file` renames the file, never the directory it sits in.
   local relative_dir = document.relative:match('^(.*/)[^/]+%.qmd$') or ''
   local absolute_dir = document.absolute:match('^(.*[/\\])[^/\\]+%.qmd$') or ''
-  local candidates = { absolute_dir .. name }
+  -- The directory and the name come from the target repository's own
+  -- configuration, and the render removes whatever is placed here. A path
+  -- that climbs out of the directory it was built under is refused, so a
+  -- repository cannot steer the removal at files it does not own. The path
+  -- beside the document is held to the document's directory, because a demo
+  -- document sits at the repository root rather than under the tests.
+  local candidates = { { path = absolute_dir .. name, root = absolute_dir } }
   if output_dir then
-    candidates[#candidates + 1] = util.join(tests, output_dir, relative_dir .. name)
+    candidates[#candidates + 1] = { path = util.join(tests, output_dir, relative_dir .. name), root = tests }
   end
   -- The defaults stay as a fallback, for a document inspected without a
   -- project or a Quarto that reports no directory.
-  candidates[#candidates + 1] = util.join(tests, '_output', relative_dir .. name)
-  candidates[#candidates + 1] = util.join(tests, '_site', relative_dir .. name)
-  return candidates, nil
+  candidates[#candidates + 1] = { path = util.join(tests, '_output', relative_dir .. name), root = tests }
+  candidates[#candidates + 1] = { path = util.join(tests, '_site', relative_dir .. name), root = tests }
+
+  local paths = {}
+  for _, candidate in ipairs(candidates) do
+    if not util.is_within(candidate.root, candidate.path) then
+      return nil, 'outside-tests'
+    end
+    paths[#paths + 1] = candidate.path
+  end
+  return paths, nil
+end
+
+--- Remove what an earlier render may have left where this one will write.
+---
+--- Every candidate is removed rather than the first one that exists, because
+--- a stale copy left in any of them would let a render that wrote nothing be
+--- read as a pass. A format this harness cannot place has nothing to remove.
+--- A candidate outside its directory removes nothing at all, and says so.
+--- @return boolean|nil cleared true, or nil when a path was refused
+--- @return string|nil reason `outside-tests` when a path climbed out
+function M.clear_stale_output(tests, document, format, output_file, output_dir)
+  local candidates, reason = M.output_candidates(tests, document, format, output_file, output_dir)
+  if not candidates then
+    if reason == 'outside-tests' then
+      return nil, reason
+    end
+    return true
+  end
+  for _, path in ipairs(candidates) do
+    os.remove(path)
+  end
+  return true
 end
 
 --- The output name to use for a format that `quarto inspect` does not report.

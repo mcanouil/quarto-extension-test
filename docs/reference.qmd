@@ -182,6 +182,11 @@ When `tests/` holds no document, it renders `example.qmd` or `template.qmd` from
 That demo document renders under `noErrors`, because it documents the extension rather than testing it.
 It also ignores `warnings: exhaustive`.
 
+Before the first check, the runner clears the old output where the render will write.
+If the output directory or the output file name climbs out of the directory it is placed under, the case fails with `outside-tests`.
+The output next to the document is held to the directory of the document, and a reported output directory is held to the tests directory.
+In that case, the runner removes nothing and renders nothing.
+
 The runner does these checks in this order, and the first check that fails gives the reason of the case:
 
 1. Quarto finishes within the timeout.
