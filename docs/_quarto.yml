@@ -10,7 +10,7 @@ project:
   # globs, plus files it finds behind an `href` or `src` in the rendered HTML.
   # The manifest names its icons in JSON, which is not scanned, so they are
   # listed here. The social card is not: Quarto registers a project-relative
-  # `website.image` as a resource itself.
+  # `website.open-graph.image` as a resource itself.
   resources:
     - favicon.ico
     - site.webmanifest
@@ -34,9 +34,15 @@ website:
   # and height tags. An absolute URL would emit neither: Quarto returns no size
   # for one, then writes that over whatever the configuration set.
   # _scripts/pre-render.sh writes the file, from GitHub's own preview for this
-  # repository; see assets/social/README.md.
-  image: /assets/social/og-image.png
-  image-alt: "GitHub's repository card for mcanouil/quarto-extension-test: the repository name and its one-line description beside the owner's avatar, over the contributor, issue, star, and fork counts."
+  # repository; see assets/social/README.md. The keys sit inside these two blocks
+  # because a project-level `website.image` loses to Quarto's own harvest of the
+  # first image on a page.
+  open-graph:
+    image: &social-image /assets/social/og-image.png
+    image-alt: &social-alt "GitHub's repository card for mcanouil/quarto-extension-test: the repository name and its one-line description beside the owner's avatar, over the contributor, issue, star, and fork counts."
+  twitter-card:
+    image: *social-image
+    image-alt: *social-alt
   page-navigation: true
   # atelier defaults search to an overlay button in the navbar. With no navbar
   # the search belongs in the sidebar, as a field rather than a button.

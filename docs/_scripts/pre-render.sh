@@ -144,7 +144,7 @@ CARD_PATH="${DOCS_DIR}/${CARD_REL}"
 # GitHub answers 200 with a generic Octocat placeholder, rather than 404, when
 # the repository is private or does not exist. That placeholder must never be
 # published: it carries none of the repository name, description, avatar, or
-# counts that `website.image-alt` tells a screen reader are in the picture.
+# counts that `website.open-graph.image-alt` tells a screen reader are in the picture.
 #
 # It is told apart by its shape. GitHub renders the placeholder at 1200x630 and
 # a real card at 1200x600, and a PNG carries its height as a big-endian 32-bit
@@ -164,7 +164,7 @@ card_height() {
 #
 # Refusing to publish matters because nothing else would notice: Quarto reports
 # a missing include as FATAL and renders the page anyway, and says nothing at
-# all about a `website.image` that does not resolve, so a missing card would
+# all about a `website.open-graph.image` that does not resolve, so a missing card would
 # reach the live site as an og:image pointing at a 404, behind a green check.
 card_unavailable() {
 	local reason="$1"

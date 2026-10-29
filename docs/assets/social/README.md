@@ -1,15 +1,15 @@
 # Social card
 
-`og-image.png` is the Open Graph preview for this site, referenced from `website.image` in `_quarto.yml`.
+`og-image.png` is the Open Graph preview for this site, referenced from `website.open-graph.image` and `website.twitter-card.image` in `_quarto.yml`.
 
 It is not authored here, and it is not committed.
 `_scripts/pre-render.sh` fetches GitHub's own repository preview card for this repository, from `https://opengraph.githubassets.com/1/<owner>/<repo>`, and caches it beside this file on every render.
 The card carries the repository name, its description, the owner's avatar, and the contributor, issue, star, and fork counts, so it tracks the repository without anything here having to be regenerated.
-`image-alt` in `_quarto.yml` describes exactly that, and has to be corrected if GitHub ever changes the layout: it is what a screen reader announces for a link preview.
+`image-alt` in those blocks describes exactly that, and has to be corrected if GitHub ever changes the layout: it is what a screen reader announces for a link preview.
 
 The copy is gitignored.
 A render with no network keeps whichever copy is already cached, and warns; a render with neither reports that `og:image` will point at a missing file.
-The render that publishes refuses to go ahead without a card at all, because nothing downstream would notice: Quarto says nothing about a `website.image` that does not resolve.
+The render that publishes refuses to go ahead without a card at all, because nothing downstream would notice: Quarto says nothing about an image that does not resolve.
 
 The endpoint answers for public repositories only, but it does not say so.
 For a repository that is private or does not exist it returns HTTP 200 with a generic Octocat placeholder, which is why the fetch checks the picture as well as the status code.
