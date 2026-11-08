@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- fix: Refuse an output directory or file name that climbs out of the directory it is placed under. The render clears nothing there and fails the case with `outside-tests`.
+- fix: Refuse an output directory or file name that climbs out of the directory it is placed under. The render clears nothing there and fails the case with `outside-tests`. (#40)
 - fix: Run the actions from the same commit as the reusable workflow a consumer calls. They had stayed at `0.1.2` whatever ref the workflow was called at. (#39)
+- fix: Accept `tag-prefix` on a source in `_dependencies.yml`. The vendored check no longer warns about it as an unknown key. (#42)
 
 ## 0.2.0 (2026-10-18)
 

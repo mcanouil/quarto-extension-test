@@ -1281,6 +1281,10 @@ do
   check(results ~= nil and (results.summary.fail or 0) == 0,
     'an unrecognised key is an advisory rather than a failure',
     results and results.summary and results.summary.fail)
+
+  -- The fixture also carries `tag-prefix`, which the format declares.
+  equal(outcome(results, 'conformance/vendored/vend/example/unknown-key/tag-prefix'), 'missing',
+    'a key the descriptors declare is not reported as unrecognised')
 end
 
 do
