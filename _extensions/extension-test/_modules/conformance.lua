@@ -433,18 +433,28 @@ local DEPENDENCIES_FILE = '_dependencies.yml'
 --- The manifest format version this runner reads.
 local DEPENDENCIES_VERSION = 1
 
---- The keys a source declaration may carry.
+--- The keys the descriptors declare for each entry of a map, or nil.
 ---
 --- The validator reports an unknown key in the top-level map only, so a key
 --- inside a source or a file entry is accepted in silence. The format is
 --- public and written by hand, and `runtimes:` written for `runtime:` would
---- otherwise disable the tripwire and say nothing. The report is an advisory,
---- because a later version of the format may add a key this list has not
---- heard of yet.
-local SOURCE_KEYS = { 'origin', 'fetch', 'version', 'licence', 'licence-url', 'tag-prefix', 'files' }
-
---- The keys a file entry may carry.
-local FILE_KEYS = { 'sha256', 'runtime' }
+--- otherwise disable the tripwire and say nothing. The keys come from the
+--- descriptors, so a key the format adds is known here as soon as it is
+--- declared. The report is an advisory, because a later version of the format
+--- may add a key these descriptors have not heard of yet.
+---
+--- Nil when the descriptors were not read. `M.run` already fails the harness
+--- case then, and a tripwire with no keys would flag every key there is.
+--- @param descriptor table|nil the descriptor of a map
+--- @return table|nil the declared keys, as a set
+local function entry_keys(descriptor)
+  local entry = type(descriptor) == 'table' and descriptor.additionalProperties
+  local properties = type(entry) == 'table' and entry.properties
+  if type(properties) ~= 'table' then
+    return nil
+  end
+  return properties
+end
 
 --- The directory vendored files are written into, one subdirectory per source.
 local VENDOR_DIR = '_vendor'
@@ -564,6 +574,9 @@ local function check_dependencies(ext, dependencies_schema, emit)
     emit(advisory(string.format('%s/warning/%d', id, index), warning))
   end
 
+  local source_keys = entry_keys(dependencies_schema.sources)
+  local file_keys = entry_keys(source_keys and source_keys.files)
+
   --- Check one source: its licence, the files it declares, and its orphans.
   ---
   --- The caller guards the shape this reads. `M.run` continues with empty
@@ -573,7 +586,7 @@ local function check_dependencies(ext, dependencies_schema, emit)
     local dir = util.join(ext.dir, VENDOR_DIR, source_name)
 
     for _, key in ipairs(util.sorted_keys(source)) do
-      if not util.contains(SOURCE_KEYS, key) then
+      if source_keys and source_keys[key] == nil then
         emit(advisory(string.format('%s/%s/unknown-key/%s', id, source_name, key),
           string.format('`sources.%s` declares the unrecognised key `%s`', source_name, key)))
       end
@@ -619,7 +632,7 @@ local function check_dependencies(ext, dependencies_schema, emit)
       end
 
       for _, key in ipairs(util.sorted_keys(entry)) do
-        if not util.contains(FILE_KEYS, key) then
+        if file_keys and file_keys[key] == nil then
           emit(advisory(string.format('%s/unknown-key/%s', file_id, key), string.format(
             '`sources.%s.files.%s` declares the unrecognised key `%s`',
             source_name, file_name, key)))

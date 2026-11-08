@@ -6,6 +6,7 @@ sources:
     version: "1.0.0"
     licence: MIT
     homepage: https://example.com
+    tag-prefix: v
     files:
       sample.lua:
         sha256: ec6beaf1cb7c8e07b99a684f0a1ea81d10f3e8b5c5b89a9015843ba3728815b6

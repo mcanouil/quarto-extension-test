@@ -1281,22 +1281,10 @@ do
   check(results ~= nil and (results.summary.fail or 0) == 0,
     'an unrecognised key is an advisory rather than a failure',
     results and results.summary and results.summary.fail)
-end
 
-do
-  -- A source whose release tags put text before the version declares it as
-  -- `tag-prefix`. The format names that key, so it is no unknown key.
-  local results = run_fixture('vendored-tag-prefix', '--layer conformance')
-  local prefix_key = results and find_case(results, 'conformance/vendored/vend/example/unknown-key/tag-prefix')
-  check(results ~= nil and prefix_key == nil,
-    'a declared tag-prefix is not reported as an unrecognised key',
-    prefix_key and prefix_key.status)
-  local source = results and find_case(results, 'conformance/vendored/vend')
-  check(source ~= nil and source.status == 'pass',
-    'a source that declares a tag-prefix passes', source and source.status)
-  check(results ~= nil and (results.summary.fail or 0) == 0,
-    'a source that declares a tag-prefix reports no failure',
-    results and results.summary and results.summary.fail)
+  -- The fixture also carries `tag-prefix`, which the format declares.
+  equal(outcome(results, 'conformance/vendored/vend/example/unknown-key/tag-prefix'), 'missing',
+    'a key the descriptors declare is not reported as unrecognised')
 end
 
 do
