@@ -441,7 +441,7 @@ local DEPENDENCIES_VERSION = 1
 --- otherwise disable the tripwire and say nothing. The report is an advisory,
 --- because a later version of the format may add a key this list has not
 --- heard of yet.
-local SOURCE_KEYS = { 'origin', 'fetch', 'version', 'licence', 'licence-url', 'files' }
+local SOURCE_KEYS = { 'origin', 'fetch', 'version', 'licence', 'licence-url', 'tag-prefix', 'files' }
 
 --- The keys a file entry may carry.
 local FILE_KEYS = { 'sha256', 'runtime' }

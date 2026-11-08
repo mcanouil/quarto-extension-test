@@ -1284,6 +1284,22 @@ do
 end
 
 do
+  -- A source whose release tags put text before the version declares it as
+  -- `tag-prefix`. The format names that key, so it is no unknown key.
+  local results = run_fixture('vendored-tag-prefix', '--layer conformance')
+  local prefix_key = results and find_case(results, 'conformance/vendored/vend/example/unknown-key/tag-prefix')
+  check(results ~= nil and prefix_key == nil,
+    'a declared tag-prefix is not reported as an unrecognised key',
+    prefix_key and prefix_key.status)
+  local source = results and find_case(results, 'conformance/vendored/vend')
+  check(source ~= nil and source.status == 'pass',
+    'a source that declares a tag-prefix passes', source and source.status)
+  check(results ~= nil and (results.summary.fail or 0) == 0,
+    'a source that declares a tag-prefix reports no failure',
+    results and results.summary and results.summary.fail)
+end
+
+do
   -- The runner keeps going when it cannot read its own descriptors, so the
   -- per-source loop is reached with nothing having validated the manifest. A
   -- Lua error there takes the JSON, the TAP and every other layer with it.
