@@ -76,6 +76,26 @@ jobs:
             exit 1
           fi
 
+      # The name passes the guard, so this run sets up Quarto before it fails.
+      - name: Run the action with a Quarto tool that does not exist
+        id: tool-unknown
+        continue-on-error: true
+        uses: ./.github/actions/extension-test
+        with:
+          runner: "_extensions/extension-test/run.lua"
+          quarto-tools: "verpdf"
+
+      - name: Expect that run to fail
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.tool-unknown.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${OUTCOME}" != "failure" ]]; then
+            printf 'Error: the action accepted a Quarto tool that quarto install does not know (outcome %s).\n' "${OUTCOME}" >&2
+            exit 1
+          fi
+
       - name: Run the action with a Quarto tool name that is an option
         id: tool-option
         continue-on-error: true

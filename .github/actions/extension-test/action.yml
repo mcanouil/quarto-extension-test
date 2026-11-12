@@ -134,6 +134,14 @@ runs:
         read -ra tools <<< "${QUARTO_TOOLS//$'\n'/ }"
         for tool in "${tools[@]}"; do
           quarto install "${tool}" --no-prompt
+          # `quarto install` exits 0 for a tool it does not know, so the
+          # status is read back from `quarto tools`, which writes to stderr.
+          status="$(quarto tools 2>&1 | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | awk -v name="${tool}" '$1 == name { print $2, $3 }')"
+          if [[ -z "${status}" || "${status}" == "Not installed" ]]; then
+            printf 'Error: quarto-tools names %s, which Quarto %s did not install. Run "quarto tools" to list the tools it knows.\n' \
+              "${tool}" "$(quarto --version)" >&2
+            exit 1
+          fi
         done
 
     - name: Setup Node.js
