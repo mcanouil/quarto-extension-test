@@ -1723,10 +1723,11 @@ do
     'printsMessage still runs under errors: strict')
   equal(outcome(results, 'render/logged-error/html'), 'fail exit-zero',
     'an ERROR log line with exit 0 fails errors: strict')
-  local written = find_case(results, 'render/output-written/html')
   equal(outcome(results, 'render/output-written/html'), 'fail output-written',
     'a render that exits 1 after it writes the output fails errors: strict')
-  check(written ~= nil and written.failure.message:find('_output/output-written.html', 1, true) ~= nil,
+  local written = find_case(results, 'render/output-written/html')
+  check(written ~= nil and written.failure ~= nil
+    and written.failure.message:find('_output/output-written.html', 1, true) ~= nil,
     'the failure names the output file it found', written and written.failure.message)
   equal(outcome(results, 'render/not-should-error/html'), 'pass nil',
     'errors: strict has no effect on a format without shouldError')

@@ -412,26 +412,23 @@ local function render_and_grade(context, target, typ)
     return case
   end
 
-  if strict then
-    if code == 0 then
-      return fail('render', 'exit-zero',
-        'the case declares `shouldError` with `errors: strict` but the render exited 0')
-    end
-    local written, missing = M.output_path(context.tests, document, format, output_file, context.output_dir)
-    if written then
-      return fail('assert', 'output-written', string.format(
-        'the case declares `shouldError` with `errors: strict` but the render wrote %s', tests_relative(written)))
-    end
-    -- With no file to look for, the absence of the output cannot be checked.
-    if missing == 'unknown-suffix' then
-      case.status, case.failure = M.grade_missing(missing, format, log_path)
-      return case
-    end
-    return grade_assertions({ lines = lines }, true)
-  end
-
   if target.policy == 'shouldError' then
-    if code == 0 and #errors == 0 then
+    if strict then
+      if code == 0 then
+        return fail('render', 'exit-zero',
+          'the case declares `shouldError` with `errors: strict` but the render exited 0')
+      end
+      local written, missing = M.output_path(context.tests, document, format, output_file, context.output_dir)
+      if written then
+        return fail('assert', 'output-written', string.format(
+          'the case declares `shouldError` with `errors: strict` but the render wrote %s', tests_relative(written)))
+      end
+      -- With no file to look for, the absence of the output cannot be checked.
+      if missing == 'unknown-suffix' then
+        case.status, case.failure = M.grade_missing(missing, format, log_path)
+        return case
+      end
+    elseif code == 0 and #errors == 0 then
       return fail('log', 'unexpected-pass',
         'the case declares `shouldError` but the render exited 0 and logged no error')
     end
