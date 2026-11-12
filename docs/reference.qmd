@@ -206,6 +206,7 @@ Under `shouldError`, the runner does only the timeout check, the `shouldError` c
 With `errors: strict`, the `shouldError` check fails with `exit-zero` when Quarto exits 0, and with `output-written` when the output file exists.
 If the runner cannot place the output file of the format, the case is a skip.
 When a render exits 0 but writes no log, the case is a skip with `log-missing`, because the log rule cannot be checked.
+Under `errors: strict`, a `shouldError` format fails with `exit-zero` instead, because the exit code alone decides it.
 
 ### Check hook
 
