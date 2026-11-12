@@ -56,6 +56,65 @@ jobs:
             exit 1
           fi
 
+      # The guard must fail before any install, so this costs seconds.
+      - name: Run the action with an apt package name that is an option
+        id: apt-option
+        continue-on-error: true
+        uses: ./.github/actions/extension-test
+        with:
+          runner: "_extensions/extension-test/run.lua"
+          apt-packages: "poppler-utils --allow-unauthenticated"
+
+      - name: Expect that run to fail
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.apt-option.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${OUTCOME}" != "failure" ]]; then
+            printf 'Error: the action accepted an apt package name that starts with a dash (outcome %s).\n' "${OUTCOME}" >&2
+            exit 1
+          fi
+
+      # The name passes the guard, so this run sets up Quarto before it fails.
+      - name: Run the action with a Quarto tool that does not exist
+        id: tool-unknown
+        continue-on-error: true
+        uses: ./.github/actions/extension-test
+        with:
+          runner: "_extensions/extension-test/run.lua"
+          quarto-tools: "verpdf"
+
+      - name: Expect that run to fail
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.tool-unknown.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${OUTCOME}" != "failure" ]]; then
+            printf 'Error: the action accepted a Quarto tool that quarto install does not know (outcome %s).\n' "${OUTCOME}" >&2
+            exit 1
+          fi
+
+      - name: Run the action with a Quarto tool name that is an option
+        id: tool-option
+        continue-on-error: true
+        uses: ./.github/actions/extension-test
+        with:
+          runner: "_extensions/extension-test/run.lua"
+          quarto-tools: "verapdf --log-level"
+
+      - name: Expect that run to fail
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.tool-option.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${OUTCOME}" != "failure" ]]; then
+            printf 'Error: the action accepted a Quarto tool name that starts with a dash (outcome %s).\n' "${OUTCOME}" >&2
+            exit 1
+          fi
+
       # The repository is the first consumer of its own action. The action sets
       # up Quarto, which the unit suite also needs, because the fixture tests
       # drive the Quarto CLI and the unit tests call `pandoc.*`.
@@ -69,6 +128,17 @@ jobs:
           runner: "_extensions/extension-test/run.lua"
           args: "--root tests/fixtures/clean --tests tests/fixtures/clean/_t"
           results: "tests/fixtures/clean/_t/_results/results.json"
+          apt-packages: "poppler-utils"
+          quarto-tools: "verapdf"
+
+      - name: Expect the apt package to be installed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v pdftotext > /dev/null; then
+            printf 'Error: apt-packages named poppler-utils, but pdftotext is not on the PATH.\n' >&2
+            exit 1
+          fi
 
       # The guard must fail before Quarto is set up, so this costs seconds.
       - name: Run the q2 action with an unknown channel

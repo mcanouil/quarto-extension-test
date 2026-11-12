@@ -63,6 +63,17 @@ Before that release, the workflow ignores them.
       playwright-browsers: "chromium"
 ```
 
+If a render or a `check` command needs other tools, set `apt-packages` and `quarto-tools`.
+The workflow installs the apt packages before Quarto, and runs `quarto install` for each tool after it.
+Both inputs take effect from the next release.
+
+```yaml
+    uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
+    with:
+      apt-packages: "poppler-utils"
+      quarto-tools: "verapdf"
+```
+
 To run the test documents on q2 as well, set `q2-channels`.
 Only the documents that q2 can judge go to q2.
 The input takes effect from version 0.2.0.
