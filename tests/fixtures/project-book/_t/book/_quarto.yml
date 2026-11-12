@@ -21,3 +21,5 @@ _quarto:
     html:
       ensureFileRegexMatches:
         - ["here"]
+      fileExists:
+        supportPath: quarto-html/quarto.js

@@ -358,7 +358,7 @@ end
 --- `shouldError` check, and the `printsMessage` entries apply. With
 --- `errors: strict`, the `shouldError` check also needs a non-zero exit and
 --- no output file.
---- @param context table {tests, log_dir, settings, exhaustive, check, document, inspected, layer, output_files, output_dir, fallback_output_file}
+--- @param context table {tests, log_dir, settings, exhaustive, check, document, inspected, layer, output_files, output_dir, fallback_output_file, support_dir}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case
 local function render_and_grade(context, target, typ)
@@ -580,7 +580,7 @@ local function render_and_grade(context, target, typ)
     output_path = output_path,
     output_label = output_label,
     output_dir = pandoc.path.directory(output_path),
-    support_dir = pandoc.path.split_extension(output_path) .. '_files',
+    support_dir = context.support_dir or (pandoc.path.split_extension(output_path) .. '_files'),
     -- Only a Typst render keeps a `.typ` file, so another format has none to
     -- read, whatever sits beside the document.
     typ_path = is_typst and (output_is_typ and output_path or typ_path) or nil,
@@ -929,10 +929,13 @@ function M.execute(options, documents, descriptors, layer, emit)
         context.output_files = {}
         context.output_dir = nil
         context.fallback_output_file = nil
+        context.support_dir = info.lib_dir
+          and util.join(document.absolute, info.output_dir or '.', info.lib_dir) or nil
       else
         context.output_files = info.output_files
         context.output_dir = info.output_dir
         context.fallback_output_file = M.fallback_output_file(document.absolute)
+        context.support_dir = nil
       end
       for _, target in ipairs(targets) do
         if target.problem then

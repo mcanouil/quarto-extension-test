@@ -15,7 +15,7 @@ local M = {}
 --- because `quarto inspect` keeps a key with no value, which the vendored
 --- YAML reader drops.
 --- @param text string
---- @return table|nil info {formats, output_files, output_dir, tests}
+--- @return table|nil info {formats, output_files, output_dir, lib_dir, tests}
 --- @return string|nil error
 function M.parse_inspect(text)
   local ok, parsed = pcall(pandoc.json.decode, text, false)
@@ -43,6 +43,12 @@ function M.parse_inspect(text)
   if settings and type(settings['output-dir']) == 'string' and settings['output-dir'] ~= '' then
     output_dir = settings['output-dir']
   end
+  -- A book or a website writes its support files to one directory for the
+  -- whole project rather than to `<output name>_files`.
+  local lib_dir
+  if settings and type(settings['lib-dir']) == 'string' and settings['lib-dir'] ~= '' then
+    lib_dir = settings['lib-dir']
+  end
 
   local formats = util.sorted_keys(parsed.formats)
   local tests
@@ -57,7 +63,7 @@ function M.parse_inspect(text)
     tests = metadata._quarto.tests
   end
 
-  return { formats = formats, output_files = output_files, output_dir = output_dir, tests = tests }, nil
+  return { formats = formats, output_files = output_files, output_dir = output_dir, lib_dir = lib_dir, tests = tests }, nil
 end
 
 --- Run `quarto inspect` on a document or a project directory.

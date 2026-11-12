@@ -1477,13 +1477,18 @@ do
   end
   equal(table.concat(ids, ' '), 'render/book/html render/book/typst render/document/html',
     'no chapter of the book is a case of its own')
-  local typst = find_case(results, 'render/book/typst')
-  local entries = {}
-  for _, entry in ipairs((typst or {}).assertions or {}) do
-    entries[#entries + 1] = entry.id .. ' ' .. entry.status
+  local function entries_of(suffix)
+    local entries = {}
+    for _, entry in ipairs((find_case(results, suffix) or {}).assertions or {}) do
+      entries[#entries + 1] = entry.id .. ' ' .. entry.status
+    end
+    return table.concat(entries, '|')
   end
-  equal(table.concat(entries, '|'), 'ensureTypstFileRegexMatches/match/1 pass|check/1 pass|check/2 pass|check/3 pass',
+  equal(entries_of('render/book/typst'), 'ensureTypstFileRegexMatches/match/1 pass|check/1 pass|check/2 pass|check/3 pass',
     'the index.qmd block and the project check both apply, and the check gets the project paths')
+  equal(entries_of('render/book/html'),
+    'ensureFileRegexMatches/match/1 pass|fileExists/supportPath pass|check/1 pass|check/2 pass|check/3 pass',
+    'a supportPath of a project is read from its lib-dir')
   check(not util.exists(util.join(book, '_extensions')), 'the copy staged into the book is removed with its directory')
   check(not util.exists(util.join(book, 'index.typ')), 'the kept index.typ of the book is removed')
 

@@ -226,6 +226,8 @@ The runner handles a project case in this way:
 5. It removes the staged copy after the render layer, and removes `<project>/_extensions/` when it is empty.
 
 A Typst assertion reads the kept `.typ` file next to the main document, such as `index.typ` for a book.
+A `supportPath` of `fileExists` is relative to the `lib-dir` of the project, such as `_book/site_libs`.
+The runner does not read the `_quarto.tests` block of the other documents of the project.
 The case identifier is `render/<project path>/<format>`, such as `render/book/typst`.
 The project `_quarto.yml` can set format keys, because q2 does not read a project case.
 The `run.extension-test` defaults of `tests/_quarto.yml` do not apply, because the project has its own project file.
