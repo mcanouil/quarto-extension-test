@@ -1,0 +1,10 @@
+---
+title: Output written
+format: html
+_quarto:
+  tests:
+    html:
+      shouldError: true
+---
+
+The post-render script exits 1 after the output is written, so the case fails under `errors: strict`.

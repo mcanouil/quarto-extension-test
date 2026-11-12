@@ -1,0 +1,15 @@
+---
+title: Halt
+format: html
+_quarto:
+  tests:
+    html:
+      shouldError: true
+      printsMessage:
+        level: ERROR
+        regex: "halted on purpose"
+---
+
+The shortcode exits 1, so the render stops before it writes the output.
+
+{{< halt >}}

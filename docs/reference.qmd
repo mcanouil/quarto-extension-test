@@ -41,7 +41,7 @@ _quarto:
 | --- | --- |
 | `noErrors` | The case fails on a log line at `ERROR`. |
 | `noErrorsOrWarnings` | The case fails on a log line at `ERROR` or `WARN`. This is the default. |
-| `shouldError` | The case passes when the render exits with an error code, or when the log has a line at `ERROR`. |
+| `shouldError` | The case passes when the render exits with an error code, or when the log has a line at `ERROR`. With `errors: strict`, the render must exit with an error code and write no output file. |
 | `ensureFileRegexMatches` | Matches the output file against `[[patterns that must match], [patterns that must not match]]`. |
 | `ensureTypstFileRegexMatches` | Matches the kept `.typ` file in the same way. Set `keep-typ: true` on the `typst` format. A `.typ` file that is already beside the document before the render fails the assertion. |
 | `ensureDocxRegexMatches` | Matches `word/document.xml` of a DOCX output in the same way. q2 does not know this key. |
@@ -97,6 +97,7 @@ q2 and quarto-cli do not see these lines as warnings or errors.
 | `name` | string | The file stem | A human name for the case. |
 | `description` | string | `""` | What the case covers. |
 | `warnings` | `default` or `exhaustive` | `default` | With `exhaustive`, each warning in a `noErrors` format must match a `printsMessage` entry at `WARN` that is not negated. A document with `exhaustive` and no `noErrors` format fails with `options-invalid`. |
+| `errors` | `default` or `strict` | `default` | With `strict`, a `shouldError` format passes only when the render exits with an error code and writes no output file. A log line at `ERROR` is not sufficient. Formats without `shouldError` ignore it. |
 | `check` | string | None | A shell command that runs after the assertions of each format pass. See "Check hook". |
 
 : The options under `_quarto.tests.run.extension-test`. {.striped .hover tbl-colwidths="[14,14,20,52]"}
@@ -112,6 +113,8 @@ If `quarto inspect` cannot read the tests project, `render/_config` is a skip wi
 - The runner sees `(W)` and `(E)` lines as warnings and errors.
 - The promoted warnings and the unexpanded shortcode check also apply under `noErrors`.
 - `shouldError` also passes on a log line at `ERROR`, because quarto-cli exits 0 when the Lua code of an extension fails.
+- `errors: strict` is specific to the runner.
+  It also fails a `shouldError` format when the render writes its output file.
 - The runner executes `ensureDocxRegexMatches`, and its second list is specific to the runner.
 - A `printsMessage` pattern matches one log line.
 - `printsMessage` reads `count`, and q2 ignores it and checks for at least one line.
@@ -200,6 +203,8 @@ The runner does these checks in this order, and the first check that fails gives
 8. The `check` command passes, when the document sets one.
 
 Under `shouldError`, the runner does only the timeout check, the `shouldError` check, and the `printsMessage` entries.
+With `errors: strict`, the `shouldError` check fails with `exit-zero` when Quarto exits 0, and with `output-written` when the output file exists.
+If the runner cannot place the output file of the format, the case is a skip.
 When a render exits 0 but writes no log, the case is a skip with `log-missing`, because the log rule cannot be checked.
 
 ### Check hook
@@ -358,6 +363,7 @@ It leaves a document out of the q2 run in these cases:
 | A format has a key that q2 rejects, or a key that nobody knows. | `q2 call test` rejects the document. |
 | A format has a `printsMessage` entry. | q2 matches its own diagnostics, and never the quarto-cli log. |
 | The document, or the project default, sets `warnings: exhaustive`. | This rule exists in the runner only. |
+| A format sets `shouldError`, and the document or the project default sets `errors: strict`. | This rule exists in the runner only. |
 
 : Why a document does not go to q2. {.striped .hover tbl-colwidths="[50,50]"}
 

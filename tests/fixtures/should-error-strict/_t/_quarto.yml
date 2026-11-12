@@ -1,0 +1,9 @@
+project:
+  type: default
+  output-dir: _output
+  post-render: stop-after-output.lua
+_quarto:
+  tests:
+    run:
+      extension-test:
+        errors: strict

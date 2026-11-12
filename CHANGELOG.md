@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- feat: Require a `shouldError` render to exit with an error code and to write no output file, with `errors: strict` under `run.extension-test`.
+
 ## 0.2.1 (2026-11-08)
 
 - fix: Refuse an output directory or file name that climbs out of the directory it is placed under. The render clears nothing there and fails the case with `outside-tests`. (#40)
