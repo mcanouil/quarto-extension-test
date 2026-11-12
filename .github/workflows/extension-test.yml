@@ -26,6 +26,16 @@ on:
         required: false
         default: ""
         type: string
+      apt-packages:
+        description: "Space-separated apt packages to install before the tests, for example `poppler-utils`. Empty installs none."
+        required: false
+        default: ""
+        type: string
+      quarto-tools:
+        description: "Space-separated tools to install with `quarto install`, for example `verapdf`. Empty installs none."
+        required: false
+        default: ""
+        type: string
       q2-channels:
         description: "JSON array of q2 channels: release, nightly. Empty runs no q2 job."
         required: false
@@ -64,6 +74,8 @@ jobs:
           quarto: ${{ matrix.quarto }}
           node-version: ${{ inputs.node-version }}
           playwright-browsers: ${{ inputs.playwright-browsers }}
+          apt-packages: ${{ inputs.apt-packages }}
+          quarto-tools: ${{ inputs.quarto-tools }}
 
   test-q2:
     name: Test on q2 (${{ matrix.channel }})
