@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- feat: Run a Quarto project under `tests/`, such as a book, as one case. The runner stages the extension inside the project, renders it once for each format, and finds the output from the render log. (#48)
+
 ## 0.3.0 (2026-11-12)
 
 - feat: Install apt packages and Quarto tools before the tests, with `apt-packages` and `quarto-tools` in the reusable workflow and the action. (#44)

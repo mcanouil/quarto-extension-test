@@ -1,0 +1,12 @@
+---
+title: Main
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["here"]
+---
+
+A project with no `index.qmd` is read through its first input document.
+
+{{< present >}}

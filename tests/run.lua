@@ -1454,6 +1454,76 @@ do
 end
 
 do
+  -- A book under the tests directory resolves extensions only inside itself,
+  -- renders whole from any one chapter, and names its single-file output
+  -- after its title. Each of the three read as a broken extension before the
+  -- directory became one case.
+  equal(log.output_created({
+    { level = 'INFO', message = 'Output created: _book/index.html' },
+    { level = 'INFO', message = 'Output created: _book/Fixture-Book.pdf  ' },
+  }), '_book/Fixture-Book.pdf', 'the last Output created line names the output, without trailing space')
+  equal(log.output_created({ { level = 'INFO', message = 'Output created:' } }), nil,
+    'an Output created line with no path names nothing')
+
+  local book = util.join(FIXTURES, 'project-book', '_t', 'book')
+  local results = run_fixture('project-book', '--layer render')
+  equal(outcome(results, 'render/book/html'), 'pass nil', 'an HTML book renders as one case')
+  equal(outcome(results, 'render/book/typst'), 'pass nil',
+    'a Typst book is found by its titled PDF and its kept index.typ')
+  equal(outcome(results, 'render/document/html'), 'pass nil', 'a document beside the project is a case of its own')
+  local ids = {}
+  for _, case in ipairs((results or {}).cases or {}) do
+    ids[#ids + 1] = case.id
+  end
+  equal(table.concat(ids, ' '), 'render/book/html render/book/typst render/document/html render/site/html',
+    'no chapter of the book is a case of its own')
+  equal(outcome(results, 'render/site/html'), 'pass nil',
+    'a project with no index.qmd is read through its first input document')
+  local book_html = find_case(results, 'render/book/html')
+  equal(table.concat((book_html or {}).diagnostics and book_html.diagnostics.warnings or {}, '|'),
+    '`chapter.qmd` sets `_quarto.tests`, which a project case does not read; move the block to `index.qmd`',
+    'a block in another document of the project is named, because it is not read')
+
+  local stage = require('stage')
+  local kept = util.join(here, 'tests/_results/kept-project')
+  util.remove_tree(kept)
+  pandoc.system.make_directory(util.join(kept, '_extensions', 'other'), true)
+  pandoc.system.make_directory(util.join(kept, '_extensions', 'local', 'present'), true)
+  util.write_file(util.join(kept, '_extensions', 'other', '_extension.yml'), 'title: Other\n')
+  stage.unstage(util.join(here, 'tests/_results/no-tests'), { kept })
+  check(util.exists(util.join(kept, '_extensions', 'other', '_extension.yml'))
+    and not util.exists(util.join(kept, '_extensions', 'local')),
+    'unstaging a project removes only the staged copy, and keeps an extension the project ships')
+  util.remove_tree(kept)
+
+  local render = require('render')
+  local _, outside = render.project_output({ absolute = '/tests/book' },
+    { { level = 'INFO', message = 'Output created: ../../elsewhere/index.html' } })
+  equal(outside, 'outside-project', 'a project output outside the project is not read')
+  local function entries_of(suffix)
+    local entries = {}
+    for _, entry in ipairs((find_case(results, suffix) or {}).assertions or {}) do
+      entries[#entries + 1] = entry.id .. ' ' .. entry.status
+    end
+    return table.concat(entries, '|')
+  end
+  equal(entries_of('render/book/typst'), 'ensureTypstFileRegexMatches/match/1 pass|check/1 pass|check/2 pass|check/3 pass',
+    'the index.qmd block and the project check both apply, and the check gets the project paths')
+  equal(entries_of('render/book/html'),
+    'ensureFileRegexMatches/match/1 pass|fileExists/supportPath pass|check/1 pass|check/2 pass|check/3 pass',
+    'a supportPath of a project is read from its lib-dir')
+  check(not util.exists(util.join(book, '_extensions')), 'the copy staged into the book is removed with its directory')
+  check(not util.exists(util.join(book, 'index.typ')), 'the kept index.typ of the book is removed')
+
+  local _, _, stderr = run_stage('project-book', '--stage')
+  check(stderr:find('skip book: a project renders as a whole', 1, true) ~= nil,
+    '--stage leaves a project out of the q2 run', stderr)
+  pandoc.system.make_directory(util.join(book, '_extensions', 'local', 'present'), true)
+  run_stage('project-book', '--unstage')
+  check(not util.exists(util.join(book, '_extensions')), '--unstage removes a copy staged into a project')
+end
+
+do
   -- An extension documents itself by showing its own syntax, and that reaches
   -- the output looking exactly like a shortcode that failed to expand. The
   -- scan has to tell the two apart, or every self-documenting extension fails.

@@ -1,0 +1,11 @@
+---
+title: Beside the book
+format: html
+_quarto:
+  tests:
+    html:
+---
+
+A document next to a project still renders as a case of its own.
+
+{{< present >}}

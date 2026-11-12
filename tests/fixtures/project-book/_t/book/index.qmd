@@ -1,0 +1,13 @@
+---
+_quarto:
+  tests:
+    typst:
+      ensureTypstFileRegexMatches:
+        - ["here"]
+---
+
+# Preface {.unnumbered}
+
+The book resolves the extension staged inside its own directory.
+
+{{< present >}}
