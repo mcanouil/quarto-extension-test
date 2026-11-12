@@ -1,0 +1,12 @@
+---
+title: Logged error
+format: html
+_quarto:
+  tests:
+    html:
+      shouldError: true
+---
+
+The shortcode logs an error and the render exits 0, so the case fails under `errors: strict`.
+
+{{< complain >}}

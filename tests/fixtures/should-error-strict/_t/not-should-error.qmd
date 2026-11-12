@@ -1,0 +1,10 @@
+---
+title: Not shouldError
+format: html
+_quarto:
+  tests:
+    html:
+      noErrors: true
+---
+
+The project default `errors: strict` applies to `shouldError` formats only, so this render passes.

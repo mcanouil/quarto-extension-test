@@ -389,6 +389,12 @@ do
     'false `warnings: exhaustive` is a rule of this runner only', 'warnings: exhaustive takes the document out')
   equal(summary(selection_of({ html = { noErrors = true } }, { warnings = 'default' })), 'true nil',
     'warnings: default stays in')
+  equal(summary(selection_of({ html = { shouldError = true } }, { errors = 'strict' })),
+    'false `errors: strict` is a rule of this runner only', 'errors: strict takes a shouldError document out')
+  equal(summary(selection_of({ html = { noErrors = true } }, { errors = 'strict' })), 'true nil',
+    'errors: strict leaves a document without shouldError in, so a project default does not empty the q2 run')
+  equal(summary(selection_of({ html = { shouldError = true } }, { errors = 'default' })), 'true nil',
+    'errors: default stays in')
   equal(selection_of({ docx = { ensureDocxRegexMatches = { {} } }, html = { printsMessage = {} } }).reason,
     '`docx.ensureDocxRegexMatches` is a key that q2 call test rejects', 'the first reason in format order wins')
 end
@@ -574,6 +580,11 @@ do
   end
   local _, one_day = frontmatter.options({ ['extension-test'] = { timeout = 86400 } }, descriptors, 'doc')
   equal(one_day, nil, 'a timeout of one day is valid')
+  local strict, strict_problem = frontmatter.options({ ['extension-test'] = { errors = 'strict' } }, descriptors, 'doc')
+  check(strict_problem == nil and strict.errors == 'strict', '`errors: strict` is a valid option', strict_problem)
+  local _, bad_errors = frontmatter.options({ ['extension-test'] = { errors = 'exit' } }, descriptors, 'doc')
+  check(bad_errors ~= nil and bad_errors:find('errors', 1, true) ~= nil, '`errors` takes default or strict only',
+    bad_errors)
   local _, bad_key = frontmatter.options({ ['extension-test'] = { strict = true } }, descriptors, 'doc')
   check(bad_key ~= nil and bad_key:find('strict', 1, true) ~= nil, 'a removed option is invalid', bad_key)
   local decoded = frontmatter.options(pandoc.json.decode('{"extension-test": {"timeout": 6}}'), descriptors, 'doc')
@@ -1698,6 +1709,28 @@ do
   local missing = results and find_case(results, 'render/missing-bibliography/html')
   check(missing ~= nil and missing.status == 'pass',
     'a render that exits with an error code satisfies shouldError', missing and missing.status)
+end
+
+do
+  -- Under `errors: strict`, `shouldError` needs a non-zero exit and no output
+  -- file, so a render that only logs an error, or that stops after writing
+  -- its output, no longer passes.
+  local results = run_fixture('should-error-strict', '--layer render')
+  equal(outcome(results, 'render/halt/html'), 'pass nil',
+    'a render that exits 1 before it writes the output satisfies errors: strict')
+  local halt = find_case(results, 'render/halt/html')
+  check(halt ~= nil and #halt.assertions == 1 and halt.assertions[1].status == 'pass',
+    'printsMessage still runs under errors: strict')
+  equal(outcome(results, 'render/logged-error/html'), 'fail exit-zero',
+    'an ERROR log line with exit 0 fails errors: strict')
+  equal(outcome(results, 'render/output-written/html'), 'fail output-written',
+    'a render that exits 1 after it writes the output fails errors: strict')
+  local written = find_case(results, 'render/output-written/html')
+  check(written ~= nil and written.failure ~= nil
+    and written.failure.message:find('_output/output-written.html', 1, true) ~= nil,
+    'the failure names the output file it found', written and written.failure.message)
+  equal(outcome(results, 'render/not-should-error/html'), 'pass nil',
+    'errors: strict has no effect on a format without shouldError')
 end
 
 do
