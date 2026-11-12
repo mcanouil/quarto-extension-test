@@ -224,6 +224,7 @@ The runner handles a project case in this way:
    For a book in Typst, this is the PDF named after the book title, such as `_book/My-Book.pdf`.
    For a book in HTML, this is `_book/index.html`.
 5. It removes the staged copy after the render layer, and removes `<project>/_extensions/` when it is empty.
+   The `local` owner directory inside a project is reserved for the staged copy, so do not keep an extension there.
 
 A Typst assertion reads the kept `.typ` file next to the main document, such as `index.typ` for a book.
 A `supportPath` of `fileExists` is relative to the `lib-dir` of the project, such as `_book/site_libs`.

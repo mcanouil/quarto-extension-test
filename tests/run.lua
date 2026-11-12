@@ -1484,6 +1484,18 @@ do
     '`chapter.qmd` sets `_quarto.tests`, which a project case does not read; move the block to `index.qmd`',
     'a block in another document of the project is named, because it is not read')
 
+  local stage = require('stage')
+  local kept = util.join(here, 'tests/_results/kept-project')
+  util.remove_tree(kept)
+  pandoc.system.make_directory(util.join(kept, '_extensions', 'other'), true)
+  pandoc.system.make_directory(util.join(kept, '_extensions', 'local', 'present'), true)
+  util.write_file(util.join(kept, '_extensions', 'other', '_extension.yml'), 'title: Other\n')
+  stage.unstage(util.join(here, 'tests/_results/no-tests'), { kept })
+  check(util.exists(util.join(kept, '_extensions', 'other', '_extension.yml'))
+    and not util.exists(util.join(kept, '_extensions', 'local')),
+    'unstaging a project removes only the staged copy, and keeps an extension the project ships')
+  util.remove_tree(kept)
+
   local render = require('render')
   local _, outside = render.project_output({ absolute = '/tests/book' },
     { { level = 'INFO', message = 'Output created: ../../elsewhere/index.html' } })

@@ -149,7 +149,10 @@ function M.project_main(dir)
   if not inputs then
     return nil, err
   end
-  return inputs[1], nil
+  if pandoc.path.is_absolute(inputs[1]) then
+    return nil, 'quarto inspect lists `' .. inputs[1] .. '` outside the project directory it reports'
+  end
+  return util.join(dir, inputs[1]), nil
 end
 
 --- Why `q2 call test` cannot judge a document, or nil when it can.

@@ -131,8 +131,11 @@ end
 ---
 --- A book lists its chapters here, so the first one is the document that
 --- carries the front matter of the whole book.
+--- The paths are made relative to the project directory Quarto reports,
+--- because Quarto can spell that directory differently from the caller, for
+--- example through a symbolic link.
 --- @param dir string project directory
---- @return string[]|nil inputs absolute paths
+--- @return string[]|nil inputs paths relative to the project directory
 --- @return string|nil error
 function M.project_inputs(dir)
   local parsed, err = inspect_project(dir, dir)
@@ -143,7 +146,15 @@ function M.project_inputs(dir)
   if type(inputs) ~= 'table' or #inputs == 0 then
     return nil, 'quarto inspect lists no input document for the project'
   end
-  return inputs, nil
+  local prefix = type(parsed.dir) == 'string' and (parsed.dir .. '/') or nil
+  local relative = {}
+  for _, input in ipairs(inputs) do
+    if prefix and input:sub(1, #prefix) == prefix then
+      input = input:sub(#prefix + 1)
+    end
+    relative[#relative + 1] = input
+  end
+  return relative, nil
 end
 
 --- The command line that renders one document, or one project, to one format.
