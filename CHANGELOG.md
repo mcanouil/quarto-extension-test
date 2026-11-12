@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- feat: Install apt packages and Quarto tools before the tests, with `apt-packages` and `quarto-tools` in the reusable workflow and the action.
+- feat: Install apt packages and Quarto tools before the tests, with `apt-packages` and `quarto-tools` in the reusable workflow and the action. (#44)
 
 ## 0.2.1 (2026-11-08)
 
