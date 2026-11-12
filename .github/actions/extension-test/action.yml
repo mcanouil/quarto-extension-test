@@ -70,15 +70,16 @@ runs:
           exit 1
         fi
         # A name that starts with a dash would reach apt-get or quarto as an
-        # option, so each name is checked before any install runs.
-        read -ra packages <<< "${APT_PACKAGES}"
+        # option, so each name is checked before any install runs. A newline
+        # counts as a space, so a YAML block with one name per line works too.
+        read -ra packages <<< "${APT_PACKAGES//$'\n'/ }"
         for package in "${packages[@]}"; do
           if [[ ! "${package}" =~ ^[a-z0-9][a-z0-9.+-]*(:[a-z0-9-]+)?(=[A-Za-z0-9.+:~-]+)?$ ]]; then
             printf 'Error: apt-packages holds %s, which is not an apt package name.\n' "${package}" >&2
             exit 1
           fi
         done
-        read -ra tools <<< "${QUARTO_TOOLS}"
+        read -ra tools <<< "${QUARTO_TOOLS//$'\n'/ }"
         for tool in "${tools[@]}"; do
           if [[ ! "${tool}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
             printf 'Error: quarto-tools holds %s, which is not a Quarto tool name.\n' "${tool}" >&2
@@ -113,7 +114,7 @@ runs:
         APT_PACKAGES: ${{ inputs.apt-packages }}
       run: |
         set -euo pipefail
-        read -ra packages <<< "${APT_PACKAGES}"
+        read -ra packages <<< "${APT_PACKAGES//$'\n'/ }"
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends "${packages[@]}"
 
@@ -130,7 +131,7 @@ runs:
         QUARTO_TOOLS: ${{ inputs.quarto-tools }}
       run: |
         set -euo pipefail
-        read -ra tools <<< "${QUARTO_TOOLS}"
+        read -ra tools <<< "${QUARTO_TOOLS//$'\n'/ }"
         for tool in "${tools[@]}"; do
           quarto install "${tool}" --no-prompt
         done
