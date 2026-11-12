@@ -30,6 +30,14 @@ inputs:
     description: "Playwright browsers to install, for example `chromium`. Needs `node-version`."
     required: false
     default: ""
+  apt-packages:
+    description: "Space-separated apt packages to install before the tests, for example `poppler-utils`. Empty installs none."
+    required: false
+    default: ""
+  quarto-tools:
+    description: "Space-separated tools to install with `quarto install`, for example `verapdf`. Empty installs none."
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -46,6 +54,8 @@ runs:
         RESULTS: ${{ inputs.results }}
         NODE_VERSION: ${{ inputs.node-version }}
         PLAYWRIGHT_BROWSERS: ${{ inputs.playwright-browsers }}
+        APT_PACKAGES: ${{ inputs.apt-packages }}
+        QUARTO_TOOLS: ${{ inputs.quarto-tools }}
       run: |
         set -euo pipefail
         case "${QUARTO_CHANNEL}" in
@@ -59,6 +69,22 @@ runs:
           printf 'Error: playwright-browsers needs node-version, because Playwright runs on Node.js.\n' >&2
           exit 1
         fi
+        # A name that starts with a dash would reach apt-get or quarto as an
+        # option, so each name is checked before any install runs.
+        read -ra packages <<< "${APT_PACKAGES}"
+        for package in "${packages[@]}"; do
+          if [[ ! "${package}" =~ ^[a-z0-9][a-z0-9.+-]*(:[a-z0-9-]+)?(=[A-Za-z0-9.+:~-]+)?$ ]]; then
+            printf 'Error: apt-packages holds %s, which is not an apt package name.\n' "${package}" >&2
+            exit 1
+          fi
+        done
+        read -ra tools <<< "${QUARTO_TOOLS}"
+        for tool in "${tools[@]}"; do
+          if [[ ! "${tool}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+            printf 'Error: quarto-tools holds %s, which is not a Quarto tool name.\n' "${tool}" >&2
+            exit 1
+          fi
+        done
         mapfile -t runners < <(compgen -G "${RUNNER_GLOB}" || true)
         if [[ "${#runners[@]}" -eq 0 ]]; then
           printf 'Error: no runner matched %s.\n' "${RUNNER_GLOB}" >&2
@@ -80,10 +106,34 @@ runs:
           printf 'tests=%s\n' "${tests_dir}"
         } >> "${GITHUB_OUTPUT}"
 
+    - name: Install the apt packages
+      if: ${{ inputs.apt-packages != '' }}
+      shell: bash
+      env:
+        APT_PACKAGES: ${{ inputs.apt-packages }}
+      run: |
+        set -euo pipefail
+        read -ra packages <<< "${APT_PACKAGES}"
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends "${packages[@]}"
+
     - name: Setup Quarto
       uses: quarto-dev/quarto-actions/setup@v2
       with:
         version: ${{ inputs.quarto }}
+
+    # The runner image ships Java, which a tool such as veraPDF needs.
+    - name: Install the Quarto tools
+      if: ${{ inputs.quarto-tools != '' }}
+      shell: bash
+      env:
+        QUARTO_TOOLS: ${{ inputs.quarto-tools }}
+      run: |
+        set -euo pipefail
+        read -ra tools <<< "${QUARTO_TOOLS}"
+        for tool in "${tools[@]}"; do
+          quarto install "${tool}" --no-prompt
+        done
 
     - name: Setup Node.js
       if: ${{ inputs.node-version != '' }}
