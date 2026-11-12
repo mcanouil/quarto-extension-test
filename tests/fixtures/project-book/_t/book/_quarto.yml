@@ -1,0 +1,23 @@
+project:
+  type: book
+
+book:
+  title: "Fixture Book"
+  author: "Test"
+  chapters:
+    - index.qmd
+    - chapter.qmd
+
+format:
+  html: default
+  typst:
+    keep-typ: true
+
+_quarto:
+  tests:
+    run:
+      extension-test:
+        check: bash _checks/book.sh
+    html:
+      ensureFileRegexMatches:
+        - ["here"]

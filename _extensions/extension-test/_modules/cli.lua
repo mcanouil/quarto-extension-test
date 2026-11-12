@@ -109,9 +109,29 @@ function M.project_tests(dir)
   return quarto.tests, nil
 end
 
---- The command line that renders one document to one format.
+--- The input documents of a project, in the order Quarto renders them.
+---
+--- A book lists its chapters here, so the first one is the document that
+--- carries the front matter of the whole book.
+--- @param dir string project directory
+--- @return string[]|nil inputs absolute paths
+--- @return string|nil error
+function M.project_inputs(dir)
+  local output, err = run_inspect(dir, dir)
+  if not output then
+    return nil, err
+  end
+  local ok, parsed = pcall(pandoc.json.decode, output, false)
+  local files = ok and type(parsed) == 'table' and type(parsed.files) == 'table' and parsed.files or nil
+  if not files or type(files.input) ~= 'table' or #files.input == 0 then
+    return nil, 'quarto inspect lists no input document for the project'
+  end
+  return files.input, nil
+end
+
+--- The command line that renders one document, or one project, to one format.
 --- @param cwd string
---- @param document string absolute path
+--- @param document string absolute path of a document or a project directory
 --- @param format string
 --- @param log_path string
 --- @param timeout number seconds

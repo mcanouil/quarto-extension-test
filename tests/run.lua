@@ -1454,6 +1454,48 @@ do
 end
 
 do
+  -- A book under the tests directory resolves extensions only inside itself,
+  -- renders whole from any one chapter, and names its single-file output
+  -- after its title. Each of the three read as a broken extension before the
+  -- directory became one case.
+  equal(log.output_created({
+    { level = 'INFO', message = 'Output created: _book/index.html' },
+    { level = 'INFO', message = 'Output created: _book/Fixture-Book.pdf  ' },
+  }), '_book/Fixture-Book.pdf', 'the last Output created line names the output, without trailing space')
+  equal(log.output_created({ { level = 'INFO', message = 'Output created:' } }), nil,
+    'an Output created line with no path names nothing')
+
+  local book = util.join(FIXTURES, 'project-book', '_t', 'book')
+  local results = run_fixture('project-book', '--layer render')
+  equal(outcome(results, 'render/book/html'), 'pass nil', 'an HTML book renders as one case')
+  equal(outcome(results, 'render/book/typst'), 'pass nil',
+    'a Typst book is found by its titled PDF and its kept index.typ')
+  equal(outcome(results, 'render/document/html'), 'pass nil', 'a document beside the project is a case of its own')
+  local ids = {}
+  for _, case in ipairs((results or {}).cases or {}) do
+    ids[#ids + 1] = case.id
+  end
+  equal(table.concat(ids, ' '), 'render/book/html render/book/typst render/document/html',
+    'no chapter of the book is a case of its own')
+  local typst = find_case(results, 'render/book/typst')
+  local entries = {}
+  for _, entry in ipairs((typst or {}).assertions or {}) do
+    entries[#entries + 1] = entry.id .. ' ' .. entry.status
+  end
+  equal(table.concat(entries, '|'), 'ensureTypstFileRegexMatches/match/1 pass|check/1 pass|check/2 pass|check/3 pass',
+    'the index.qmd block and the project check both apply, and the check gets the project paths')
+  check(not util.exists(util.join(book, '_extensions')), 'the copy staged into the book is removed with its directory')
+  check(not util.exists(util.join(book, 'index.typ')), 'the kept index.typ of the book is removed')
+
+  local _, _, stderr = run_stage('project-book', '--stage')
+  check(stderr:find('skip book: a project renders as a whole', 1, true) ~= nil,
+    '--stage leaves a project out of the q2 run', stderr)
+  pandoc.system.make_directory(util.join(book, '_extensions', 'local', 'present'), true)
+  run_stage('project-book', '--unstage')
+  check(not util.exists(util.join(book, '_extensions')), '--unstage removes a copy staged into a project')
+end
+
+do
   -- An extension documents itself by showing its own syntax, and that reaches
   -- the output looking exactly like a shortcode that failed to expand. The
   -- scan has to tell the two apart, or every self-documenting extension fails.

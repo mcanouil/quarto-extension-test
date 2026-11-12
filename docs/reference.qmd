@@ -208,6 +208,29 @@ If the runner cannot place the output file of the format, the case is a skip.
 When a render exits 0 but writes no log, the case is a skip with `log-missing`, because the log rule cannot be checked.
 Under `errors: strict`, a `shouldError` format fails with `exit-zero` instead, because the exit code alone decides it.
 
+### Projects
+
+A directory under `tests/` that holds its own `_quarto.yml` or `_quarto.yaml` is a project case, such as a book or a website.
+The runner does not collect the documents of that directory as cases of their own.
+Each chapter of a book renders the whole book, so one case for each chapter renders the same book many times.
+
+The runner handles a project case in this way:
+
+1. It stages the extension into `<project>/_extensions/local/`, because a project resolves extensions only inside itself.
+2. It reads the `_quarto.tests` block of `index.qmd`, which includes the block of the project `_quarto.yml`.
+   Without `index.qmd`, it reads the first input document that `quarto inspect` lists.
+3. It renders the project once for each format, with `quarto render <project> --to <format>`, from the project directory.
+4. It reads the output file from the `Output created` line of the render log.
+   For a book in Typst, this is the PDF named after the book title, such as `_book/My-Book.pdf`.
+   For a book in HTML, this is `_book/index.html`.
+5. It removes the staged copy after the render layer, and removes `<project>/_extensions/` when it is empty.
+
+A Typst assertion reads the kept `.typ` file next to the main document, such as `index.typ` for a book.
+The case identifier is `render/<project path>/<format>`, such as `render/book/typst`.
+The project `_quarto.yml` can set format keys, because q2 does not read a project case.
+The `run.extension-test` defaults of `tests/_quarto.yml` do not apply, because the project has its own project file.
+Add `_book/`, `_site/`, and `.quarto/` of the project to `.gitignore`.
+
 ### Check hook
 
 The `check` option runs a shell command on the output of a render.
@@ -230,8 +253,8 @@ The runner sets these variables for the command:
 
 | Variable | Value |
 | --- | --- |
-| `EXTENSION_TEST_INPUT` | The absolute path of the test document. |
-| `EXTENSION_TEST_OUTPUT` | The absolute path of the output file. |
+| `EXTENSION_TEST_INPUT` | The absolute path of the test document, or of the project directory for a project case. |
+| `EXTENSION_TEST_OUTPUT` | The absolute path of the output file, such as the PDF of a book. |
 | `EXTENSION_TEST_FORMAT` | The format name, such as `revealjs`. |
 | `EXTENSION_TEST_CASE_ID` | The identifier of the case, such as `render/check-env/html`. |
 
@@ -378,7 +401,7 @@ It leaves a document out of the q2 run in these cases:
 
 A document with a policy conflict stays in the q2 run.
 The check hook does not take a document out, because q2 ignores it.
-The runner also leaves out the demo document, and any document that it cannot read or validate.
+The runner also leaves out the demo document, every project case, and any document that it cannot read or validate.
 The runner cannot find one difference from the front matter.
 A `shouldError` document that relies on a missing bibliography stays in the q2 run, and fails on q2.
 
@@ -400,5 +423,6 @@ quarto pandoc lua tests/_extensions/*/extension-test/run.lua --unstage
 ## Limitations
 
 - The smoke layer generates no document for a project type extension.
+- The assertions of a project case read only the output file that the log names, such as `index.html` of an HTML book. A check command can read the other pages from the directory of that file.
 - A format whose output file the runner cannot place is reported as a skip.
 - The unexpanded shortcode check looks for an opening shortcode delimiter in the output, so a document that prints one on purpose outside code fails it.

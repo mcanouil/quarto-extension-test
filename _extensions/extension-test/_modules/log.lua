@@ -150,4 +150,23 @@ function M.messages_at(lines, level)
   return out
 end
 
+--- The path of the last `Output created` line, as Quarto wrote it.
+---
+--- `quarto inspect` reports no output name for a project. A book names its
+--- single-file output after its title, so the log is the one place that
+--- tells where the render wrote. Quarto writes the path relative to the
+--- project directory.
+--- @param lines table[]
+--- @return string|nil
+function M.output_created(lines)
+  local path
+  for _, line in ipairs(lines) do
+    local found = line.message:match('^Output created: (.-)%s*$')
+    if found and found ~= '' then
+      path = found
+    end
+  end
+  return path
+end
+
 return M
