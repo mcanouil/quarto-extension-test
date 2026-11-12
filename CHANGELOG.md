@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- feat: Require a `shouldError` render to exit with an error code and to write no output file, with `errors: strict` under `run.extension-test`.
+- feat: Require a `shouldError` render to exit with an error code and to write no output file, with `errors: strict` under `run.extension-test`. (#45)
 
 ## 0.2.1 (2026-11-08)
 
