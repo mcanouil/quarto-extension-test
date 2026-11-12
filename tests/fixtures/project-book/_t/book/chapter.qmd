@@ -1,5 +1,14 @@
+---
+_quarto:
+  tests:
+    html:
+      ensureFileRegexMatches:
+        - ["never read"]
+---
+
 # Chapter
 
 A chapter is part of the book case, never a case of its own.
+Its `_quarto.tests` block is not read, and the case says so.
 
 {{< present >}}

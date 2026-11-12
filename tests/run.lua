@@ -1475,8 +1475,19 @@ do
   for _, case in ipairs((results or {}).cases or {}) do
     ids[#ids + 1] = case.id
   end
-  equal(table.concat(ids, ' '), 'render/book/html render/book/typst render/document/html',
+  equal(table.concat(ids, ' '), 'render/book/html render/book/typst render/document/html render/site/html',
     'no chapter of the book is a case of its own')
+  equal(outcome(results, 'render/site/html'), 'pass nil',
+    'a project with no index.qmd is read through its first input document')
+  local book_html = find_case(results, 'render/book/html')
+  equal(table.concat((book_html or {}).diagnostics and book_html.diagnostics.warnings or {}, '|'),
+    '`chapter.qmd` sets `_quarto.tests`, which a project case does not read; move the block to `index.qmd`',
+    'a block in another document of the project is named, because it is not read')
+
+  local render = require('render')
+  local _, outside = render.project_output({ absolute = '/tests/book' },
+    { { level = 'INFO', message = 'Output created: ../../elsewhere/index.html' } })
+  equal(outside, 'outside-project', 'a project output outside the project is not read')
   local function entries_of(suffix)
     local entries = {}
     for _, entry in ipairs((find_case(results, suffix) or {}).assertions or {}) do

@@ -255,7 +255,7 @@ end
 --- @param document table a project case from `M.discover`
 --- @param lines table[] from `log.read`
 --- @return string|nil path
---- @return string|nil reason `output-not-found`
+--- @return string|nil reason `outside-project` when the path climbs out of the project, `output-not-found` otherwise
 function M.project_output(document, lines)
   local reported = log.output_created(lines)
   if not reported then
@@ -264,6 +264,9 @@ function M.project_output(document, lines)
   local path = reported
   if not pandoc.path.is_absolute(path) then
     path = util.join(document.absolute, path)
+  end
+  if not util.is_within(document.absolute, path) then
+    return nil, 'outside-project'
   end
   if not util.exists(path) then
     return nil, 'output-not-found'
@@ -657,6 +660,8 @@ function M.grade_missing(missing, format, log_path)
     message = string.format(
       'the output directory or name reported for `%s` climbs out of the directory it is placed under, so nothing was removed or rendered',
       format)
+  elseif missing == 'outside-project' then
+    message = string.format('the `%s` output of the project is outside the project directory, so it is not read', format)
   else
     message = string.format('the render reported success but wrote no `%s` output to check', format)
   end
@@ -881,6 +886,16 @@ function M.execute(options, documents, descriptors, layer, emit)
         goto continue
       end
       local run_warnings = frontmatter.unknown_run_keys(spec.run)
+      if document.project then
+        for _, entry in ipairs(collect(document.absolute)) do
+          local path = util.join(document.absolute, entry.relative)
+          if not entry.project and path ~= inspected and frontmatter.declares_tests(path) then
+            run_warnings[#run_warnings + 1] = string.format(
+              '`%s` sets `_quarto.tests`, which a project case does not read; move the block to `%s`',
+              entry.relative, pandoc.path.filename(inspected))
+          end
+        end
+      end
       local reason = frontmatter.skip_reason(spec.run)
       if reason then
         emit_document('skip', 'discover', 'skipped', reason, run_warnings)
