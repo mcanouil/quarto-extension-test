@@ -346,7 +346,7 @@ The runner image of GitHub includes Java, which veraPDF needs.
 The action stops before any install when a name in `apt-packages` or `quarto-tools` is not a package or tool name, for example a name that starts with a dash.
 The action fails when `quarto tools` does not report a tool as installed after `quarto install`, because `quarto install` exits 0 for a tool that it does not know.
 The `test-q2` job installs neither.
-`apt-packages` and `quarto-tools` take effect from the next release.
+`apt-packages` and `quarto-tools` take effect from version 0.3.0.
 Before that release, the workflow refuses them as unknown inputs.
 `q2-channels` also takes effect from version 0.2.0.
 Before that release, setting `q2-channels` fails the `test-q2` job.
