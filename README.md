@@ -65,7 +65,7 @@ Before that release, the workflow ignores them.
 
 If a render or a `check` command needs other tools, set `apt-packages` and `quarto-tools`.
 The workflow installs the apt packages before Quarto, and runs `quarto install` for each tool after it.
-Both inputs take effect from the next release.
+Both inputs take effect from version 0.3.0.
 
 ```yaml
     uses: mcanouil/quarto-extension-test/.github/workflows/extension-test.yml@main
