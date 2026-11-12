@@ -69,7 +69,8 @@ end
 --- @return string|nil error
 function M.stage(root, tests, projects)
   local source = util.join(root, '_extensions')
-  local targets = { target_of(tests) }
+  local dir = target_of(tests)
+  local targets = { dir }
   for _, project in ipairs(projects or {}) do
     targets[#targets + 1] = target_of(project)
   end
@@ -79,7 +80,7 @@ function M.stage(root, tests, projects)
   end
 
   if not util.is_dir(source) then
-    return { names = {}, dir = targets[1] }, nil
+    return { names = {}, dir = dir }, nil
   end
 
   local names = {}
@@ -89,7 +90,7 @@ function M.stage(root, tests, projects)
       for _, target in ipairs(targets) do
         local ok, err = util.copy_tree(from, util.join(target, name))
         if not ok then
-          return { names = names, dir = targets[1] }, string.format('cannot stage `%s` into `%s`: %s',
+          return { names = names, dir = dir }, string.format('cannot stage `%s` into `%s`: %s',
             name, target, tostring(err))
         end
       end
@@ -97,7 +98,7 @@ function M.stage(root, tests, projects)
     end
   end
 
-  return { names = names, dir = targets[1] }, nil
+  return { names = names, dir = dir }, nil
 end
 
 --- Remove the staging directories.

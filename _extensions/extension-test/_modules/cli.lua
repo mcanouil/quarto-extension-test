@@ -88,6 +88,22 @@ function M.inspect(document, cwd)
   return M.parse_inspect(output)
 end
 
+--- The decoded `quarto inspect` output of a project directory.
+--- @param dir string project directory
+--- @param cwd string|nil directory to run it from
+--- @return table|nil parsed, string|nil error
+local function inspect_project(dir, cwd)
+  local output, err = run_inspect(dir, cwd)
+  if not output then
+    return nil, err
+  end
+  local ok, parsed = pcall(pandoc.json.decode, output, false)
+  if not ok or type(parsed) ~= 'table' then
+    return nil, 'quarto inspect returned no project'
+  end
+  return parsed, nil
+end
+
 --- The `_quarto.tests` block of a project, as Quarto resolves it.
 ---
 --- Read from `quarto inspect <dir>`, because the vendored YAML reader drops
@@ -96,13 +112,9 @@ end
 --- @return any block `config._quarto.tests`, or nil
 --- @return string|nil error
 function M.project_tests(dir)
-  local output, err = run_inspect(dir)
-  if not output then
+  local parsed, err = inspect_project(dir)
+  if not parsed then
     return nil, err
-  end
-  local ok, parsed = pcall(pandoc.json.decode, output, false)
-  if not ok or type(parsed) ~= 'table' then
-    return nil, 'quarto inspect returned no project'
   end
   local config = type(parsed.config) == 'table' and parsed.config or {}
   local quarto = type(config._quarto) == 'table' and config._quarto or {}
@@ -117,16 +129,15 @@ end
 --- @return string[]|nil inputs absolute paths
 --- @return string|nil error
 function M.project_inputs(dir)
-  local output, err = run_inspect(dir, dir)
-  if not output then
+  local parsed, err = inspect_project(dir, dir)
+  if not parsed then
     return nil, err
   end
-  local ok, parsed = pcall(pandoc.json.decode, output, false)
-  local files = ok and type(parsed) == 'table' and type(parsed.files) == 'table' and parsed.files or nil
-  if not files or type(files.input) ~= 'table' or #files.input == 0 then
+  local inputs = type(parsed.files) == 'table' and parsed.files.input or nil
+  if type(inputs) ~= 'table' or #inputs == 0 then
     return nil, 'quarto inspect lists no input document for the project'
   end
-  return files.input, nil
+  return inputs, nil
 end
 
 --- The command line that renders one document, or one project, to one format.

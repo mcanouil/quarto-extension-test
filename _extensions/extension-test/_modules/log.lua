@@ -159,14 +159,13 @@ end
 --- @param lines table[]
 --- @return string|nil
 function M.output_created(lines)
-  local path
-  for _, line in ipairs(lines) do
-    local found = line.message:match('^Output created: (.-)%s*$')
+  for index = #lines, 1, -1 do
+    local found = lines[index].message:match('^Output created: (.-)%s*$')
     if found and found ~= '' then
-      path = found
+      return found
     end
   end
-  return path
+  return nil
 end
 
 return M

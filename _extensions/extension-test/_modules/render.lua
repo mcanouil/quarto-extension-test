@@ -48,18 +48,6 @@ local function is_ignored(relative)
     or relative:match('/node_modules/')
 end
 
---- Whether a directory holds a project file of its own.
---- @param dir string
---- @return boolean
-local function holds_project(dir)
-  for _, name in ipairs(stage.PROJECT_FILES) do
-    if util.exists(util.join(dir, name)) then
-      return true
-    end
-  end
-  return false
-end
-
 --- Collect `.qmd` documents and project directories under a directory,
 --- relative to it.
 ---
@@ -77,18 +65,16 @@ local function collect(base, prefix, found)
     local relative = prefix == '' and name or (prefix .. '/' .. name)
     local absolute = util.join(base, name)
     if util.is_dir(absolute) then
-      if is_ignored(relative .. '/') then
-        goto next_entry
-      end
-      if holds_project(absolute) then
-        found[#found + 1] = { relative = relative, project = true }
-      else
-        collect(absolute, relative, found)
+      if not is_ignored(relative .. '/') then
+        if stage.missing_project(absolute) then
+          collect(absolute, relative, found)
+        else
+          found[#found + 1] = { relative = relative, project = true }
+        end
       end
     elseif name:match('%.qmd$') and not is_ignored(relative) then
       found[#found + 1] = { relative = relative, project = false }
     end
-    ::next_entry::
   end
   return found
 end
@@ -253,11 +239,11 @@ end
 
 --- Where quarto-cli writes a kept `.typ` file: beside the input, named after
 --- it, also when `output-file` or `output-dir` is set (measured). A book
---- keeps one file, named after its first document (measured).
---- @param document table
+--- keeps one file, named after its main document (measured).
+--- @param input string absolute path of the document, or of the main document of a project
 --- @return string
-function M.kept_typ_path(document)
-  return (pandoc.path.split_extension(document.main or document.absolute)) .. '.typ'
+function M.kept_typ_path(input)
+  return (pandoc.path.split_extension(input)) .. '.typ'
 end
 
 --- Where the render of a project put its output.
@@ -372,7 +358,7 @@ end
 --- `shouldError` check, and the `printsMessage` entries apply. With
 --- `errors: strict`, the `shouldError` check also needs a non-zero exit and
 --- no output file.
---- @param context table {tests, log_dir, settings, exhaustive, check, document, layer, output_files, output_dir, fallback_output_file}
+--- @param context table {tests, log_dir, settings, exhaustive, check, document, inspected, layer, output_files, output_dir, fallback_output_file}
 --- @param target table a format entry from `frontmatter.spec`
 --- @return table case
 local function render_and_grade(context, target, typ)
@@ -416,7 +402,7 @@ local function render_and_grade(context, target, typ)
   local output_is_typ = type(output_file) == 'string' and output_file:match('%.typ$') ~= nil
   -- A `.typ` file that is already there is not the render's to remove: it
   -- may be hand-written. Only one the render kept is removed, after grading.
-  local typ_path = M.kept_typ_path(document)
+  local typ_path = M.kept_typ_path(context.inspected)
   local typ_preexisting = false
   local base = format:match('([^%-]+)$') or format
   local is_typst = base == 'typst' or output_is_typ
@@ -879,7 +865,6 @@ function M.execute(options, documents, descriptors, layer, emit)
         emit_document('fail', 'inspect', 'inspect-failed', main_err)
         goto continue
       end
-      document.main = main
       inspected, inspect_cwd = main, document.absolute
     end
 
@@ -933,6 +918,7 @@ function M.execute(options, documents, descriptors, layer, emit)
       end
 
       context.document = document
+      context.inspected = inspected
       context.settings = settings
       context.exhaustive = exhaustive
       context.check = document.origin == 'tests' and settings.check or nil
