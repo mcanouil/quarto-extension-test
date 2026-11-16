@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fix: Read a bare `yes` or `no` in `_schema.yml` as a string, as Pandoc does. A boolean default written that way now fails conformance.
+- fix: Read a bare `yes` or `no` in `_schema.yml` as a string, as Pandoc does. A boolean default written that way now fails conformance. (#56)
 
 ## 0.5.0 (2026-11-16)
 
