@@ -1000,17 +1000,6 @@ do
   local doubled = schema._parse_yaml_text("a: 'it''s'\n")
   equal(doubled and doubled.a, "it's", 'a doubled quote inside a single-quoted scalar is one quote')
 end
-  local unescaped, unescaped_err = parse('a: "say "hi" now"\n')
-  check(unescaped == nil and unescaped_err ~= nil,
-    'a double-quoted scalar with an unescaped quote inside is refused', unescaped_err)
-  local lone, lone_err = parse("a: 'it's'\n")
-  check(lone == nil and lone_err ~= nil,
-    'a single-quoted scalar with a lone quote inside is refused', lone_err)
-  local escaped = parse('a: "ok \\"x\\""\n')
-  equal(escaped and escaped.a, 'ok "x"', 'an escaped quote inside a double-quoted scalar is kept')
-  local doubled = parse("a: 'it''s'\n")
-  equal(doubled and doubled.a, "it's", 'a doubled quote inside a single-quoted scalar is one quote')
-end
 
 io.stdout:write('# fixtures\n')
 
