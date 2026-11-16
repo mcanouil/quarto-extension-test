@@ -74,8 +74,9 @@ end
 --- Run the runner against a fixture and return the parsed result.
 --- @param name string fixture directory name
 --- @param extra string|nil extra arguments
+--- @param env string|nil variable assignments put before the command, ending with a space
 --- @return table|nil results, string output
-local function run_fixture(name, extra)
+local function run_fixture(name, extra, env)
   local root = util.join(FIXTURES, name)
   local tests = util.join(root, '_t')
   local json = util.join(tests, 'results.json')
@@ -84,8 +85,8 @@ local function run_fixture(name, extra)
   util.remove_tree(util.join(tests, '_output'))
 
   local command = string.format(
-    'quarto pandoc lua %s --root %s --tests %s --json %s --tap /dev/null --quiet',
-    util.shell_quote(RUNNER), util.shell_quote(root),
+    '%squarto pandoc lua %s --root %s --tests %s --json %s --tap /dev/null --quiet',
+    env or '', util.shell_quote(RUNNER), util.shell_quote(root),
     util.shell_quote(tests), util.shell_quote(json))
   if extra then
     command = command .. ' ' .. extra
@@ -2188,7 +2189,16 @@ do
   -- A generated document names its formats in `format`, which is all the
   -- render layer needs. A leftover `test:` key would be ordinary metadata
   -- now, and a sign that the generator still writes the old block.
-  local results = run_fixture('clean', '--layer smoke --keep-generated')
+  -- A GitHub Actions run with debug logging sets both variables, and Quarto
+  -- then writes DEBUG lines to standard error.
+  local results = run_fixture('clean', '--layer smoke --keep-generated', 'GITHUB_ACTIONS=true RUNNER_DEBUG=1 ')
+  local smoke = results and find_case(results, 'smoke/generated/')
+  check(smoke ~= nil and smoke.status == 'pass',
+    'a document is inspected when Quarto writes debug lines to standard error',
+    smoke and smoke.failure and smoke.failure.message)
+  local version = results and results.quarto and results.quarto.version
+  check(type(version) == 'string' and version:match('^%d') ~= nil and not version:find('\n', 1, true),
+    'the Quarto version is one version string when Quarto writes debug lines', version)
   local generated = util.join(FIXTURES, 'clean', '_t', 'generated')
   local names = util.list_dir(generated)
   local found_test_key = false
