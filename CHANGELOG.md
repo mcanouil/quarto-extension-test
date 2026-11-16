@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Fail a `noErrorsOrWarnings` render on a Typst compile warning, such as an unknown font family. The runner read the lower-case `warning:` line as plain output. (#52)
+
 ## 0.4.1 (2026-11-16)
 
 - fix: Pass the workflow token as `GH_TOKEN` to `quarto tools`. On Quarto 1.12, the tools step failed with a 403 from the GitHub API and stopped the job. (#50)
