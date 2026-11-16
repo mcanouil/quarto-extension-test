@@ -75,7 +75,7 @@ end
 --- @param name string fixture directory name
 --- @param extra string|nil extra arguments
 --- @return table|nil results, string output
-local function run_fixture(name, extra)
+local function run_fixture(name, extra, env)
   local root = util.join(FIXTURES, name)
   local tests = util.join(root, '_t')
   local json = util.join(tests, 'results.json')
@@ -84,8 +84,8 @@ local function run_fixture(name, extra)
   util.remove_tree(util.join(tests, '_output'))
 
   local command = string.format(
-    'quarto pandoc lua %s --root %s --tests %s --json %s --tap /dev/null --quiet',
-    util.shell_quote(RUNNER), util.shell_quote(root),
+    '%squarto pandoc lua %s --root %s --tests %s --json %s --tap /dev/null --quiet',
+    env or '', util.shell_quote(RUNNER), util.shell_quote(root),
     util.shell_quote(tests), util.shell_quote(json))
   if extra then
     command = command .. ' ' .. extra
@@ -1032,6 +1032,16 @@ do
   local case = results and find_case(results, 'conformance/schema/')
   check(case ~= nil and case.status == 'skip',
     'an extension with no schema is skipped rather than failed')
+end
+
+do
+  -- A GitHub Actions run with debug logging sets both variables, and Quarto
+  -- then writes DEBUG lines to standard error on every command.
+  local results = run_fixture('clean', '--layer smoke', 'GITHUB_ACTIONS=true RUNNER_DEBUG=1 ')
+  local smoke = results and find_case(results, 'smoke/generated/')
+  check(smoke ~= nil and smoke.status == 'pass',
+    'a document is inspected when Quarto writes debug lines to standard error',
+    smoke and smoke.failure and smoke.failure.message)
 end
 
 do

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Read only the standard output of `quarto inspect`. In a GitHub Actions run with debug logging, Quarto 1.12 writes debug lines to standard error, and every render case failed with "quarto inspect returned no formats".
+
 ## 0.4.1 (2026-11-16)
 
 - fix: Pass the workflow token as `GH_TOKEN` to `quarto tools`. On Quarto 1.12, the tools step failed with a 403 from the GitHub API and stopped the job. (#50)
