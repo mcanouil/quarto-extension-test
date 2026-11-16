@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fix: Fail a `noErrorsOrWarnings` render on a Typst compile warning, such as an unknown font family. The runner read the lower-case `warning:` line as plain output.
+- fix: Fail a `noErrorsOrWarnings` render on a Typst compile warning, such as an unknown font family. The runner read the lower-case `warning:` line as plain output. (#52)
 
 ## 0.4.1 (2026-11-16)
 
