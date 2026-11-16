@@ -1113,14 +1113,28 @@ do
     options = { flag = { type = 'boolean', required = 'yes', examples = { true } } },
     formats = { typst = { box = { type = 'object', properties = { inner = { type = 'string', required = 'no' } } } } },
   }, 'strict', collect)
-  local top = emitted['conformance/keyword-value/x/options.flag']
+  local top = emitted['conformance/keyword-value/x/options.flag/required']
   check(top ~= nil and top.status == 'fail' and top.failure.message:find('"required"', 1, true) ~= nil,
     'a boolean keyword that is neither true nor false fails conformance', top and top.failure.message)
-  local nested = emitted['conformance/keyword-value/x/formats.typst.box.inner']
+  local nested = emitted['conformance/keyword-value/x/formats.typst.box.inner/required']
   check(nested ~= nil and nested.status == 'fail',
     'a keyword fault in a nested descriptor of another section fails conformance at its path')
   check(emitted['conformance/example/x/options.flag/1'] == nil,
     'an example is not blamed for a fault in its descriptor')
+
+  local cases = {}
+  conformance.check_descriptors({ name = 'x' }, {
+    options = { tags = { type = 'array', required = 'yes', uniqueItems = 'yes' } },
+    shortcodes = { foo = { arguments = { { name = 'path', type = 'string', required = 'yes' } } } },
+  }, 'strict', function(case)
+    cases[case.id] = case
+  end)
+  check(cases['conformance/keyword-value/x/options.tags/required'] ~= nil
+    and cases['conformance/keyword-value/x/options.tags/uniqueItems'] ~= nil,
+    'two keyword faults on one descriptor are two cases with their own id')
+  local argument = cases['conformance/keyword-value/x/shortcodes.foo.arguments.path/required']
+  check(argument ~= nil and argument.status == 'fail',
+    'a keyword fault in a shortcode argument fails conformance')
 end
 
 io.stdout:write('# fixtures\n')

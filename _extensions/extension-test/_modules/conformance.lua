@@ -412,7 +412,9 @@ function M.check_descriptors(ext, loaded, severity, emit)
     local _, _, _, faults = probe({}, { probe = descriptor })
     for _, fault in ipairs(faults) do
       local fault_path = path .. tostring(fault.path or 'probe'):sub(#'probe' + 1)
-      fail('conformance/keyword-value/' .. ext.name .. '/' .. fault_path,
+      -- One descriptor can carry several faults, so the keyword keeps each id apart.
+      local keyword = tostring(fault.message):match('^schema declares "([^"]+)"') or 'keyword'
+      fail('conformance/keyword-value/' .. ext.name .. '/' .. fault_path .. '/' .. keyword,
         string.format('`%s`: %s', fault_path, fault.message), 'keyword-not-boolean')
     end
   end
@@ -465,6 +467,7 @@ function M.check_descriptors(ext, loaded, severity, emit)
             'argument-unnamed')
         else
           check_descriptor('shortcodes.' .. name .. '.arguments.' .. argument.name, argument)
+          check_faults('shortcodes.' .. name .. '.arguments.' .. argument.name, argument)
         end
       end
 
