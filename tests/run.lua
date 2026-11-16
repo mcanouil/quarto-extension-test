@@ -1001,6 +1001,16 @@ do
   equal(doubled and doubled.a, "it's", 'a doubled quote inside a single-quoted scalar is one quote')
 end
 
+-- Pandoc reads `yes` and `no` as strings, as YAML 1.2 does, so the schema
+-- reader keeps only `true` and `false` as words for a boolean.
+do
+  local descriptors = { flag = { type = 'boolean' } }
+  local yes_valid = schema.validate({ flag = 'yes' }, descriptors)
+  check(not yes_valid, 'the string `yes` is not a boolean')
+  local true_valid, _, _, coerced = schema.validate({ flag = 'true' }, descriptors)
+  check(true_valid and coerced and coerced.flag == true, 'the string `true` is the boolean true', coerced and tostring(coerced.flag))
+end
+
 io.stdout:write('# fixtures\n')
 
 do
