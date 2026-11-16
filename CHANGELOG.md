@@ -3,8 +3,9 @@
 ## Unreleased
 
 - fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. (#54)
-- fix: Refuse the strings `yes` and `no` for a boolean option, as Pandoc does. Only `true` and `false` name a boolean. (#54)
-- fix: Report a key that an object with `additionalProperties: false` does not declare as a warning, not an error. (#54)
+- fix: Refuse the strings `yes` and `no` for a boolean option in a document, an attribute or a shortcode argument, as Pandoc does. (#54)
+- fix: Report a key that an object with `additionalProperties: false` does not declare as a warning, not an error. Conformance shows it as an advisory on the default, example or `const` that holds it. (#54)
+- feat: Check the descriptors under `cells` in `_schema.yml` like every other descriptor. (#54)
 
 ## 0.4.1 (2026-11-16)
 

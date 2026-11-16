@@ -1020,6 +1020,33 @@ do
     'an undeclared key under `additionalProperties: false` is a warning that names it', warnings[1] and tostring(warnings[1].message))
 end
 
+do
+  local emitted = {}
+  local function collect(case)
+    emitted[case.id] = case
+  end
+  local object = {
+    type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } },
+  }
+  local loaded = {
+    options = {
+      obj = { type = object.type, additionalProperties = false, properties = object.properties,
+        examples = { { known = 1, extra = 2 } }, const = { known = 1, extra = 2 } },
+    },
+    cells = { typst = { options = { width = { type = 'not-a-type' } } } },
+  }
+  conformance.check_descriptors({ name = 'x' }, loaded, 'strict', collect)
+  local example = emitted['conformance/example/x/options.obj/1/warning/1']
+  check(example ~= nil and example.status == 'pass' and #example.diagnostics.warnings == 1,
+    'an undeclared key in an example is reported as an advisory')
+  local const = emitted['conformance/const/x/options.obj/warning/1']
+  check(const ~= nil and #const.diagnostics.warnings == 1,
+    'an undeclared key in a const is reported as an advisory')
+  local cell = emitted['conformance/type/x/cells.typst.width']
+  check(cell ~= nil and cell.status == 'fail' and cell.failure.reason == 'unknown-type',
+    'a cell option descriptor is checked like any other descriptor')
+end
+
 io.stdout:write('# fixtures\n')
 
 do
