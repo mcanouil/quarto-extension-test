@@ -471,6 +471,16 @@ do
     'a marker after a complete line in the same record still joins the next record')
   equal(parsed({ record('metadata'), record('lang: en\n') }), 'INFO metadata|INFO lang: en',
     'a record without a newline and without a marker stays its own line')
+  -- Typst writes its compile warnings in lower case, at INFO, and a read can
+  -- end inside the source excerpt (measured with an unknown `mainfont`).
+  equal(parsed({
+      record('[typst]: Compiling doc.typ to doc.pdf...'),
+      record('warning: unknown font family: nosuchfont\n    ┌─ doc.typ:260:17\n    │\n260 │   set text(font: fon'),
+      record('t) if font != none\n'),
+    }),
+    'INFO [typst]: Compiling doc.typ to doc.pdf...|WARN warning: unknown font family: nosuchfont'
+      .. '|INFO     ┌─ doc.typ:260:17|INFO     │|INFO 260 │   set text(font: fon|INFO t) if font != none',
+    'a Typst `warning:` line is a warning, and its source excerpt stays at INFO')
   equal(parsed({ record('(W) warn text'), record('Output created: x.html\n') }),
     'WARN warn text|INFO Output created: x.html',
     'an open warning line is not joined to a record that does not continue it')
