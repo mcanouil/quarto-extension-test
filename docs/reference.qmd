@@ -73,9 +73,9 @@ A pattern in the second list is reliable.
 ### Log lines
 
 The runner reads the render log line by line.
-A line that starts with `(W)`, `WARNING`, or `[WARNING]` is a warning.
+A line that starts with `(W)`, `WARNING`, `[WARNING]`, or `warning: ` is a warning.
 A line that starts with `(E)`, `ERROR`, `FATAL`, or `[ERROR]` is an error.
-`quarto.log.warning` and `quarto.log.error` write the `(W)` and `(E)` markers, and Pandoc writes the bracketed ones.
+`quarto.log.warning` and `quarto.log.error` write the `(W)` and `(E)` markers, Pandoc writes the bracketed ones, and Typst writes `warning: `.
 q2 and quarto-cli do not see these lines as warnings or errors.
 
 ### Keys under `run`
@@ -110,7 +110,7 @@ If `quarto inspect` cannot read the tests project, `render/_config` is a skip wi
 
 ### Differences from q2
 
-- The runner sees `(W)` and `(E)` lines as warnings and errors.
+- The runner sees `(W)` and `(E)` lines as warnings and errors, and Typst `warning: ` lines as warnings.
 - The promoted warnings and the unexpanded shortcode check also apply under `noErrors`.
 - `shouldError` also passes on a log line at `ERROR`, because quarto-cli exits 0 when the Lua code of an extension fails.
 - `errors: strict` is specific to the runner.
