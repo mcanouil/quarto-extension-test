@@ -74,6 +74,7 @@ end
 --- Run the runner against a fixture and return the parsed result.
 --- @param name string fixture directory name
 --- @param extra string|nil extra arguments
+--- @param env string|nil variable assignments put before the command, ending with a space
 --- @return table|nil results, string output
 local function run_fixture(name, extra, env)
   local root = util.join(FIXTURES, name)
@@ -2179,12 +2180,15 @@ do
   -- render layer needs. A leftover `test:` key would be ordinary metadata
   -- now, and a sign that the generator still writes the old block.
   -- A GitHub Actions run with debug logging sets both variables, and Quarto
-  -- then writes DEBUG lines to standard error on every command.
+  -- then writes DEBUG lines to standard error.
   local results = run_fixture('clean', '--layer smoke --keep-generated', 'GITHUB_ACTIONS=true RUNNER_DEBUG=1 ')
   local smoke = results and find_case(results, 'smoke/generated/')
   check(smoke ~= nil and smoke.status == 'pass',
     'a document is inspected when Quarto writes debug lines to standard error',
     smoke and smoke.failure and smoke.failure.message)
+  local version = results and results.quarto and results.quarto.version
+  check(type(version) == 'string' and version:match('^[%d.]+$') ~= nil,
+    'the Quarto version is one version string when Quarto writes debug lines', version)
   local generated = util.join(FIXTURES, 'clean', '_t', 'generated')
   local names = util.list_dir(generated)
   local found_test_key = false
