@@ -1022,6 +1022,52 @@ do
   check(true_valid and coerced and coerced.flag == true, 'the string `true` is the boolean true', coerced and tostring(coerced.flag))
 end
 
+-- YAML 1.2 reads a bare `yes` or `no` as a string, as Pandoc does, so a
+-- boolean default written that way contradicts its own declaration.
+do
+  local parsed = schema._parse_yaml_text('a: yes\nb: no\nc: true\n')
+  equal(parsed and type(parsed.a), 'string', 'a bare `yes` is a string')
+  equal(parsed and type(parsed.b), 'string', 'a bare `no` is a string')
+  equal(parsed and type(parsed.c), 'boolean', 'a bare `true` is a boolean')
+  local loaded = schema._parse_yaml_text('flag:\n  type: boolean\n  default: yes\n')
+  local valid = loaded and schema.validate({}, loaded, { unknown = 'ignore' })
+  check(loaded ~= nil and not valid, 'a boolean default written as a bare `yes` is refused')
+end
+
+-- A boolean keyword written as `yes` or `no` is a fault of the schema, not a
+-- value to guess at, and each fault is reported once, at its path.
+do
+  local function messages(list)
+    return table.concat(util.sorted_messages(list or {}), ' | ')
+  end
+  local function faults(list, keyword)
+    local count = 0
+    for _, message in ipairs(util.sorted_messages(list or {})) do
+      if message:find('"' .. keyword .. '"', 1, true) and message:find('write true or false', 1, true) then
+        count = count + 1
+      end
+    end
+    return count
+  end
+
+  local closed = schema._parse_yaml_text('obj:\n  type: object\n  additionalProperties: no\n  properties:\n    known:\n      type: integer\n')
+  local _, closed_errors = schema.validate({ obj = { known = 1, extra = 2 } }, closed)
+  check(faults(closed_errors, 'additionalProperties') == 1,
+    '`additionalProperties: no` is reported as a fault of the schema', messages(closed_errors))
+
+  local needed = schema._parse_yaml_text('name:\n  type: string\n  required: yes\n')
+  local _, needed_errors = schema.validate({}, needed)
+  equal(faults(needed_errors, 'required'), 1, '`required: yes` is reported as a fault of the schema')
+  check(not messages(needed_errors):find('is required', 1, true),
+    '`required: yes` does not make the option required', messages(needed_errors))
+
+  local nested = schema._parse_yaml_text(
+    'style:\n  type: object\n  properties:\n    tags:\n      type: array\n      uniqueItems: yes\n')
+  local _, nested_errors = schema.validate({ style = { tags = { 'a', 'a' } } }, nested)
+  check(faults(nested_errors, 'uniqueItems') == 1,
+    'a fault under `properties` is reported once when its parent is present', messages(nested_errors))
+end
+
 do
   local valid, errors, warnings = schema.validate({ obj = { known = 1, extra = 2 } }, {
     obj = { type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } } },
@@ -1056,6 +1102,39 @@ do
   local cell = emitted['conformance/type/x/cells.typst.width']
   check(cell ~= nil and cell.status == 'fail' and cell.failure.reason == 'unknown-type',
     'a cell option descriptor is checked like any other descriptor')
+end
+
+do
+  local emitted = {}
+  local function collect(case)
+    emitted[case.id] = case
+  end
+  conformance.check_descriptors({ name = 'x' }, {
+    options = { flag = { type = 'boolean', required = 'yes', examples = { true } } },
+    formats = { typst = { box = { type = 'object', properties = { inner = { type = 'string', required = 'no' } } } } },
+  }, 'strict', collect)
+  local top = emitted['conformance/keyword-value/x/options.flag/required']
+  check(top ~= nil and top.status == 'fail' and top.failure.message:find('"required"', 1, true) ~= nil,
+    'a boolean keyword that is neither true nor false fails conformance', top and top.failure.message)
+  local nested = emitted['conformance/keyword-value/x/formats.typst.box.inner/required']
+  check(nested ~= nil and nested.status == 'fail',
+    'a keyword fault in a nested descriptor of another section fails conformance at its path')
+  check(emitted['conformance/example/x/options.flag/1'] == nil,
+    'an example is not blamed for a fault in its descriptor')
+
+  local cases = {}
+  conformance.check_descriptors({ name = 'x' }, {
+    options = { tags = { type = 'array', required = 'yes', uniqueItems = 'yes' } },
+    shortcodes = { foo = { arguments = { { name = 'path', type = 'string', required = 'yes' } } } },
+  }, 'strict', function(case)
+    cases[case.id] = case
+  end)
+  check(cases['conformance/keyword-value/x/options.tags/required'] ~= nil
+    and cases['conformance/keyword-value/x/options.tags/uniqueItems'] ~= nil,
+    'two keyword faults on one descriptor are two cases with their own id')
+  local argument = cases['conformance/keyword-value/x/shortcodes.foo.arguments.path/required']
+  check(argument ~= nil and argument.status == 'fail',
+    'a keyword fault in a shortcode argument fails conformance')
 end
 
 io.stdout:write('# fixtures\n')
