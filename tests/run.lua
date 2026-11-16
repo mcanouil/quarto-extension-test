@@ -1034,6 +1034,40 @@ do
   check(loaded ~= nil and not valid, 'a boolean default written as a bare `yes` is refused')
 end
 
+-- A boolean keyword written as `yes` or `no` is a fault of the schema, not a
+-- value to guess at, and each fault is reported once, at its path.
+do
+  local function messages(list)
+    return table.concat(util.sorted_messages(list or {}), ' | ')
+  end
+  local function faults(list, keyword)
+    local count = 0
+    for _, message in ipairs(util.sorted_messages(list or {})) do
+      if message:find('"' .. keyword .. '"', 1, true) and message:find('write true or false', 1, true) then
+        count = count + 1
+      end
+    end
+    return count
+  end
+
+  local closed = schema._parse_yaml_text('obj:\n  type: object\n  additionalProperties: no\n  properties:\n    known:\n      type: integer\n')
+  local _, closed_errors = schema.validate({ obj = { known = 1, extra = 2 } }, closed)
+  equal(faults(closed_errors, 'additionalProperties'), 1,
+    '`additionalProperties: no` is reported as a fault of the schema', messages(closed_errors))
+
+  local needed = schema._parse_yaml_text('name:\n  type: string\n  required: yes\n')
+  local _, needed_errors = schema.validate({}, needed)
+  equal(faults(needed_errors, 'required'), 1, '`required: yes` is reported as a fault of the schema')
+  check(not messages(needed_errors):find('is required', 1, true),
+    '`required: yes` does not make the option required', messages(needed_errors))
+
+  local nested = schema._parse_yaml_text(
+    'style:\n  type: object\n  properties:\n    tags:\n      type: array\n      uniqueItems: yes\n')
+  local _, nested_errors = schema.validate({ style = { tags = { 'a', 'a' } } }, nested)
+  equal(faults(nested_errors, 'uniqueItems'), 1,
+    'a fault under `properties` is reported once when its parent is present', messages(nested_errors))
+end
+
 do
   local valid, errors, warnings = schema.validate({ obj = { known = 1, extra = 2 } }, {
     obj = { type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } } },
