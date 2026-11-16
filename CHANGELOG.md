@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. The vendored schema reader is now quarto-wizard schema 2.3.2.
+
 ## 0.4.1 (2026-11-16)
 
 - fix: Pass the workflow token as `GH_TOKEN` to `quarto tools`. On Quarto 1.12, the tools step failed with a 403 from the GitHub API and stopped the job. (#50)
