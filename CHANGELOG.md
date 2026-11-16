@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Pass the workflow token as `GH_TOKEN` to `quarto tools`. On Quarto 1.12, the tools step failed with a 403 from the GitHub API and stopped the job. (#50)
+
 ## 0.4.0 (2026-11-12)
 
 - feat: Run a Quarto project under `tests/`, such as a book, as one case. The runner stages the extension inside the project, renders it once for each format, and finds the output from the render log. (#48)

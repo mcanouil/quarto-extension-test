@@ -127,10 +127,14 @@ runs:
         version: ${{ inputs.quarto }}
 
     # The runner image ships Java, which a tool such as veraPDF needs.
+    # `quarto tools` asks the GitHub API for the latest TinyTeX release.
+    # With no token, the shared runner address gets 403 and the command fails.
+    # Quarto reads the token from GH_TOKEN.
     - name: Install the Quarto tools
       if: ${{ steps.resolve.outputs.quarto-tools != '' }}
       shell: bash
       env:
+        GH_TOKEN: ${{ github.token }}
         QUARTO_TOOLS: ${{ steps.resolve.outputs.quarto-tools }}
       run: |
         set -euo pipefail
