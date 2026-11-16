@@ -988,10 +988,18 @@ check(not conformance._is_licence_file('sample.lua'),
 -- Pandoc refuses a quoted scalar that closes before its end, so the schema
 -- reader must refuse it too, or a `_schema.yml` that Quarto cannot read passes.
 do
-  local function parse(text)
-    local ok, parsed, err = pcall(schema._parse_yaml_text, text)
-    return ok and parsed or nil, ok and err or parsed
-  end
+  local unescaped, unescaped_err = schema._parse_yaml_text('a: "say "hi" now"\n')
+  check(unescaped == nil and unescaped_err ~= nil,
+    'a double-quoted scalar with an unescaped quote inside is refused', unescaped_err)
+  local lone, lone_err = schema._parse_yaml_text("a: 'it's'\n")
+  check(lone == nil and lone_err ~= nil,
+    'a single-quoted scalar with a lone quote inside is refused', lone_err)
+  local escaped, escaped_err = schema._parse_yaml_text('a: "ok \\"x\\""\n')
+  equal(escaped and escaped.a, 'ok "x"', 'an escaped quote inside a double-quoted scalar is kept')
+  check(escaped_err == nil, 'an escaped quote gives no error', escaped_err)
+  local doubled = schema._parse_yaml_text("a: 'it''s'\n")
+  equal(doubled and doubled.a, "it's", 'a doubled quote inside a single-quoted scalar is one quote')
+end
   local unescaped, unescaped_err = parse('a: "say "hi" now"\n')
   check(unescaped == nil and unescaped_err ~= nil,
     'a double-quoted scalar with an unescaped quote inside is refused', unescaped_err)
@@ -1026,6 +1034,14 @@ do
     'a default that its own descriptor rejects fails conformance')
   check(case ~= nil and case.failure.reason == 'defaults-invalid',
     'the failure names the defaults', case and case.failure.reason)
+end
+
+do
+  local results = run_fixture('bad-quote', '--layer conformance')
+  local case = results and find_case(results, 'conformance/schema/')
+  check(case ~= nil and case.status == 'fail' and case.failure.reason == 'schema-unloadable',
+    'a schema with an unescaped quote inside a quoted string fails conformance',
+    case and case.failure and case.failure.message)
 end
 
 do

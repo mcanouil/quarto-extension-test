@@ -1,0 +1,6 @@
+title: Bad Quote
+author: Test
+version: 1.0.0
+contributes:
+  shortcodes:
+    - badq.lua

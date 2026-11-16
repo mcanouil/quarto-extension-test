@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. The vendored schema reader is now quarto-wizard schema 2.3.2.
+- fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. (#54)
 
 ## 0.4.1 (2026-11-16)
 
