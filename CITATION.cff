@@ -10,4 +10,4 @@ repository-code: "https://github.com/mcanouil/quarto-extension-test"
 url: "https://m.canouil.dev/quarto-extension-test/"
 license: "MIT License"
 date-released: "2026-11-16"
-version: 0.4.1
+version: 0.5.0
