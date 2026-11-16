@@ -1011,6 +1011,15 @@ do
   check(true_valid and coerced and coerced.flag == true, 'the string `true` is the boolean true', coerced and tostring(coerced.flag))
 end
 
+do
+  local valid, errors, warnings = schema.validate({ obj = { known = 1, extra = 2 } }, {
+    obj = { type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } } },
+  })
+  check(valid and #errors == 0, 'an undeclared key under `additionalProperties: false` is not an error')
+  check(#warnings == 1 and tostring(warnings[1].message or warnings[1]):find('obj.extra', 1, true) ~= nil,
+    'an undeclared key under `additionalProperties: false` is a warning that names it', warnings[1] and tostring(warnings[1].message))
+end
+
 io.stdout:write('# fixtures\n')
 
 do

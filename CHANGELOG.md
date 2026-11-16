@@ -3,7 +3,7 @@
 ## Unreleased
 
 - fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. (#54)
-- fix: Read only `true` and `false` as booleans in a schema value, as Pandoc does. A boolean default or example written as `yes` or `no` now fails conformance. (#54)
+- fix: Refuse the strings `yes` and `no` for a boolean option, as Pandoc does. Only `true` and `false` name a boolean. (#54)
 - fix: Report a key that an object with `additionalProperties: false` does not declare as a warning, not an error. (#54)
 
 ## 0.4.1 (2026-11-16)
