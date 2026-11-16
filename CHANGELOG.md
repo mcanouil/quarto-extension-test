@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Pass the workflow token to `quarto tools` as `GH_TOKEN` when the action installs Quarto tools. On Quarto 1.12 the command looks up TinyTeX on the GitHub API, and with no token it failed with 403 and stopped the job.
+
 ## 0.4.0 (2026-11-12)
 
 - feat: Run a Quarto project under `tests/`, such as a book, as one case. The runner stages the extension inside the project, renders it once for each format, and finds the output from the render log. (#48)
