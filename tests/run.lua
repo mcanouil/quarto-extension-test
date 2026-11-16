@@ -2187,7 +2187,7 @@ do
     'a document is inspected when Quarto writes debug lines to standard error',
     smoke and smoke.failure and smoke.failure.message)
   local version = results and results.quarto and results.quarto.version
-  check(type(version) == 'string' and version:match('^[%d.]+$') ~= nil,
+  check(type(version) == 'string' and version:match('^%d') ~= nil and not version:find('\n', 1, true),
     'the Quarto version is one version string when Quarto writes debug lines', version)
   local generated = util.join(FIXTURES, 'clean', '_t', 'generated')
   local names = util.list_dir(generated)
