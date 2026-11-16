@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fix: Read only the standard output of `quarto inspect`. In a GitHub Actions run with debug logging, Quarto 1.12 writes debug lines to standard error, and every render case failed with "quarto inspect returned no formats".
+- fix: Read only the standard output of `quarto inspect`. With debug logging on in GitHub Actions, every render case failed with "quarto inspect returned no formats".
 
 ## 0.4.1 (2026-11-16)
 

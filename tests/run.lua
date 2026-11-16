@@ -1035,16 +1035,6 @@ do
 end
 
 do
-  -- A GitHub Actions run with debug logging sets both variables, and Quarto
-  -- then writes DEBUG lines to standard error on every command.
-  local results = run_fixture('clean', '--layer smoke', 'GITHUB_ACTIONS=true RUNNER_DEBUG=1 ')
-  local smoke = results and find_case(results, 'smoke/generated/')
-  check(smoke ~= nil and smoke.status == 'pass',
-    'a document is inspected when Quarto writes debug lines to standard error',
-    smoke and smoke.failure and smoke.failure.message)
-end
-
-do
   -- Every catalogued extension belongs to somebody else, so a repository that
   -- declares nothing is not a repository doing something wrong.
   local results = run_fixture('clean', '--layer conformance')
@@ -2188,7 +2178,13 @@ do
   -- A generated document names its formats in `format`, which is all the
   -- render layer needs. A leftover `test:` key would be ordinary metadata
   -- now, and a sign that the generator still writes the old block.
-  local results = run_fixture('clean', '--layer smoke --keep-generated')
+  -- A GitHub Actions run with debug logging sets both variables, and Quarto
+  -- then writes DEBUG lines to standard error on every command.
+  local results = run_fixture('clean', '--layer smoke --keep-generated', 'GITHUB_ACTIONS=true RUNNER_DEBUG=1 ')
+  local smoke = results and find_case(results, 'smoke/generated/')
+  check(smoke ~= nil and smoke.status == 'pass',
+    'a document is inspected when Quarto writes debug lines to standard error',
+    smoke and smoke.failure and smoke.failure.message)
   local generated = util.join(FIXTURES, 'clean', '_t', 'generated')
   local names = util.list_dir(generated)
   local found_test_key = false
