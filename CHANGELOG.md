@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0 (2026-11-16)
+
 - fix: Fail a `noErrorsOrWarnings` render on a Typst compile warning, such as an unknown font family. The runner read the lower-case `warning:` line as plain output. (#52)
 - fix: Read only the standard output of `quarto inspect`. With debug logging on in GitHub Actions, every render case failed with "quarto inspect returned no formats". (#53)
 - fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. (#54)
