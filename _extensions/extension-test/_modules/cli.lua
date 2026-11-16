@@ -85,7 +85,7 @@ local function run_inspect(target, cwd)
   local stderr = util.read_file(stderr_path) or ''
   os.remove(stderr_path)
   if code ~= 0 then
-    return nil, 'quarto inspect failed: ' .. util.trim(stderr .. output)
+    return nil, 'quarto inspect failed: ' .. util.trim(util.trim(stderr) .. '\n' .. util.trim(output))
   end
   return output, nil
 end
