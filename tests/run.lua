@@ -1052,7 +1052,7 @@ do
 
   local closed = schema._parse_yaml_text('obj:\n  type: object\n  additionalProperties: no\n  properties:\n    known:\n      type: integer\n')
   local _, closed_errors = schema.validate({ obj = { known = 1, extra = 2 } }, closed)
-  equal(faults(closed_errors, 'additionalProperties'), 1,
+  check(faults(closed_errors, 'additionalProperties') == 1,
     '`additionalProperties: no` is reported as a fault of the schema', messages(closed_errors))
 
   local needed = schema._parse_yaml_text('name:\n  type: string\n  required: yes\n')
@@ -1064,7 +1064,7 @@ do
   local nested = schema._parse_yaml_text(
     'style:\n  type: object\n  properties:\n    tags:\n      type: array\n      uniqueItems: yes\n')
   local _, nested_errors = schema.validate({ style = { tags = { 'a', 'a' } } }, nested)
-  equal(faults(nested_errors, 'uniqueItems'), 1,
+  check(faults(nested_errors, 'uniqueItems') == 1,
     'a fault under `properties` is reported once when its parent is present', messages(nested_errors))
 end
 
@@ -1102,6 +1102,25 @@ do
   local cell = emitted['conformance/type/x/cells.typst.width']
   check(cell ~= nil and cell.status == 'fail' and cell.failure.reason == 'unknown-type',
     'a cell option descriptor is checked like any other descriptor')
+end
+
+do
+  local emitted = {}
+  local function collect(case)
+    emitted[case.id] = case
+  end
+  conformance.check_descriptors({ name = 'x' }, {
+    options = { flag = { type = 'boolean', required = 'yes', examples = { true } } },
+    formats = { typst = { box = { type = 'object', properties = { inner = { type = 'string', required = 'no' } } } } },
+  }, 'strict', collect)
+  local top = emitted['conformance/keyword-value/x/options.flag']
+  check(top ~= nil and top.status == 'fail' and top.failure.message:find('"required"', 1, true) ~= nil,
+    'a boolean keyword that is neither true nor false fails conformance', top and top.failure.message)
+  local nested = emitted['conformance/keyword-value/x/formats.typst.box.inner']
+  check(nested ~= nil and nested.status == 'fail',
+    'a keyword fault in a nested descriptor of another section fails conformance at its path')
+  check(emitted['conformance/example/x/options.flag/1'] == nil,
+    'an example is not blamed for a fault in its descriptor')
 end
 
 io.stdout:write('# fixtures\n')
