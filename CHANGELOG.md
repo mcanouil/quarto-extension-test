@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fix: Pass the workflow token to `quarto tools` as `GH_TOKEN` when the action installs Quarto tools. On Quarto 1.12 the command looks up TinyTeX on the GitHub API, and with no token it failed with 403 and stopped the job.
+- fix: Pass the workflow token as `GH_TOKEN` to `quarto tools`. On Quarto 1.12, the tools step failed with a 403 from the GitHub API and stopped the job. (#50)
 
 ## 0.4.0 (2026-11-12)
 
