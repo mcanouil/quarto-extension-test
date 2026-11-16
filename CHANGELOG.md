@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.1 (2026-11-16)
+
 - fix: Pass the workflow token as `GH_TOKEN` to `quarto tools`. On Quarto 1.12, the tools step failed with a 403 from the GitHub API and stopped the job. (#50)
 
 ## 0.4.0 (2026-11-12)
