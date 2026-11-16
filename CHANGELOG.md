@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- fix: Read a bare `yes` or `no` in `_schema.yml` as a string, as Pandoc does. A boolean default written that way now fails conformance.
+
 ## 0.5.0 (2026-11-16)
 
 - fix: Fail a `noErrorsOrWarnings` render on a Typst compile warning, such as an unknown font family. The runner read the lower-case `warning:` line as plain output. (#52)

@@ -1022,6 +1022,18 @@ do
   check(true_valid and coerced and coerced.flag == true, 'the string `true` is the boolean true', coerced and tostring(coerced.flag))
 end
 
+-- YAML 1.2 reads a bare `yes` or `no` as a string, as Pandoc does, so a
+-- boolean default written that way contradicts its own declaration.
+do
+  local parsed = schema._parse_yaml_text('a: yes\nb: no\nc: true\n')
+  equal(parsed and type(parsed.a), 'string', 'a bare `yes` is a string')
+  equal(parsed and type(parsed.b), 'string', 'a bare `no` is a string')
+  equal(parsed and type(parsed.c), 'boolean', 'a bare `true` is a boolean')
+  local loaded = schema._parse_yaml_text('flag:\n  type: boolean\n  default: yes\n')
+  local valid = loaded and schema.validate({}, loaded, { unknown = 'ignore' })
+  check(loaded ~= nil and not valid, 'a boolean default written as a bare `yes` is refused')
+end
+
 do
   local valid, errors, warnings = schema.validate({ obj = { known = 1, extra = 2 } }, {
     obj = { type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } } },
