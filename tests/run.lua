@@ -996,6 +996,68 @@ check(not conformance._is_licence_file('licensed.lua'),
 check(not conformance._is_licence_file('sample.lua'),
   'the licence rule refuses a vendored module')
 
+-- Pandoc refuses a quoted scalar that closes before its end, so the schema
+-- reader must refuse it too, or a `_schema.yml` that Quarto cannot read passes.
+do
+  local unescaped, unescaped_err = schema._parse_yaml_text('a: "say "hi" now"\n')
+  check(unescaped == nil and unescaped_err ~= nil,
+    'a double-quoted scalar with an unescaped quote inside is refused', unescaped_err)
+  local lone, lone_err = schema._parse_yaml_text("a: 'it's'\n")
+  check(lone == nil and lone_err ~= nil,
+    'a single-quoted scalar with a lone quote inside is refused', lone_err)
+  local escaped, escaped_err = schema._parse_yaml_text('a: "ok \\"x\\""\n')
+  equal(escaped and escaped.a, 'ok "x"', 'an escaped quote inside a double-quoted scalar is kept')
+  check(escaped_err == nil, 'an escaped quote gives no error', escaped_err)
+  local doubled = schema._parse_yaml_text("a: 'it''s'\n")
+  equal(doubled and doubled.a, "it's", 'a doubled quote inside a single-quoted scalar is one quote')
+end
+
+-- Pandoc reads `yes` and `no` as strings, as YAML 1.2 does, so the schema
+-- reader keeps only `true` and `false` as words for a boolean.
+do
+  local descriptors = { flag = { type = 'boolean' } }
+  local yes_valid = schema.validate({ flag = 'yes' }, descriptors)
+  check(not yes_valid, 'the string `yes` is not a boolean')
+  local true_valid, _, _, coerced = schema.validate({ flag = 'true' }, descriptors)
+  check(true_valid and coerced and coerced.flag == true, 'the string `true` is the boolean true', coerced and tostring(coerced.flag))
+end
+
+do
+  local valid, errors, warnings = schema.validate({ obj = { known = 1, extra = 2 } }, {
+    obj = { type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } } },
+  })
+  check(valid and #errors == 0, 'an undeclared key under `additionalProperties: false` is not an error')
+  check(#warnings == 1 and tostring(warnings[1].message or warnings[1]):find('obj.extra', 1, true) ~= nil,
+    'an undeclared key under `additionalProperties: false` is a warning that names it', warnings[1] and tostring(warnings[1].message))
+end
+
+do
+  local emitted = {}
+  local function collect(case)
+    emitted[case.id] = case
+  end
+  local object = {
+    type = 'object', additionalProperties = false, properties = { known = { type = 'integer' } },
+  }
+  local loaded = {
+    options = {
+      obj = { type = object.type, additionalProperties = false, properties = object.properties,
+        examples = { { known = 1, extra = 2 } }, const = { known = 1, extra = 2 } },
+    },
+    cells = { typst = { options = { width = { type = 'not-a-type' } } } },
+  }
+  conformance.check_descriptors({ name = 'x' }, loaded, 'strict', collect)
+  local example = emitted['conformance/example/x/options.obj/1/warning/1']
+  check(example ~= nil and example.status == 'pass' and #example.diagnostics.warnings == 1,
+    'an undeclared key in an example is reported as an advisory')
+  local const = emitted['conformance/const/x/options.obj/warning/1']
+  check(const ~= nil and #const.diagnostics.warnings == 1,
+    'an undeclared key in a const is reported as an advisory')
+  local cell = emitted['conformance/type/x/cells.typst.width']
+  check(cell ~= nil and cell.status == 'fail' and cell.failure.reason == 'unknown-type',
+    'a cell option descriptor is checked like any other descriptor')
+end
+
 io.stdout:write('# fixtures\n')
 
 do
@@ -1018,6 +1080,14 @@ do
     'a default that its own descriptor rejects fails conformance')
   check(case ~= nil and case.failure.reason == 'defaults-invalid',
     'the failure names the defaults', case and case.failure.reason)
+end
+
+do
+  local results = run_fixture('bad-quote', '--layer conformance')
+  local case = results and find_case(results, 'conformance/schema/')
+  check(case ~= nil and case.status == 'fail' and case.failure.reason == 'schema-unloadable',
+    'a schema with an unescaped quote inside a quoted string fails conformance',
+    case and case.failure and case.failure.message)
 end
 
 do

@@ -4,6 +4,10 @@
 
 - fix: Fail a `noErrorsOrWarnings` render on a Typst compile warning, such as an unknown font family. The runner read the lower-case `warning:` line as plain output. (#52)
 - fix: Read only the standard output of `quarto inspect`. With debug logging on in GitHub Actions, every render case failed with "quarto inspect returned no formats". (#53)
+- fix: Refuse a `_schema.yml` with a quote inside a quoted string that is neither escaped nor doubled, as Pandoc does. (#54)
+- fix: Refuse the strings `yes` and `no` for a boolean option in a document, an attribute or a shortcode argument, as Pandoc does. (#54)
+- fix: Report a key that an object with `additionalProperties: false` does not declare as a warning, not an error. Conformance shows it as an advisory on the default, example or `const` that holds it. (#54)
+- feat: Check the descriptors under `cells` in `_schema.yml` like every other descriptor. (#54)
 
 ## 0.4.1 (2026-11-16)
 
